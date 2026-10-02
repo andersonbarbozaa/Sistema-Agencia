@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 export interface D1PreparedStatement {
   bind(...values: any[]): D1PreparedStatement;
   all<T = any>(): Promise<{ results: T[]; success: boolean; error?: string }>;
@@ -19,9 +16,30 @@ let localDbInstance: any = null;
 
 function getLocalDatabase(): D1DatabaseInterface {
   if (!localDbInstance) {
-    const nodeSqlite = eval('require')('node:sqlite');
+    const getMod = (globalThis as any).process?.getBuiltinModule;
+    if (!getMod) {
+      return {
+        prepare: () => ({
+          bind: () => ({
+            all: async () => ({ results: [], success: true }),
+            first: async () => null,
+            run: async () => ({ success: true, meta: {} }),
+          }),
+          all: async () => ({ results: [], success: true }),
+          first: async () => null,
+          run: async () => ({ success: true, meta: {} }),
+        }),
+        batch: async () => [],
+        exec: async () => {},
+      } as any;
+    }
+
+    const fs = getMod('node:fs');
+    const path = getMod('node:path');
+    const nodeSqlite = getMod('node:sqlite');
     const DatabaseSync = nodeSqlite.DatabaseSync;
-    const dataDir = path.join(process.cwd(), 'data');
+    const cwd = (globalThis as any).process?.cwd ? (globalThis as any).process.cwd() : '.';
+    const dataDir = path.join(cwd, 'data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
@@ -36,7 +54,7 @@ function getLocalDatabase(): D1DatabaseInterface {
     // Verify if tables exist, otherwise auto-migrate
     const checkTable = sqlite.prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='users';").get() as any;
     if (!checkTable || checkTable.count === 0) {
-      const migrationFile = path.join(process.cwd(), 'migrations', '0001_initial_schema.sql');
+      const migrationFile = path.join(cwd, 'migrations', '0001_initial_schema.sql');
       if (fs.existsSync(migrationFile)) {
         const sql = fs.readFileSync(migrationFile, 'utf8');
         sqlite.exec(sql);

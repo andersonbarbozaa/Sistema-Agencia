@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/auth';
 
+export const runtime = 'edge';
+
 export async function GET(request: Request) {
   try {
     const user = await getApiUser(request);

@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { verifyPassword, createSessionToken, TOKEN_COOKIE_NAME } from '@/lib/auth';

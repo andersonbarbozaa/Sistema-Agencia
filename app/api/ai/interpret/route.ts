@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
