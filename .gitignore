@@ -1,4 +1,15 @@
 node_modules/
 .next/
-.env
-.env.local
+out/
+
+# OpenNext
+.open-next/
+
+# Environment files
+.env*
+!.env.example
+
+# Wrangler
+.wrangler/
+.dev.vars*
+!.dev.vars.example
