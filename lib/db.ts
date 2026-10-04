@@ -416,9 +416,26 @@ function initDatabaseSchema(sqlite: any) {
       dismissed_at TEXT
     );
 
-    -- Default workspace & settings
+    -- Default workspace & settings & admin user
     INSERT OR IGNORE INTO workspaces (id, name, description, owner_id, invite_code)
     VALUES ('ws_default', 'PixelCraft Studio', 'Agência Audiovisual & Criativa', 'usr_anderson', 'pixelcraft');
+
+    INSERT OR IGNORE INTO users (
+      id, name, email, password_hash, phone, role, status, is_partner, job_title, workspace_id, created_at, updated_at
+    ) VALUES (
+      'usr_anderson',
+      'Anderson Barboza',
+      'anderson@agencia.com',
+      '$2b$10$TNXA4RoTuecRRLfUst11TO9DmCBfbTQK1Id/dseBjOqGu3jFGfbI6',
+      '11999999999',
+      'ADMINISTRADOR',
+      'ativo',
+      1,
+      'Diretor Executivo',
+      'ws_default',
+      datetime('now'),
+      datetime('now')
+    );
 
     INSERT OR IGNORE INTO settings (key, value, description) VALUES
     ('monthly_revenue_goal', '50000', 'Meta mensal de receita da agência'),

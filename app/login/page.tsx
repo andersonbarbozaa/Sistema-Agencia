@@ -41,8 +41,8 @@ export default function LoginPage() {
         }
       }
 
-      router.push('/dashboard');
-      router.refresh();
+      // Redirecionamento completo para garantir cookies e invalidar cache RSC
+      window.location.href = '/dashboard';
     } catch (err) {
       setError('Erro de conexão. Tente novamente.');
     } finally {

@@ -76,8 +76,7 @@ export default function Sidebar({ user }: SidebarProps) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       await signOutClient();
-      router.push('/login');
-      router.refresh();
+      window.location.href = '/login';
     } catch (err) {
       console.error(err);
     }

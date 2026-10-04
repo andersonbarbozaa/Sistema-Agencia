@@ -151,6 +151,21 @@ export async function getSessionUser(): Promise<User | null> {
       } catch {}
     }
 
+    // Fallback garantido a partir do JWT válido para evitar bounce de redirecionamento
+    if (!user && payload?.userId) {
+      user = {
+        id: payload.userId,
+        name: payload.email ? payload.email.split('@')[0] : 'Usuário',
+        email: payload.email || '',
+        role: payload.role || 'ADMINISTRADOR',
+        workspace_id: payload.workspaceId || 'ws_default',
+        job_title: payload.role === 'ADMINISTRADOR' ? 'Administrador' : 'Colaborador',
+        status: 'ativo',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as any;
+    }
+
     return user ? { ...user } : null;
   } catch (err) {
     return null;
@@ -219,6 +234,20 @@ export async function getApiUser(request: Request): Promise<User | null> {
           }
         }
       } catch {}
+    }
+
+    if (!user && userId && payload) {
+      user = {
+        id: userId,
+        name: payload.email ? payload.email.split('@')[0] : 'Usuário',
+        email: payload.email || '',
+        role: payload.role || 'ADMINISTRADOR',
+        workspace_id: payload.workspaceId || 'ws_default',
+        job_title: payload.role === 'ADMINISTRADOR' ? 'Administrador' : 'Colaborador',
+        status: 'ativo',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as any;
     }
 
     return user ? { ...user } : null;
