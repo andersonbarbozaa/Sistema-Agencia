@@ -7,23 +7,26 @@ const PAGE_SIZE = 20;
 
 // GET /api/finance — list transactions (all roles except CLIENTE)
 export async function GET(request: NextRequest) {
-  const user = await getApiUser(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role === 'CLIENTE') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type');           // Entrada | Saída
-  const status = searchParams.get('status');       // Pendente | Pago
-  const client_id = searchParams.get('client_id');
-  const bank_account_id = searchParams.get('bank_account_id');
-  const category_id = searchParams.get('category_id');
-  const date_from = searchParams.get('date_from');
-  const date_to = searchParams.get('date_to');
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
-  const offset = (page - 1) * PAGE_SIZE;
-
   try {
+    const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (user.role === 'CLIENTE') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type');           // Entrada | Saída
+    const status = searchParams.get('status');       // Pendente | Pago
+    const client_id = searchParams.get('client_id');
+    const bank_account_id = searchParams.get('bank_account_id');
+    const category_id = searchParams.get('category_id');
+    const date_from = searchParams.get('date_from');
+    const date_to = searchParams.get('date_to');
+    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
+    const offset = (page - 1) * PAGE_SIZE;
+
     const firestore = getAdminFirestore();
+    if (!firestore) {
+      return NextResponse.json({ error: 'Firestore indisponível' }, { status: 503 });
+    }
     const wsId = user.workspace_id || 'ws_default';
 
     let queryRef: any = firestore.collection('financial_transactions');
@@ -102,11 +105,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/finance — create transaction (admin only)
 export async function POST(request: NextRequest) {
-  const user = await getApiUser(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
   try {
+    const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const body = await request.json();
     const { description, amount, type, due_date, status, client_id, bank_account_id, category_id, notes, partner_id } = body;
 

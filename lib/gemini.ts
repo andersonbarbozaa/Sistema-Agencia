@@ -43,16 +43,18 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 }
 `;
 
-import { getDb } from './db';
+import { getAdminFirestore } from './firebase-admin';
 
 export async function interpretWithGemini(inputText: string, audioBase64?: string): Promise<AIInterpretationResult> {
   let apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.trim() === '') {
     try {
-      const db = getDb();
-      const row = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").first<{ value: string }>();
-      if (row?.value) {
-        apiKey = row.value.trim();
+      const firestore = getAdminFirestore();
+      if (firestore) {
+        const snap = await firestore.collection('settings').doc('gemini_api_key').get();
+        if (snap.exists && snap.data()?.value) {
+          apiKey = String(snap.data()?.value).trim();
+        }
       }
     } catch (e) {
       // ignore

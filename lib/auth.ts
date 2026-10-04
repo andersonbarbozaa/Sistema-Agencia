@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import { getDb } from './db';
 import { getAdminAuth, getAdminFirestore } from './firebase-admin';
 import { User, UserRole } from '@/types';
 
@@ -123,32 +122,17 @@ export async function getSessionUser(): Promise<User | null> {
     const payload = await verifySessionToken(token);
     if (!payload?.userId) return null;
 
-    const db = getDb();
-    let user = await db
-      .prepare(`
-        SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
-               u.workspace_id, u.job_title,
-               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
-               p.name as position_name, c.name as client_name
-          FROM users u
-          LEFT JOIN workspaces w ON u.workspace_id = w.id
-          LEFT JOIN positions p ON u.position_id = p.id
-          LEFT JOIN clients c ON u.client_id = c.id
-         WHERE u.id = ? AND u.status = 'ativo'
-      `)
-      .bind(payload.userId)
-      .first<User>();
-
-    if (!user) {
-      try {
-        const firestore = getAdminFirestore();
-        if (firestore) {
-          const doc = await firestore.collection('users').doc(payload.userId).get();
-          if (doc.exists) {
-            user = doc.data() as User;
-          }
+    let user: User | null = null;
+    try {
+      const firestore = getAdminFirestore();
+      if (firestore) {
+        const doc = await firestore.collection('users').doc(payload.userId).get();
+        if (doc.exists) {
+          user = { id: doc.id, ...doc.data() } as User;
         }
-      } catch {}
+      }
+    } catch (e: any) {
+      console.warn('[getSessionUser Firestore error]:', e?.message);
     }
 
     // Fallback garantido a partir do JWT válido para evitar bounce de redirecionamento
@@ -208,32 +192,17 @@ export async function getApiUser(request: Request): Promise<User | null> {
 
     if (!userId) return null;
 
-    const db = getDb();
-    let user = await db
-      .prepare(`
-        SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
-               u.workspace_id, u.job_title,
-               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
-               p.name as position_name, c.name as client_name
-          FROM users u
-          LEFT JOIN workspaces w ON u.workspace_id = w.id
-          LEFT JOIN positions p ON u.position_id = p.id
-          LEFT JOIN clients c ON u.client_id = c.id
-         WHERE u.id = ? AND u.status = 'ativo'
-      `)
-      .bind(userId)
-      .first<User>();
-
-    if (!user) {
-      try {
-        const firestore = getAdminFirestore();
-        if (firestore) {
-          const doc = await firestore.collection('users').doc(userId).get();
-          if (doc.exists) {
-            user = doc.data() as User;
-          }
+    let user: User | null = null;
+    try {
+      const firestore = getAdminFirestore();
+      if (firestore) {
+        const doc = await firestore.collection('users').doc(userId).get();
+        if (doc.exists) {
+          user = { id: doc.id, ...doc.data() } as User;
         }
-      } catch {}
+      }
+    } catch (e: any) {
+      console.warn('[getApiUser Firestore error]:', e?.message);
     }
 
     if (!user && userId && payload) {

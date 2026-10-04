@@ -5,7 +5,7 @@ initOpenNextCloudflareForDev();
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['node:sqlite', 'firebase-admin'],
+  serverExternalPackages: ['firebase-admin'],
   images: {
     remotePatterns: [
       {

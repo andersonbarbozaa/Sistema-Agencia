@@ -183,44 +183,77 @@ function parseServiceAccount(): ServiceAccount | null {
 }
 
 let cachedAdminApp: App | null = null;
+let cachedFirestore: Firestore | null = null;
+let cachedAuth: Auth | null = null;
 
-export function getFirebaseAdminApp(): App {
-  if (cachedAdminApp) {
-    return cachedAdminApp;
-  }
+export function getFirebaseAdminApp(): App | null {
+  try {
+    if (cachedAdminApp) {
+      return cachedAdminApp;
+    }
 
-  const existingApps = getApps();
-  if (existingApps.length > 0 && existingApps[0]) {
-    cachedAdminApp = existingApps[0];
-    return cachedAdminApp;
-  }
+    const existingApps = getApps();
+    if (existingApps.length > 0 && existingApps[0]) {
+      cachedAdminApp = existingApps[0];
+      return cachedAdminApp;
+    }
 
-  const serviceAccount = parseServiceAccount();
-  if (serviceAccount) {
+    const serviceAccount = parseServiceAccount();
+    if (serviceAccount) {
+      try {
+        cachedAdminApp = initializeApp({
+          credential: cert(serviceAccount),
+          projectId: serviceAccount.projectId || DEFAULT_PROJECT_ID,
+        });
+        console.log('[Firebase Admin] Inicializado com sucesso usando credencial cert para:', serviceAccount.projectId);
+        return cachedAdminApp;
+      } catch (err: any) {
+        console.error('[Firebase Admin Critical Error] Falha ao executar cert(serviceAccount):', err?.message);
+      }
+    }
+
+    // Inicialização padrão como fallback sem credenciais
     try {
       cachedAdminApp = initializeApp({
-        credential: cert(serviceAccount),
-        projectId: serviceAccount.projectId || DEFAULT_PROJECT_ID,
+        projectId: DEFAULT_PROJECT_ID,
       });
-      console.log('[Firebase Admin] Inicializado com sucesso usando credencial cert para:', serviceAccount.projectId);
       return cachedAdminApp;
-    } catch (err: any) {
-      console.error('[Firebase Admin Critical Error] Falha fatal ao executar cert(serviceAccount):', err?.message);
+    } catch (fallbackErr: any) {
+      console.warn('[Firebase Admin Warning] Não foi possível inicializar App padrão sem credenciais:', fallbackErr?.message);
+      return null;
     }
+  } catch (err: any) {
+    console.error('[Firebase Admin Global Init Error]:', err?.message);
+    return null;
   }
-
-  // Inicialização padrão como fallback
-  console.warn('[Firebase Admin Warning] Inicializando App padrão sem credenciais explícitas.');
-  cachedAdminApp = initializeApp({
-    projectId: DEFAULT_PROJECT_ID,
-  });
-  return cachedAdminApp;
 }
 
 export function getAdminFirestore(): Firestore {
-  return getFirestore(getFirebaseAdminApp());
+  if (cachedFirestore) return cachedFirestore;
+  const app = getFirebaseAdminApp();
+  if (!app) {
+    throw new Error('Firebase Admin não foi inicializado. Verifique a variável FIREBASE_SERVICE_ACCOUNT.');
+  }
+  try {
+    cachedFirestore = getFirestore(app);
+    return cachedFirestore;
+  } catch (err: any) {
+    console.error('[Firebase Admin Firestore Error]:', err?.message);
+    throw new Error(err?.message || 'Falha ao conectar com o Firestore');
+  }
 }
 
 export function getAdminAuth(): Auth {
-  return getAuth(getFirebaseAdminApp());
+  if (cachedAuth) return cachedAuth;
+  const app = getFirebaseAdminApp();
+  if (!app) {
+    throw new Error('Firebase Admin não foi inicializado. Verifique a variável FIREBASE_SERVICE_ACCOUNT.');
+  }
+  try {
+    cachedAuth = getAuth(app);
+    return cachedAuth;
+  } catch (err: any) {
+    console.error('[Firebase Admin Auth Error]:', err?.message);
+    throw new Error(err?.message || 'Falha ao conectar com Firebase Auth');
+  }
 }
