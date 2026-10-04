@@ -1,4 +1,5 @@
 import { getAdminFirestore, getAdminAuth } from './firebase-admin';
+import { createRequire } from 'module';
 
 export { getAdminFirestore, getAdminAuth };
 
@@ -16,17 +17,18 @@ export interface D1DatabaseInterface {
 }
 
 // Global cached connection
-let localDbInstance: any = null;
+let localDbInstance: D1DatabaseInterface | null = null;
+let isHydrating = false;
 
-// Sincronização em background para o Firebase Firestore
+// Sincronização em segundo plano para o Firebase Firestore
 async function syncOperationToFirestore(sql: string, params: any[]) {
   try {
     const trimmed = sql.trim();
     const firestore = getAdminFirestore();
     if (!firestore) return;
 
-    // Detectar INSERT INTO <table>
-    const insertMatch = trimmed.match(/^INSERT\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+    // Detectar INSERT / INSERT OR REPLACE / INSERT OR IGNORE INTO <table>
+    const insertMatch = trimmed.match(/^INSERT\s+(?:OR\s+(?:REPLACE|IGNORE)\s+)?INTO\s+([a-zA-Z0-9_]+)\s*\(([\s\S]+?)\)\s*VALUES\s*\(([\s\S]+?)\)/i);
     if (insertMatch) {
       const table = insertMatch[1].toLowerCase();
       const cols = insertMatch[2].split(',').map(c => c.trim().toLowerCase());
@@ -39,25 +41,26 @@ async function syncOperationToFirestore(sql: string, params: any[]) {
       });
 
       const docId = record.id || record.key || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      // Grava no Firestore na coleção correspondente
       await firestore.collection(table).doc(String(docId)).set({
         ...record,
         _syncedAt: new Date().toISOString(),
       }, { merge: true });
+      console.log(`[Firestore Sync Success] Inserido documento ${table}/${docId}`);
       return;
     }
 
     // Detectar UPDATE <table> SET ... WHERE id = ?
-    const updateMatch = trimmed.match(/^UPDATE\s+([a-zA-Z0-9_]+)\s+SET\s+(.+)\s+WHERE\s+(.+)$/i);
+    const updateMatch = trimmed.match(/^UPDATE\s+([a-zA-Z0-9_]+)\s+SET\s+([\s\S]+?)\s+WHERE\s+([\s\S]+)$/i);
     if (updateMatch) {
       const table = updateMatch[1].toLowerCase();
-      // Encontra id nos parâmetros (normalmente o último parâmetro para WHERE id = ?)
       if (params.length > 0) {
-        const id = params[params.length - 1];
-        if (id && typeof id === 'string') {
+        // O último parâmetro normalmente é o ID do WHERE
+        const id = String(params[params.length - 1]);
+        if (id) {
           const docRef = firestore.collection(table).doc(id);
           const updateData: Record<string, any> = { _updatedAt: new Date().toISOString() };
           await docRef.set(updateData, { merge: true });
+          console.log(`[Firestore Sync Success] Atualizado documento ${table}/${id}`);
         }
       }
       return;
@@ -69,11 +72,74 @@ async function syncOperationToFirestore(sql: string, params: any[]) {
       const table = deleteMatch[1].toLowerCase();
       const id = String(params[0]);
       await firestore.collection(table).doc(id).delete();
+      console.log(`[Firestore Sync Success] Removido documento ${table}/${id}`);
       return;
     }
-  } catch (err) {
-    // Falha silenciosa para não quebrar a requisição se offline ou chave inválida
-    console.warn('[Firestore Sync Warning]:', err);
+  } catch (err: any) {
+    console.error('[Firestore Sync Error]:', err?.message);
+  }
+}
+
+// Hidratação a partir do Firestore para alimentar o cache SQLite no boot
+async function hydrateFromFirestore(sqlite: any) {
+  if (isHydrating) return;
+  isHydrating = true;
+  try {
+    const firestore = getAdminFirestore();
+    if (!firestore) return;
+
+    // 1. Sincronizar Workspaces
+    const wsSnap = await firestore.collection('workspaces').get();
+    for (const doc of wsSnap.docs) {
+      const d = doc.data();
+      sqlite.prepare(`
+        INSERT OR REPLACE INTO workspaces (id, name, description, owner_id, invite_code, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        d.id || doc.id,
+        d.name || 'Área de Trabalho',
+        d.description || null,
+        d.owner_id || null,
+        d.invite_code || d.id || doc.id,
+        d.created_at || new Date().toISOString(),
+        d.updated_at || new Date().toISOString()
+      );
+    }
+
+    // 2. Sincronizar Usuários
+    const usersSnap = await firestore.collection('users').get();
+    for (const doc of usersSnap.docs) {
+      const u = doc.data();
+      sqlite.prepare(`
+        INSERT OR REPLACE INTO users (
+          id, name, email, password_hash, phone, role, status, avatar_url, position_id, client_id, is_partner, job_title, workspace_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        u.id || doc.id,
+        u.name || '',
+        u.email || '',
+        u.password_hash || null,
+        u.phone || null,
+        u.role || 'COLABORADOR',
+        u.status || 'ativo',
+        u.avatar_url || null,
+        u.position_id || null,
+        u.client_id || null,
+        u.is_partner || (u.role === 'ADMINISTRADOR' ? 1 : 0),
+        u.job_title || 'Colaborador',
+        u.workspace_id || null,
+        u.created_at || new Date().toISOString(),
+        u.updated_at || new Date().toISOString()
+      );
+    }
+
+    if (wsSnap.size > 0 || usersSnap.size > 0) {
+      console.log(`[Firestore Hydration] Carregados ${wsSnap.size} workspaces e ${usersSnap.size} usuários do Firestore para o banco local.`);
+    }
+  } catch (err: any) {
+    console.warn('[Firestore Hydration Warning]:', err?.message);
+  } finally {
+    isHydrating = false;
   }
 }
 
@@ -363,98 +429,112 @@ function initDatabaseSchema(sqlite: any) {
 }
 
 function getDatabase(): D1DatabaseInterface {
-  if (!localDbInstance) {
-    const getMod = (globalThis as any).process?.getBuiltinModule;
-    if (!getMod) {
-      return {
-        prepare: () => ({
-          bind: () => ({
-            all: async () => ({ results: [], success: true }),
-            first: async () => null,
-            run: async () => ({ success: true, meta: {} }),
-          }),
-          all: async () => ({ results: [], success: true }),
-          first: async () => null,
-          run: async () => ({ success: true, meta: {} }),
-        }),
-        batch: async () => [],
-        exec: async () => {},
-      } as any;
-    }
-
-    const fs = getMod('node:fs');
-    const path = getMod('node:path');
-    const nodeSqlite = getMod('node:sqlite');
-    const DatabaseSync = nodeSqlite.DatabaseSync;
-    const cwd = (globalThis as any).process?.cwd ? (globalThis as any).process.cwd() : '.';
-    const dataDir = path.join(cwd, 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-
-    const dbPath = path.join(dataDir, 'local.sqlite');
-    const sqlite = new DatabaseSync(dbPath);
-
-    initDatabaseSchema(sqlite);
-
-    localDbInstance = {
-      prepare(query: string): D1PreparedStatement {
-        let boundParams: any[] = [];
-        return {
-          bind(...values: any[]) {
-            boundParams = values.map(val => (val === undefined ? null : val));
-            return this;
-          },
-          async all<T = any>() {
-            try {
-              const stmt = sqlite.prepare(query);
-              const rows = stmt.all(...boundParams) as any[];
-              const plainRows = rows.map(r => (r && typeof r === 'object' ? { ...r } : r));
-              return { results: plainRows as T[], success: true };
-            } catch (err: any) {
-              console.error('[Database Query Error - all]:', query, boundParams, err);
-              throw err;
-            }
-          },
-          async first<T = any>(colName?: string) {
-            try {
-              const stmt = sqlite.prepare(query);
-              const row = stmt.get(...boundParams) as any;
-              if (!row) return null;
-              const plainRow = typeof row === 'object' ? { ...row } : row;
-              if (colName) return plainRow[colName] ?? null;
-              return plainRow as T;
-            } catch (err: any) {
-              console.error('[Database Query Error - first]:', query, boundParams, err);
-              throw err;
-            }
-          },
-          async run() {
-            try {
-              const stmt = sqlite.prepare(query);
-              const info = stmt.run(...boundParams);
-              // Dispara sincronização em segundo plano para o Firestore
-              syncOperationToFirestore(query, boundParams).catch(() => {});
-              return { success: true, meta: info };
-            } catch (err: any) {
-              console.error('[Database Query Error - run]:', query, boundParams, err);
-              throw err;
-            }
-          }
-        };
-      },
-      async batch(statements: D1PreparedStatement[]) {
-        const results = [];
-        for (const s of statements) {
-          results.push(await s.run());
-        }
-        return results;
-      },
-      async exec(query: string) {
-        return sqlite.exec(query);
-      }
-    };
+  if (localDbInstance) {
+    return localDbInstance;
   }
+
+  let sqlite: any = null;
+
+  try {
+    const req = createRequire(import.meta.url);
+    const sqliteMod = req('node:sqlite');
+    if (sqliteMod && sqliteMod.DatabaseSync) {
+      const fs = req('node:fs');
+      const path = req('node:path');
+      const cwd = (globalThis as any).process?.cwd ? (globalThis as any).process.cwd() : '.';
+      const dataDir = path.join(cwd, 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      const dbPath = path.join(dataDir, 'local.sqlite');
+      try {
+        sqlite = new sqliteMod.DatabaseSync(dbPath);
+        console.log(`[Database] SQLite local inicializado com sucesso em: ${dbPath}`);
+      } catch (fileErr) {
+        console.warn(`[Database] Falha ao abrir ${dbPath}, utilizando :memory::`, fileErr);
+        sqlite = new sqliteMod.DatabaseSync(':memory:');
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Database] node:sqlite via createRequire não disponível, tentando getBuiltinModule:', err?.message);
+    try {
+      const getMod = (globalThis as any).process?.getBuiltinModule;
+      if (getMod) {
+        const sqliteMod = getMod('node:sqlite');
+        if (sqliteMod?.DatabaseSync) {
+          sqlite = new sqliteMod.DatabaseSync(':memory:');
+        }
+      }
+    } catch {}
+  }
+
+  if (!sqlite) {
+    console.error('[Database Fatal Error] Não foi possível carregar node:sqlite! Verifique a versão do Node.js (>=22.5.0 necessária).');
+    throw new Error('Falha crítica ao inicializar banco de dados: node:sqlite não encontrado no ambiente.');
+  }
+
+  initDatabaseSchema(sqlite);
+
+  // Executa hidratação inicial do Firestore em background
+  hydrateFromFirestore(sqlite).catch(() => {});
+
+  localDbInstance = {
+    prepare(query: string): D1PreparedStatement {
+      let boundParams: any[] = [];
+      return {
+        bind(...values: any[]) {
+          boundParams = values.map(val => (val === undefined ? null : val));
+          return this;
+        },
+        async all<T = any>() {
+          try {
+            const stmt = sqlite.prepare(query);
+            const rows = stmt.all(...boundParams) as any[];
+            const plainRows = rows.map(r => (r && typeof r === 'object' ? { ...r } : r));
+            return { results: plainRows as T[], success: true };
+          } catch (err: any) {
+            console.error('[Database Query Error - all]:', query, boundParams, err);
+            throw err;
+          }
+        },
+        async first<T = any>(colName?: string) {
+          try {
+            const stmt = sqlite.prepare(query);
+            const row = stmt.get(...boundParams) as any;
+            if (!row) return null;
+            const plainRow = typeof row === 'object' ? { ...row } : row;
+            if (colName) return plainRow[colName] ?? null;
+            return plainRow as T;
+          } catch (err: any) {
+            console.error('[Database Query Error - first]:', query, boundParams, err);
+            throw err;
+          }
+        },
+        async run() {
+          try {
+            const stmt = sqlite.prepare(query);
+            const info = stmt.run(...boundParams);
+            // Sincroniza diretamente com o Firebase Firestore
+            syncOperationToFirestore(query, boundParams).catch(() => {});
+            return { success: true, meta: info };
+          } catch (err: any) {
+            console.error('[Database Query Error - run]:', query, boundParams, err);
+            throw err;
+          }
+        }
+      };
+    },
+    async batch(statements: D1PreparedStatement[]) {
+      const results = [];
+      for (const s of statements) {
+        results.push(await s.run());
+      }
+      return results;
+    },
+    async exec(query: string) {
+      return sqlite.exec(query);
+    }
+  };
 
   return localDbInstance;
 }

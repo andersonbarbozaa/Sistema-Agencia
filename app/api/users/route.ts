@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, getAdminFirestore } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 import { hashPassword } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
@@ -49,7 +49,24 @@ export async function GET(request: NextRequest) {
       .bind(...params)
       .all();
 
-    return NextResponse.json({ users: users.results, data: users.results });
+    let userList = users.results || [];
+
+    // Fallback: busca diretamente no Firestore caso o cache SQLite ainda não contenha os usuários
+    if (userList.length === 0) {
+      try {
+        const firestore = getAdminFirestore();
+        if (firestore) {
+          const snap = await firestore.collection('users').where('workspace_id', '==', wsId).get();
+          if (!snap.empty) {
+            userList = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as any;
+          }
+        }
+      } catch (fsErr) {
+        console.warn('[GET /api/users Firestore fallback warning]:', fsErr);
+      }
+    }
+
+    return NextResponse.json({ users: userList, data: userList });
   } catch (error) {
     console.error('GET /api/users error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

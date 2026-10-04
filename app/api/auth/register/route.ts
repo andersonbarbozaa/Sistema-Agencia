@@ -234,6 +234,7 @@ export async function POST(request: NextRequest) {
           uid: userId,
           name: cleanName,
           email: cleanEmail,
+          password_hash: hashedPassword,
           phone: phone ? phone.trim() : null,
           role: userRole,
           job_title: userJobTitle,
@@ -244,6 +245,7 @@ export async function POST(request: NextRequest) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }, { merge: true });
+        console.log(`[Firestore User Success] Perfil de usuário salvo no Firestore: users/${userId}`);
       } catch (fsUserErr) {
         console.warn('[Firestore User Doc Warning]:', fsUserErr);
       }

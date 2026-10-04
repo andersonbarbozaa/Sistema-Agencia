@@ -138,9 +138,13 @@ export default function ClientsPage() {
           notes: '',
         });
         fetchClients();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Erro ao criar cliente. Verifique se você tem permissões de administrador.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert('Erro de conexão ao criar cliente.');
     }
   };
 

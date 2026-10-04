@@ -77,11 +77,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credenciais inválidas ou usuário inativo.' }, { status: 401 });
     }
 
-    if (user.password_hash) {
-      const isValid = await verifyPassword(password, user.password_hash);
-      if (!isValid) {
-        return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
-      }
+    if (!user.password_hash) {
+      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
+    }
+
+    const isValid = await verifyPassword(password, user.password_hash);
+    if (!isValid) {
+      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
     }
 
     const token = await createSessionToken({

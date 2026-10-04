@@ -231,9 +231,13 @@ export default function CRMPage() {
           notes: '',
         });
         fetchLeads();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Erro ao criar lead no CRM.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert('Erro de conexão ao criar lead.');
     }
   };
 
