@@ -1,8 +1,7 @@
-export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { hashPassword, createSessionToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
+import { hashPassword, createSessionToken, TOKEN_COOKIE_NAME, syncUserWithFirebaseAuth } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(request: NextRequest) {
@@ -135,6 +134,16 @@ export async function POST(request: NextRequest) {
         )
         .run();
     }
+
+    // Sincroniza usuário com o Firebase Auth
+    await syncUserWithFirebaseAuth({
+      id: userId,
+      email: cleanEmail,
+      password,
+      name: cleanName,
+      role: userRole,
+      workspaceId: targetWorkspaceId,
+    });
 
     // Generate Session Token
     const token = await createSessionToken({

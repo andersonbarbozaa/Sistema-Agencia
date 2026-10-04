@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { getDb } from './db';
+import { getAdminAuth } from './firebase-admin';
 import { User, UserRole } from '@/types';
 
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'super_secret_jwt_key_creative_agency_2026_change_in_production';
@@ -21,7 +22,57 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   }
 }
 
-export async function createSessionToken(user: { id: string; email: string; role: UserRole; client_id?: string | null; workspace_id?: string | null }): Promise<string> {
+// Sincroniza usuário com o Firebase Auth
+export async function syncUserWithFirebaseAuth(user: {
+  id: string;
+  email: string;
+  password?: string;
+  name?: string;
+  role: string;
+  workspaceId?: string;
+}): Promise<void> {
+  try {
+    const auth = getAdminAuth();
+    if (!auth) return;
+
+    try {
+      // Verifica se o usuário já existe no Firebase Auth
+      await auth.getUser(user.id);
+      // Atualiza claims e dados
+      await auth.setCustomUserClaims(user.id, {
+        role: user.role,
+        workspaceId: user.workspaceId,
+      });
+      if (user.name) {
+        await auth.updateUser(user.id, { displayName: user.name });
+      }
+    } catch (err: any) {
+      if (err.code === 'auth/user-not-found') {
+        // Cria usuário no Firebase Auth
+        await auth.createUser({
+          uid: user.id,
+          email: user.email,
+          password: user.password && user.password.length >= 6 ? user.password : undefined,
+          displayName: user.name,
+        });
+        await auth.setCustomUserClaims(user.id, {
+          role: user.role,
+          workspaceId: user.workspaceId,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Firebase Auth Sync Warning]:', err);
+  }
+}
+
+export async function createSessionToken(user: {
+  id: string;
+  email: string;
+  role: UserRole;
+  client_id?: string | null;
+  workspace_id?: string | null;
+}): Promise<string> {
   return new SignJWT({
     userId: user.id,
     email: user.email,
@@ -35,7 +86,26 @@ export async function createSessionToken(user: { id: string; email: string; role
     .sign(JWT_SECRET);
 }
 
-export async function verifySessionToken(token: string): Promise<{ userId: string; email: string; role: UserRole; clientId?: string | null; workspaceId?: string | null } | null> {
+// Gera Firebase Custom Token para login no frontend
+export async function createFirebaseCustomToken(userId: string, claims?: Record<string, any>): Promise<string | null> {
+  try {
+    const auth = getAdminAuth();
+    if (auth) {
+      return await auth.createCustomToken(userId, claims);
+    }
+  } catch (err) {
+    console.warn('[Firebase Custom Token Error]:', err);
+  }
+  return null;
+}
+
+export async function verifySessionToken(token: string): Promise<{
+  userId: string;
+  email: string;
+  role: UserRole;
+  clientId?: string | null;
+  workspaceId?: string | null;
+} | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload as any;
@@ -60,11 +130,11 @@ export async function getSessionUser(): Promise<User | null> {
                u.workspace_id, u.job_title,
                w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
                p.name as position_name, c.name as client_name
-        FROM users u
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
-        LEFT JOIN positions p ON u.position_id = p.id
-        LEFT JOIN clients c ON u.client_id = c.id
-        WHERE u.id = ? AND u.status = 'ativo'
+          FROM users u
+          LEFT JOIN workspaces w ON u.workspace_id = w.id
+          LEFT JOIN positions p ON u.position_id = p.id
+          LEFT JOIN clients c ON u.client_id = c.id
+         WHERE u.id = ? AND u.status = 'ativo'
       `)
       .bind(payload.userId)
       .first<User>();
@@ -94,8 +164,22 @@ export async function getApiUser(request: Request): Promise<User | null> {
 
     if (!token) return null;
 
-    const payload = await verifySessionToken(token);
-    if (!payload?.userId) return null;
+    // First try internal session token
+    let payload = await verifySessionToken(token);
+    let userId = payload?.userId;
+
+    // If not valid JWT, check if it is a Firebase ID Token
+    if (!userId) {
+      try {
+        const auth = getAdminAuth();
+        if (auth) {
+          const decoded = await auth.verifyIdToken(token);
+          userId = decoded.uid;
+        }
+      } catch {}
+    }
+
+    if (!userId) return null;
 
     const db = getDb();
     const user = await db
@@ -104,13 +188,13 @@ export async function getApiUser(request: Request): Promise<User | null> {
                u.workspace_id, u.job_title,
                w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
                p.name as position_name, c.name as client_name
-        FROM users u
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
-        LEFT JOIN positions p ON u.position_id = p.id
-        LEFT JOIN clients c ON u.client_id = c.id
-        WHERE u.id = ? AND u.status = 'ativo'
+          FROM users u
+          LEFT JOIN workspaces w ON u.workspace_id = w.id
+          LEFT JOIN positions p ON u.position_id = p.id
+          LEFT JOIN clients c ON u.client_id = c.id
+         WHERE u.id = ? AND u.status = 'ativo'
       `)
-      .bind(payload.userId)
+      .bind(userId)
       .first<User>();
 
     return user;

@@ -1,8 +1,7 @@
-export const runtime = 'edge';
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { verifyPassword, createSessionToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
+import { verifyPassword, createSessionToken, createFirebaseCustomToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(request: Request) {
@@ -45,6 +44,11 @@ export async function POST(request: Request) {
       workspace_id: user.workspace_id,
     });
 
+    const firebaseToken = await createFirebaseCustomToken(user.id, {
+      role: user.role,
+      workspaceId: user.workspace_id,
+    });
+
     await logAudit({
       userId: user.id,
       action: 'LOGIN',
@@ -61,6 +65,7 @@ export async function POST(request: Request) {
       success: true,
       user: safeUser,
       token,
+      firebase_token: firebaseToken,
     });
 
     // Set secure HTTP-only cookie
