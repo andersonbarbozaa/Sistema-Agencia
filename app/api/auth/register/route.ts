@@ -1,7 +1,6 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-import { hashPassword, createSessionToken, TOKEN_COOKIE_NAME, syncUserWithFirebaseAuth } from '@/lib/auth';
+import { getDb, getAdminFirestore, getAdminAuth } from '@/lib/db';
+import { hashPassword, createSessionToken, createFirebaseCustomToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(request: NextRequest) {
@@ -32,8 +31,10 @@ export async function POST(request: NextRequest) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
     const db = getDb();
+    const firestore = getAdminFirestore();
+    const auth = getAdminAuth();
 
-    // Check if email is already registered
+    // 1. Verificar se o e-mail já existe no banco local
     const existingUser = await db
       .prepare('SELECT id FROM users WHERE lower(email) = ?')
       .bind(cleanEmail)
@@ -41,6 +42,30 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json({ error: 'Já existe uma conta cadastrada com este e-mail.' }, { status: 409 });
+    }
+
+    // 2. Verificar se o e-mail já existe no Firebase Auth
+    if (auth) {
+      try {
+        const existingAuthUser = await auth.getUserByEmail(cleanEmail);
+        if (existingAuthUser) {
+          return NextResponse.json({ error: 'Já existe uma conta cadastrada com este e-mail no Firebase Auth.' }, { status: 409 });
+        }
+      } catch (authCheckErr: any) {
+        // auth/user-not-found é o esperado quando não existe
+      }
+    }
+
+    // 3. Verificar se o e-mail já existe no Firestore
+    if (firestore) {
+      try {
+        const firestoreUserSnap = await firestore.collection('users').where('email', '==', cleanEmail).limit(1).get();
+        if (!firestoreUserSnap.empty) {
+          return NextResponse.json({ error: 'Já existe uma conta cadastrada com este e-mail no Firestore.' }, { status: 409 });
+        }
+      } catch (fsCheckErr) {
+        console.warn('[Register Firestore Check Warning]:', fsCheckErr);
+      }
     }
 
     const hashedPassword = await hashPassword(password);
@@ -52,14 +77,31 @@ export async function POST(request: NextRequest) {
     let userJobTitle = job_title ? job_title.trim() : '';
 
     // ========================================================
-    // CASE A: MEMBER REGISTRATION VIA INVITE LINK
+    // CASO A: REGISTO VIA LINK DE CONVITE (MEMBRO DO WORKSPACE)
     // ========================================================
     if (invite && invite.trim()) {
       const inviteCode = invite.trim();
-      const workspace = await db
+      let workspace: any = await db
         .prepare('SELECT * FROM workspaces WHERE invite_code = ? OR id = ?')
         .bind(inviteCode, inviteCode)
         .first<any>();
+
+      // Se não encontrou no SQLite, procura no Firestore
+      if (!workspace && firestore) {
+        try {
+          const docDirect = await firestore.collection('workspaces').doc(inviteCode).get();
+          if (docDirect.exists) {
+            workspace = docDirect.data();
+          } else {
+            const querySnap = await firestore.collection('workspaces').where('invite_code', '==', inviteCode).limit(1).get();
+            if (!querySnap.empty) {
+              workspace = querySnap.docs[0].data();
+            }
+          }
+        } catch (wsFsErr) {
+          console.warn('[Register Workspace Lookup Warning]:', wsFsErr);
+        }
+      }
 
       if (!workspace) {
         return NextResponse.json(
@@ -73,6 +115,7 @@ export async function POST(request: NextRequest) {
       userRole = role === 'CLIENTE' ? 'CLIENTE' : 'COLABORADOR';
       userJobTitle = userJobTitle || (userRole === 'CLIENTE' ? 'Cliente' : 'Colaborador');
 
+      // Registo na base local como Membro (Colaborador / Cliente)
       await db
         .prepare(`
           INSERT INTO users (
@@ -92,7 +135,7 @@ export async function POST(request: NextRequest) {
         .run();
     }
     // ========================================================
-    // CASE B: NEW OWNER ACCOUNT CREATION (CREATES NEW WORKSPACE)
+    // CASO B: REGISTO ISOLADO (CRIA NOVO WORKSPACE E DONO/ADMIN)
     // ========================================================
     else {
       userRole = 'ADMINISTRADOR';
@@ -104,7 +147,7 @@ export async function POST(request: NextRequest) {
       const workspaceId = 'ws_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
       const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
 
-      // Create new isolated workspace
+      // 1. Cria nova Área de Trabalho no SQLite
       await db
         .prepare(`
           INSERT INTO workspaces (id, name, description, owner_id, invite_code, created_at, updated_at)
@@ -113,10 +156,27 @@ export async function POST(request: NextRequest) {
         .bind(workspaceId, finalCompanyName, finalCompanyDesc, userId, inviteCode)
         .run();
 
+      // 2. Cria nova Área de Trabalho no Firestore
+      if (firestore) {
+        try {
+          await firestore.collection('workspaces').doc(workspaceId).set({
+            id: workspaceId,
+            name: finalCompanyName,
+            description: finalCompanyDesc,
+            owner_id: userId,
+            invite_code: inviteCode,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { merge: true });
+        } catch (wsCreateErr) {
+          console.warn('[Firestore Workspace Creation Warning]:', wsCreateErr);
+        }
+      }
+
       targetWorkspaceId = workspaceId;
       targetWorkspaceName = finalCompanyName;
 
-      // Create owner user
+      // 3. Cria usuário Dono no SQLite
       await db
         .prepare(`
           INSERT INTO users (
@@ -135,22 +195,73 @@ export async function POST(request: NextRequest) {
         .run();
     }
 
-    // Sincroniza usuário com o Firebase Auth
-    await syncUserWithFirebaseAuth({
-      id: userId,
-      email: cleanEmail,
-      password,
-      name: cleanName,
-      role: userRole,
-      workspaceId: targetWorkspaceId,
-    });
+    // ========================================================
+    // BACKEND/AUTH: CRIAR CONTA NO FIREBASE AUTHENTICATION
+    // ========================================================
+    if (auth) {
+      try {
+        await auth.createUser({
+          uid: userId,
+          email: cleanEmail,
+          password: password,
+          displayName: cleanName,
+        });
 
-    // Generate Session Token
+        // Configurar Custom Claims (role e workspaceId)
+        await auth.setCustomUserClaims(userId, {
+          role: userRole,
+          workspaceId: targetWorkspaceId,
+        });
+      } catch (authCreateErr: any) {
+        console.warn('[Firebase Auth CreateUser Warning]:', authCreateErr);
+        // Se já existia, atualiza custom claims
+        try {
+          await auth.setCustomUserClaims(userId, {
+            role: userRole,
+            workspaceId: targetWorkspaceId,
+          });
+        } catch {}
+      }
+    }
+
+    // ========================================================
+    // FIRESTORE: CRIAR DOCUMENTO DO USUÁRIO COM PERFIL
+    // ========================================================
+    if (firestore) {
+      try {
+        await firestore.collection('users').doc(userId).set({
+          id: userId,
+          uid: userId,
+          name: cleanName,
+          email: cleanEmail,
+          phone: phone ? phone.trim() : null,
+          role: userRole,
+          job_title: userJobTitle,
+          workspace_id: targetWorkspaceId,
+          workspace_name: targetWorkspaceName,
+          status: 'ativo',
+          is_partner: userRole === 'ADMINISTRADOR' ? 1 : 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+      } catch (fsUserErr) {
+        console.warn('[Firestore User Doc Warning]:', fsUserErr);
+      }
+    }
+
+    // ========================================================
+    // GERAÇÃO DE TOKENS (SESSION TOKEN + FIREBASE CUSTOM TOKEN)
+    // ========================================================
     const token = await createSessionToken({
       id: userId,
       email: cleanEmail,
       role: userRole as any,
       workspace_id: targetWorkspaceId,
+    });
+
+    const firebaseToken = await createFirebaseCustomToken(userId, {
+      role: userRole,
+      workspaceId: targetWorkspaceId,
     });
 
     await logAudit({
@@ -175,6 +286,7 @@ export async function POST(request: NextRequest) {
       success: true,
       user: safeUser,
       token,
+      firebase_token: firebaseToken,
     });
 
     // Set auth cookie

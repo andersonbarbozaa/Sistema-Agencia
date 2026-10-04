@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, signInWithCustomToken, signOut, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // ============================================================
@@ -20,4 +20,25 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = typeof window !== 'undefined' ? getAuth(app) : null;
 export const db = typeof window !== 'undefined' ? getFirestore(app) : null;
 
+export async function signInClientWithCustomToken(token: string): Promise<FirebaseUser | null> {
+  if (!auth || !token) return null;
+  try {
+    const credential = await signInWithCustomToken(auth, token);
+    return credential.user;
+  } catch (err) {
+    console.warn('[Firebase Client Auth] Falha ao autenticar com token customizado:', err);
+    return null;
+  }
+}
+
+export async function signOutClient(): Promise<void> {
+  if (!auth) return;
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.warn('[Firebase Client Auth] Falha ao deslogar:', err);
+  }
+}
+
+export { onAuthStateChanged };
 export default app;

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, UserPlus, Building2, CheckCircle2, ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
+import { signInClientWithCustomToken } from '@/lib/firebase';
 
 function RegisterForm() {
   const router = useRouter();
@@ -81,6 +82,15 @@ function RegisterForm() {
       if (!res.ok) {
         setError(data.error || 'Erro ao realizar cadastro.');
         return;
+      }
+
+      // Autenticação direta no SDK Client do Firebase usando Custom Token
+      if (data.firebase_token) {
+        try {
+          await signInClientWithCustomToken(data.firebase_token);
+        } catch (authErr) {
+          console.warn('[Firebase Client Auth]:', authErr);
+        }
       }
 
       router.push('/dashboard');

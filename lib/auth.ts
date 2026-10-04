@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { getDb } from './db';
-import { getAdminAuth } from './firebase-admin';
+import { getAdminAuth, getAdminFirestore } from './firebase-admin';
 import { User, UserRole } from '@/types';
 
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'super_secret_jwt_key_creative_agency_2026_change_in_production';
@@ -124,7 +124,7 @@ export async function getSessionUser(): Promise<User | null> {
     if (!payload?.userId) return null;
 
     const db = getDb();
-    const user = await db
+    let user = await db
       .prepare(`
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
@@ -138,6 +138,18 @@ export async function getSessionUser(): Promise<User | null> {
       `)
       .bind(payload.userId)
       .first<User>();
+
+    if (!user) {
+      try {
+        const firestore = getAdminFirestore();
+        if (firestore) {
+          const doc = await firestore.collection('users').doc(payload.userId).get();
+          if (doc.exists) {
+            user = doc.data() as User;
+          }
+        }
+      } catch {}
+    }
 
     return user ? { ...user } : null;
   } catch (err) {
@@ -182,7 +194,7 @@ export async function getApiUser(request: Request): Promise<User | null> {
     if (!userId) return null;
 
     const db = getDb();
-    const user = await db
+    let user = await db
       .prepare(`
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
@@ -197,7 +209,19 @@ export async function getApiUser(request: Request): Promise<User | null> {
       .bind(userId)
       .first<User>();
 
-    return user;
+    if (!user) {
+      try {
+        const firestore = getAdminFirestore();
+        if (firestore) {
+          const doc = await firestore.collection('users').doc(userId).get();
+          if (doc.exists) {
+            user = doc.data() as User;
+          }
+        }
+      } catch {}
+    }
+
+    return user ? { ...user } : null;
   } catch (err) {
     return null;
   }
