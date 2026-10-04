@@ -15,6 +15,7 @@
       "binding": "DB",
       "database_name": "agencia-db",
       "database_id": "e9b5a3da-5578-46e2-b77e-30b6a1b098c8",
+      "preview_database_id": "e9b5a3da-5578-46e2-b77e-30b6a1b098c8",
       "migrations_dir": "migrations"
     }
   ],
