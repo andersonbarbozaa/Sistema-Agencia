@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { User } from '@/types';
 import { cn } from '@/lib/utils';
-import { signOutClient } from '@/lib/firebase';
 
 interface NavItem {
   href: string;
@@ -75,7 +74,6 @@ export default function Sidebar({ user }: SidebarProps) {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      await signOutClient();
       window.location.href = '/login';
     } catch (err) {
       console.error(err);

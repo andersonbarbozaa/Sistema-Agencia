@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
-import { signInClientWithCustomToken } from '@/lib/firebase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,15 +29,6 @@ export default function LoginPage() {
       if (!res.ok) {
         setError(data.error || 'Erro ao realizar login.');
         return;
-      }
-
-      // Autenticação direta no SDK Client do Firebase usando Custom Token
-      if (data.firebase_token) {
-        try {
-          await signInClientWithCustomToken(data.firebase_token);
-        } catch (authErr) {
-          console.warn('[Firebase Client Auth]:', authErr);
-        }
       }
 
       // Redirecionamento completo para garantir cookies e invalidar cache RSC

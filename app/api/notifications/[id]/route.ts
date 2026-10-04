@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 
 interface RouteParams {
@@ -13,31 +15,40 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const firestore = getAdminFirestore();
+    const db = getDb();
+    const notification = await db
+      .prepare('SELECT * FROM notifications WHERE id = ?')
+      .bind(id)
+      .first<{ id: string; user_id: string; read_at: string | null }>();
 
-    const notifRef = firestore.collection('notifications').doc(id);
-    const notifDoc = await notifRef.get();
-
-    if (!notifDoc.exists) {
+    if (!notification) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
     }
 
-    const data: any = notifDoc.data();
-    if (data.user_id !== user.id) {
+    // Users may only update their own notifications
+    if (notification.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (data.read_at) {
-      return NextResponse.json({ message: 'Already marked as read', data: { id: notifDoc.id, ...data } });
+    if (notification.read_at) {
+      return NextResponse.json({ message: 'Already marked as read', data: notification });
     }
 
     const now = new Date().toISOString();
-    await notifRef.update({ read_at: now });
+    await db
+      .prepare('UPDATE notifications SET read_at = ? WHERE id = ?')
+      .bind(now, id)
+      .run();
 
-    return NextResponse.json({ data: { id: notifDoc.id, ...data, read_at: now } });
-  } catch (error: any) {
+    const updated = await db
+      .prepare('SELECT * FROM notifications WHERE id = ?')
+      .bind(id)
+      .first();
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
     console.error('[PATCH /api/notifications/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -48,24 +59,24 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const firestore = getAdminFirestore();
+    const db = getDb();
+    const notification = await db
+      .prepare('SELECT * FROM notifications WHERE id = ?')
+      .bind(id)
+      .first<{ id: string; user_id: string }>();
 
-    const notifRef = firestore.collection('notifications').doc(id);
-    const notifDoc = await notifRef.get();
-
-    if (!notifDoc.exists) {
+    if (!notification) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
     }
 
-    const data: any = notifDoc.data();
-    if (data.user_id !== user.id) {
+    if (notification.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await notifRef.delete();
+    await db.prepare('DELETE FROM notifications WHERE id = ?').bind(id).run();
     return NextResponse.json({ message: 'Notification deleted' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[DELETE /api/notifications/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

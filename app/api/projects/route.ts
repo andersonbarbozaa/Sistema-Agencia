@@ -1,9 +1,15 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 // ─── GET /api/projects ───────────────────────────────────────────────────────
+// List projects with optional filters: status, client_id.
+// Includes client_name and task counts (total / completed).
+// Cursor-based pagination (20 per page).
+// CLIENTE role only sees projects linked to their own client_id.
 export async function GET(request: Request) {
   try {
     const user = await getApiUser(request);
@@ -12,80 +18,95 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const statusFilter = searchParams.get('status')?.trim() ?? '';
-    const clientIdFilter = searchParams.get('client_id')?.trim() ?? '';
-    const search = searchParams.get('search')?.toLowerCase().trim() ?? '';
-    const limit = 50;
+    const statusFilter    = searchParams.get('status')?.trim()    ?? '';
+    const clientIdFilter  = searchParams.get('client_id')?.trim() ?? '';
+    const cursor          = searchParams.get('cursor')?.trim()    ?? ''; // created_at ISO string
+    const limit           = 20;
 
-    const firestore = getAdminFirestore();
-    const wsId = user.workspace_id || 'ws_default';
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
 
-    let queryRef: any = firestore.collection('projects');
-    if (wsId !== 'ws_default') {
-      queryRef = queryRef.where('workspace_id', '==', wsId);
-    }
-
-    const [projectsSnap, clientsSnap, tasksSnap] = await Promise.all([
-      queryRef.get(),
-      firestore.collection('clients').get(),
-      firestore.collection('tasks').get(),
-    ]);
-
-    let projects = projectsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    if (wsId === 'ws_default') {
-      projects = projects.filter((p: any) => !p.workspace_id || p.workspace_id === 'ws_default');
-    }
-
-    const clientMap: Record<string, string> = {};
-    clientsSnap.docs.forEach((d: any) => { clientMap[d.id] = d.data().name; });
-
-    const allTasks = tasksSnap.docs.map((d: any) => d.data());
-
-    // Role filtering
+    // CLIENTE can only see their own projects
     if (user.role === 'CLIENTE') {
-      projects = projects.filter((p: any) => p.client_id === user.client_id);
-    } else if (clientIdFilter) {
-      projects = projects.filter((p: any) => p.client_id === clientIdFilter);
+      if (!user.client_id) {
+        return NextResponse.json({ data: [], pagination: { limit, hasNextPage: false, nextCursor: null } });
+      }
+      conditions.push('p.client_id = ?');
+      params.push(user.client_id);
+    } else {
+      // Admin / collaborator: honour explicit client_id filter
+      if (clientIdFilter) {
+        conditions.push('p.client_id = ?');
+        params.push(clientIdFilter);
+      }
     }
 
-    if (statusFilter && statusFilter !== 'todos') {
-      projects = projects.filter((p: any) => p.status === statusFilter);
+    if (statusFilter) {
+      conditions.push('p.status = ?');
+      params.push(statusFilter);
     }
 
-    if (search) {
-      projects = projects.filter((p: any) =>
-        (p.name && p.name.toLowerCase().includes(search)) ||
-        (p.description && p.description.toLowerCase().includes(search))
-      );
+    if (cursor) {
+      conditions.push('p.created_at < ?');
+      params.push(cursor);
     }
 
-    projects = projects.map((p: any) => {
-      const projTasks = allTasks.filter((t: any) => t.project_id === p.id);
-      const total_tasks = projTasks.length;
-      const completed_tasks = projTasks.filter((t: any) => t.status === 'Concluída' || t.status === 'Aprovada').length;
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-      return {
-        ...p,
-        client_name: p.client_id ? (clientMap[p.client_id] || null) : null,
-        end_date: p.deadline || p.end_date || null,
-        total_tasks,
-        completed_tasks,
-      };
-    });
+    params.push(limit + 1);
 
-    projects.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const db = await getDb();
+
+    const rows = await db
+      .prepare(
+        `SELECT
+           p.id,
+           p.name,
+           p.description,
+           p.status,
+           p.client_id,
+           c.name          AS client_name,
+           p.start_date,
+           p.deadline,
+           p.deadline      AS end_date,
+           p.value,
+           p.created_at,
+           p.updated_at,
+           COUNT(t.id)                                          AS total_tasks,
+           SUM(CASE WHEN t.status = 'Concluída' THEN 1 ELSE 0 END) AS completed_tasks
+         FROM projects p
+         LEFT JOIN clients c ON c.id = p.client_id
+         LEFT JOIN tasks   t ON t.project_id = p.id
+         ${where}
+         GROUP BY p.id
+         ORDER BY p.created_at DESC
+         LIMIT ?`
+      )
+      .bind(...params)
+      .all();
+
+    const projects = rows.results as Record<string, unknown>[];
+    const hasNextPage = projects.length > limit;
+    if (hasNextPage) projects.pop();
+
+    const nextCursor =
+      hasNextPage && projects.length > 0
+        ? (projects[projects.length - 1].created_at as string)
+        : null;
 
     return NextResponse.json({
-      data: projects.slice(0, limit),
-      pagination: { limit, hasNextPage: projects.length > limit, nextCursor: null },
+      data: projects,
+      pagination: { limit, hasNextPage, nextCursor },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[GET /api/projects]', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 // ─── POST /api/projects ──────────────────────────────────────────────────────
+// Create a new project. Admin only.
+// Required: name, client_id.
 export async function POST(request: Request) {
   try {
     const user = await getApiUser(request);
@@ -101,65 +122,87 @@ export async function POST(request: Request) {
     const { name, client_id } = body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
-      return NextResponse.json({ error: 'Field "name" is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Field "name" is required' },
+        { status: 400 }
+      );
     }
-
     if (!client_id || typeof client_id !== 'string' || !client_id.trim()) {
-      return NextResponse.json({ error: 'Field "client_id" is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Field "client_id" is required' },
+        { status: 400 }
+      );
     }
 
-    const firestore = getAdminFirestore();
+    const db = await getDb();
 
     // Verify client exists
-    const clientDoc = await firestore.collection('clients').doc(client_id.trim()).get();
-    if (!clientDoc.exists) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    const client = await db
+      .prepare('SELECT id FROM clients WHERE id = ?')
+      .bind(client_id.trim())
+      .first();
+
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Client not found' },
+        { status: 404 }
+      );
     }
 
-    const id = 'proj_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    const description = body.description ?? null;
+    const status      = body.status      ?? 'Planejamento';
+    const start_date  = body.start_date  ?? null;
+    const deadline    = body.deadline    ?? body.end_date ?? null;
+    const value       = body.value       ? Number(body.value) : 0;
+    const notes       = body.notes       ?? null;
+
+    // Generate ID
+    const id =
+      'prj_' +
+      Math.random().toString(36).substring(2, 9) +
+      Date.now().toString(36);
+
     const now = new Date().toISOString();
-    const wsId = user.workspace_id || 'ws_default';
 
-    const deadline = body.deadline ?? body.end_date ?? null;
-
-    const projectData = {
-      id,
-      name: name.trim(),
-      description: body.description ? String(body.description).trim() : null,
-      client_id: client_id.trim(),
-      status: body.status ?? 'Em andamento',
-      start_date: body.start_date ?? null,
-      deadline,
-      value: body.value !== undefined ? Number(body.value) : 0,
-      workspace_id: wsId,
-      created_at: now,
-      updated_at: now,
-    };
-
-    await firestore.collection('projects').doc(id).set(projectData);
+    await db
+      .prepare(
+        `INSERT INTO projects (
+           id, name, description, status, client_id,
+           start_date, deadline, value, notes, created_by, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        name.trim(),
+        description,
+        status,
+        client_id.trim(),
+        start_date,
+        deadline,
+        value,
+        notes,
+        user.id,
+        now,
+        now
+      )
+      .run();
 
     await logAudit({
-      userId: user.id,
-      action: 'CREATE',
-      module: 'PROJECTS',
-      recordId: id,
-      afterData: projectData,
-      ipAddress: request.headers.get('x-forwarded-for'),
+      userId:     user.id,
+      action:     'CREATE',
+      resource:   'projects',
+      resourceId: id,
+      details:    `Project "${name.trim()}" created for client "${client_id}"`,
     });
 
-    return NextResponse.json(
-      {
-        data: {
-          ...projectData,
-          client_name: clientDoc.data()?.name || null,
-          total_tasks: 0,
-          completed_tasks: 0,
-        },
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
+    const created = await db
+      .prepare('SELECT * FROM projects WHERE id = ?')
+      .bind(id)
+      .first();
+
+    return NextResponse.json({ data: created }, { status: 201 });
+  } catch (error) {
     console.error('[POST /api/projects]', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

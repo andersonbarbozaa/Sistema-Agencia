@@ -1,51 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getAdminFirestore, getFirebaseAdminApp } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 
 export async function GET() {
   try {
     const result: any = {
       timestamp: new Date().toISOString(),
-      node_version: process.version,
-      runtime: 'cloudflare-workers',
-      env: {
-        has_service_account_env: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-        has_service_account_key_env: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
-        has_google_credentials_env: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
-        has_firebase_api_key: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      },
-      firebase: { status: 'unknown' },
+      runtime: 'cloudflare-workers-d1',
+      database: { status: 'unknown' },
     };
 
     try {
-      const app = getFirebaseAdminApp();
+      const db = getDb();
+      const userCount = await db.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>();
+      const wsCount = await db.prepare('SELECT COUNT(*) as count FROM workspaces').first<{ count: number }>();
 
-      if (!app) {
-        result.firebase = {
-          status: 'warning',
-          message: 'Firebase Admin App aguardando configuração de FIREBASE_SERVICE_ACCOUNT.',
-        };
-      } else {
-        const firestore = getAdminFirestore();
-        result.firebase = {
-          status: 'initialized',
-          app_name: app.name,
-          project_id: app.options.projectId,
-        };
-
-        const usersSnap = await firestore.collection('users').limit(5).get();
-        const wsSnap = await firestore.collection('workspaces').limit(5).get();
-
-        result.firebase.firestore = {
-          status: 'connected',
-          can_read: true,
-          users_sample_count: usersSnap.size,
-          workspaces_sample_count: wsSnap.size,
-        };
-      }
-    } catch (fbErr: any) {
-      result.firebase = {
+      result.database = {
+        status: 'connected',
+        users_count: userCount?.count ?? 0,
+        workspaces_count: wsCount?.count ?? 0,
+      };
+    } catch (dbErr: any) {
+      result.database = {
         status: 'error',
-        error: fbErr?.message || 'Falha ao conectar com Firestore',
+        error: dbErr?.message || 'Erro ao consultar banco D1',
       };
     }
 

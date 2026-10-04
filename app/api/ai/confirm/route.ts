@@ -1,8 +1,11 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { generateId } from '@/lib/utils';
+import { notifyAdmins } from '@/lib/notifications';
 
 export async function POST(request: Request) {
   try {
@@ -14,18 +17,17 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { interpretation_id, action, payload } = body;
 
-    const firestore = getAdminFirestore();
-    const wsId = user.workspace_id || 'ws_default';
-    const now = new Date().toISOString();
+    const db = getDb();
 
     // Verify interpretation if id provided
     if (interpretation_id) {
-      const interpDoc = await firestore.collection('ai_interpretations').doc(interpretation_id).get();
-      if (interpDoc.exists) {
-        const interp = interpDoc.data();
-        if (interp?.status && interp.status !== 'Pendente') {
-          return NextResponse.json({ error: `Esta interpretação já está ${interp.status}.` }, { status: 400 });
-        }
+      const interp = await db
+        .prepare('SELECT * FROM ai_interpretations WHERE id = ?')
+        .bind(interpretation_id)
+        .first<any>();
+
+      if (interp && interp.status !== 'Pendente') {
+        return NextResponse.json({ error: `Esta interpretação já está ${interp.status}.` }, { status: 400 });
       }
     }
 
@@ -38,12 +40,21 @@ export async function POST(request: Request) {
       case 'TASK': {
         const taskName = data.name || data.title || 'Nova Tarefa Criativa';
 
+        // Resolve client
         let clientId = data.client_id;
+        if (!clientId && data.client_name) {
+          const clientRow = await db
+            .prepare('SELECT id FROM clients WHERE lower(name) LIKE lower(?) LIMIT 1')
+            .bind(`%${data.client_name}%`)
+            .first<any>();
+          if (clientRow) clientId = clientRow.id;
+        }
         if (!clientId) {
-          const clientsSnap = await firestore.collection('clients').limit(1).get();
-          clientId = clientsSnap.empty ? 'cli_default' : clientsSnap.docs[0].id;
+          const firstClient = await db.prepare('SELECT id FROM clients LIMIT 1').first<any>();
+          clientId = firstClient?.id || 'cli_santacasa';
         }
 
+        // Resolve delivery date
         let deliveryDate = data.delivery_date;
         if (!deliveryDate || deliveryDate.includes('sexta') || deliveryDate.includes('hoje') || deliveryDate.includes('amanhã')) {
           const d = new Date();
@@ -52,21 +63,36 @@ export async function POST(request: Request) {
         }
 
         const taskId = generateId('task');
-        await firestore.collection('tasks').doc(taskId).set({
-          id: taskId,
-          name: taskName,
-          title: taskName,
-          description: data.description || null,
-          client_id: clientId,
-          delivery_date: deliveryDate,
-          due_date: deliveryDate,
-          value: Number(data.value) || 0,
-          status: 'Não iniciada',
-          created_by: user.id,
-          workspace_id: wsId,
-          created_at: now,
-          updated_at: now,
-        });
+        await db
+          .prepare(`
+            INSERT INTO tasks (id, name, description, client_id, delivery_date, value, status, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'Não iniciada', ?, datetime('now'), datetime('now'))
+          `)
+          .bind(
+            taskId,
+            taskName,
+            data.description || null,
+            clientId,
+            deliveryDate,
+            Number(data.value) || 0,
+            user.id
+          )
+          .run();
+
+        // Assignee if matched
+        if (data.assignee_name) {
+          const assigneeUser = await db
+            .prepare('SELECT id FROM users WHERE lower(name) LIKE lower(?) LIMIT 1')
+            .bind(`%${data.assignee_name}%`)
+            .first<any>();
+          if (assigneeUser) {
+            const asgnId = generateId('asgn');
+            await db
+              .prepare(`INSERT INTO task_assignees (id, task_id, user_id, assigned_at) VALUES (?, ?, ?, datetime('now'))`)
+              .bind(asgnId, taskId, assigneeUser.id)
+              .run();
+          }
+        }
 
         createdId = taskId;
         break;
@@ -77,33 +103,56 @@ export async function POST(request: Request) {
         const amount = Number(data.amount) || 0;
         const type = data.type === 'Entrada' ? 'Entrada' : 'Saída';
 
+        // Bank account
         let bankId = data.bank_account_id;
+        if (!bankId && data.bank_account_name) {
+          const accRow = await db
+            .prepare('SELECT id FROM bank_accounts WHERE lower(name) LIKE lower(?) OR lower(bank) LIKE lower(?) LIMIT 1')
+            .bind(`%${data.bank_account_name}%`, `%${data.bank_account_name}%`)
+            .first<any>();
+          if (accRow) bankId = accRow.id;
+        }
         if (!bankId) {
-          const accSnap = await firestore.collection('bank_accounts').where('status', '==', 'ativo').limit(1).get();
-          bankId = accSnap.empty ? null : accSnap.docs[0].id;
+          const firstAcc = await db.prepare('SELECT id FROM bank_accounts WHERE status = "ativo" LIMIT 1').first<any>();
+          bankId = firstAcc?.id || null;
+        }
+
+        // Category
+        let categoryId = data.category_id;
+        if (!categoryId && data.category_name) {
+          const catRow = await db
+            .prepare('SELECT id FROM financial_categories WHERE lower(name) LIKE lower(?) LIMIT 1')
+            .bind(`%${data.category_name}%`)
+            .first<any>();
+          if (catRow) categoryId = catRow.id;
         }
 
         const transId = generateId('tra');
-        const dueDate = data.due_date || now.split('T')[0];
+        const dueDate = data.due_date || new Date().toISOString().split('T')[0];
         const status = data.status || 'Pendente';
-        const paidAt = status === 'Pago' ? (data.paid_at || now.split('T')[0]) : null;
+        const paidAt = status === 'Pago' ? (data.paid_at || new Date().toISOString().split('T')[0]) : null;
 
-        await firestore.collection('financial_transactions').doc(transId).set({
-          id: transId,
-          description: desc,
-          amount,
-          type,
-          category_id: data.category_id || null,
-          bank_account_id: bankId,
-          created_by: user.id,
-          due_date: dueDate,
-          paid_at: paidAt,
-          status,
-          notes: data.notes || 'Criado via confirmação de IA',
-          workspace_id: wsId,
-          created_at: now,
-          updated_at: now,
-        });
+        await db
+          .prepare(`
+            INSERT INTO financial_transactions (
+              id, description, amount, type, category_id, bank_account_id, created_by, due_date, paid_at, status, notes, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          `)
+          .bind(
+            transId,
+            desc,
+            amount,
+            type,
+            categoryId,
+            bankId,
+            user.id,
+            dueDate,
+            paidAt,
+            status,
+            data.notes || 'Criado via confirmação de IA'
+          )
+          .run();
 
         createdId = transId;
         break;
@@ -113,17 +162,13 @@ export async function POST(request: Request) {
         const clientName = data.name || 'Novo Cliente';
         const clientId = generateId('cli');
 
-        await firestore.collection('clients').doc(clientId).set({
-          id: clientId,
-          name: clientName,
-          phone: data.phone || null,
-          city: data.city || null,
-          notes: data.notes || 'Cadastrado via IA',
-          status: 'ativo',
-          workspace_id: wsId,
-          created_at: now,
-          updated_at: now,
-        });
+        await db
+          .prepare(`
+            INSERT INTO clients (id, name, phone, city, notes, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
+          `)
+          .bind(clientId, clientName, data.phone || null, data.city || null, data.notes || 'Cadastrado via IA')
+          .run();
 
         createdId = clientId;
         break;
@@ -133,21 +178,24 @@ export async function POST(request: Request) {
         const eventId = generateId('cal');
         const eventDate = data.event_date && data.event_date.match(/^\d{4}-\d{2}-\d{2}$/)
           ? data.event_date
-          : now.split('T')[0];
+          : new Date().toISOString().split('T')[0];
 
-        await firestore.collection('calendar_events').doc(eventId).set({
-          id: eventId,
-          title: data.title || 'Compromisso',
-          description: data.description || null,
-          event_date: eventDate,
-          start_time: data.start_time || '14:00',
-          end_time: data.end_time || '15:00',
-          location: data.location || null,
-          created_by: user.id,
-          workspace_id: wsId,
-          created_at: now,
-          updated_at: now,
-        });
+        await db
+          .prepare(`
+            INSERT INTO calendar_events (id, title, description, event_date, start_time, end_time, location, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          `)
+          .bind(
+            eventId,
+            data.title || 'Compromisso',
+            data.description || null,
+            eventDate,
+            data.start_time || '14:00',
+            data.end_time || '15:00',
+            data.location || null,
+            user.id
+          )
+          .run();
 
         createdId = eventId;
         break;
@@ -155,51 +203,54 @@ export async function POST(request: Request) {
 
       case 'CRM_LEAD': {
         const leadId = generateId('lead');
-        await firestore.collection('crm_leads').doc(leadId).set({
-          id: leadId,
-          contact_name: data.contact_name || 'Contato',
-          company: data.company || null,
-          phone: data.phone || null,
-          email: data.email || null,
-          city: data.city || null,
-          first_contact_date: now.split('T')[0],
-          platform: data.platform || 'WhatsApp',
-          status: 'Novo',
-          notes: data.notes || null,
-          workspace_id: wsId,
-          last_activity_at: now,
-          created_at: now,
-          updated_at: now,
-        });
+        await db
+          .prepare(`
+            INSERT INTO crm_leads (id, contact_name, company, phone, email, city, first_contact_date, platform, status, notes, last_activity_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, datetime('now'), datetime('now'), datetime('now'))
+          `)
+          .bind(
+            leadId,
+            data.contact_name || 'Contato',
+            data.company || null,
+            data.phone || null,
+            data.email || null,
+            data.city || null,
+            new Date().toISOString().split('T')[0],
+            data.platform || 'WhatsApp',
+            data.notes || null
+          )
+          .run();
 
         createdId = leadId;
         break;
       }
 
       case 'CRM_INTERACTION': {
-        let leadId = data.lead_id;
+        // Find lead by contact_name or company
+        let leadId = null;
+        if (data.contact_name) {
+          const leadRow = await db
+            .prepare('SELECT id FROM crm_leads WHERE lower(contact_name) LIKE lower(?) OR lower(company) LIKE lower(?) LIMIT 1')
+            .bind(`%${data.contact_name}%`, `%${data.contact_name}%`)
+            .first<any>();
+          if (leadRow) leadId = leadRow.id;
+        }
         if (!leadId) {
-          const leadSnap = await firestore.collection('crm_leads').limit(1).get();
-          leadId = leadSnap.empty ? null : leadSnap.docs[0].id;
+          const firstLead = await db.prepare('SELECT id FROM crm_leads LIMIT 1').first<any>();
+          leadId = firstLead?.id;
         }
 
         if (leadId) {
           const intId = generateId('crm_int');
-          await firestore.collection('crm_interactions').doc(intId).set({
-            id: intId,
-            lead_id: leadId,
-            user_id: user.id,
-            interaction_date: now,
-            platform: data.platform || 'WhatsApp',
-            notes: data.notes || data.message || 'Interação registrada via IA',
-            created_at: now,
-          });
+          await db
+            .prepare(`
+              INSERT INTO crm_interactions (id, lead_id, user_id, interaction_date, platform, message, notes, created_at)
+              VALUES (?, ?, ?, datetime('now'), ?, ?, ?, datetime('now'))
+            `)
+            .bind(intId, leadId, user.id, data.platform || 'WhatsApp', data.notes || data.message || 'Interação registrada via IA', null)
+            .run();
 
-          await firestore.collection('crm_leads').doc(leadId).set({
-            last_activity_at: now,
-            updated_at: now,
-          }, { merge: true });
-
+          await db.prepare(`UPDATE crm_leads SET last_activity_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).bind(leadId).run();
           createdId = intId;
         }
         break;
@@ -211,11 +262,14 @@ export async function POST(request: Request) {
 
     // Update interpretation if exists
     if (interpretation_id) {
-      await firestore.collection('ai_interpretations').doc(interpretation_id).set({
-        status: 'Confirmado',
-        confirmed_at: now,
-        updated_at: now,
-      }, { merge: true });
+      await db
+        .prepare(`
+          UPDATE ai_interpretations
+          SET status = 'Confirmado', confirmed_at = datetime('now')
+          WHERE id = ?
+        `)
+        .bind(interpretation_id)
+        .run();
     }
 
     await logAudit({

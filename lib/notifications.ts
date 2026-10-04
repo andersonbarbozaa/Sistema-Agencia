@@ -1,4 +1,4 @@
-import { getAdminFirestore } from './firebase-admin';
+import { getDb } from './db';
 import { NotificationType } from '@/types';
 
 export interface NotificationParams {
@@ -22,9 +22,7 @@ export async function createNotification(
   referenceModule?: string
 ): Promise<void> {
   try {
-    const firestore = getAdminFirestore();
-    if (!firestore) return;
-
+    const db = getDb();
     const id = 'notif_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 
     let finalUserId = '';
@@ -50,17 +48,21 @@ export async function createNotification(
       finalRefModule = referenceModule || null;
     }
 
-    await firestore.collection('notifications').doc(id).set({
-      id,
-      user_id: finalUserId,
-      title: finalTitle,
-      message: finalMessage,
-      type: finalType,
-      reference_module: finalRefModule,
-      reference_id: finalRefId,
-      read_at: null,
-      created_at: new Date().toISOString()
-    });
+    await db
+      .prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type, reference_module, reference_id, read_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, datetime('now'))
+      `)
+      .bind(
+        id,
+        finalUserId,
+        finalTitle,
+        finalMessage,
+        finalType,
+        finalRefModule,
+        finalRefId
+      )
+      .run();
   } catch (err) {
     console.error('[Notification Error]:', err);
   }
@@ -68,17 +70,16 @@ export async function createNotification(
 
 export async function notifyAdmins(params: Omit<NotificationParams, 'userId'>): Promise<void> {
   try {
-    const firestore = getAdminFirestore();
-    if (!firestore) return;
+    const db = getDb();
+    const admins = await db
+      .prepare(`SELECT id FROM users WHERE role = 'ADMINISTRADOR' AND status = 'ativo'`)
+      .all<{ id: string }>();
 
-    const adminsSnap = await firestore.collection('users').where('role', '==', 'ADMINISTRADOR').get();
-
-    for (const doc of adminsSnap.docs) {
-      const u = doc.data();
-      if (u.status !== 'inativo') {
+    if (admins.results && admins.results.length > 0) {
+      for (const admin of admins.results) {
         await createNotification({
           ...params,
-          userId: doc.id || u.id,
+          userId: admin.id,
         });
       }
     }

@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { interpretWithGemini } from '@/lib/gemini';
@@ -21,25 +23,27 @@ export async function POST(request: Request) {
 
     const interpretation = await interpretWithGemini(input_text || '', audio_base64);
 
-    const firestore = getAdminFirestore();
+    const db = getDb();
     const id = generateId('aiint');
-    const now = new Date().toISOString();
 
-    const aiData = {
-      id,
-      user_id: user.id,
-      input_type: audio_base64 ? 'audio' : 'text',
-      input_text: input_text || 'Comando de áudio',
-      audio_reference: audio_base64 ? 'audio_provided' : null,
-      detected_action: interpretation.detected_action,
-      structured_payload: interpretation.structured_payload,
-      confidence: interpretation.confidence,
-      status: 'Pendente',
-      created_at: now,
-      updated_at: now,
-    };
-
-    await firestore.collection('ai_interpretations').doc(id).set(aiData);
+    await db
+      .prepare(`
+        INSERT INTO ai_interpretations (
+          id, user_id, input_type, input_text, audio_reference, detected_action, structured_payload, confidence, status, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendente', datetime('now'))
+      `)
+      .bind(
+        id,
+        user.id,
+        audio_base64 ? 'audio' : 'text',
+        input_text || 'Comando de áudio',
+        audio_base64 ? 'audio_provided' : null,
+        interpretation.detected_action,
+        JSON.stringify(interpretation.structured_payload),
+        interpretation.confidence
+      )
+      .run();
 
     await logAudit({
       userId: user.id,

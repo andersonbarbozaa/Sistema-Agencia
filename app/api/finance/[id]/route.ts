@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -15,52 +17,30 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const firestore = getAdminFirestore();
+    const db = getDb();
+    const row = await db
+      .prepare(
+        `SELECT
+          t.*,
+          fc.name  AS category_name,
+          ba.name  AS bank_account_name,
+          c.name   AS client_name,
+          u.name   AS created_by_name
+        FROM financial_transactions t
+        LEFT JOIN financial_categories fc ON fc.id = t.category_id
+        LEFT JOIN bank_accounts         ba ON ba.id = t.bank_account_id
+        LEFT JOIN clients                c  ON c.id  = t.client_id
+        LEFT JOIN users                  u  ON u.id  = t.created_by
+        WHERE t.id = ?`
+      )
+      .bind(id)
+      .first();
 
-    const txDoc = await firestore.collection('financial_transactions').doc(id).get();
-    if (!txDoc.exists) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-
-    const txData: any = { id: txDoc.id, ...txDoc.data() };
-    const wsId = user.workspace_id || 'ws_default';
-    if (wsId !== 'ws_default' && txData.workspace_id && txData.workspace_id !== wsId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    let category_name = null;
-    let bank_account_name = null;
-    let client_name = null;
-    let created_by_name = null;
-
-    if (txData.category_id) {
-      const c = await firestore.collection('financial_categories').doc(txData.category_id).get();
-      if (c.exists) category_name = c.data()?.name || null;
-    }
-    if (txData.bank_account_id) {
-      const b = await firestore.collection('bank_accounts').doc(txData.bank_account_id).get();
-      if (b.exists) bank_account_name = b.data()?.name || null;
-    }
-    if (txData.client_id) {
-      const cl = await firestore.collection('clients').doc(txData.client_id).get();
-      if (cl.exists) client_name = cl.data()?.name || null;
-    }
-    if (txData.created_by) {
-      const u = await firestore.collection('users').doc(txData.created_by).get();
-      if (u.exists) created_by_name = u.data()?.name || u.data()?.email || null;
-    }
-
-    return NextResponse.json({
-      data: {
-        ...txData,
-        amount: Number(txData.amount || 0),
-        category_name,
-        bank_account_name,
-        client_name,
-        created_by_name,
-      }
-    });
-  } catch (error: any) {
+    if (!row) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    return NextResponse.json({ data: row });
+  } catch (error) {
     console.error('[GET /api/finance/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -72,59 +52,64 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const firestore = getAdminFirestore();
+    const db = getDb();
+    const existing = await db
+      .prepare('SELECT * FROM financial_transactions WHERE id = ?')
+      .bind(id)
+      .first<Record<string, unknown>>();
 
-    const txRef = firestore.collection('financial_transactions').doc(id);
-    const txDoc = await txRef.get();
-    if (!txDoc.exists) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-
-    const existing: any = txDoc.data();
-    const wsId = user.workspace_id || 'ws_default';
-    if (wsId !== 'ws_default' && existing.workspace_id && existing.workspace_id !== wsId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (!existing) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
 
     const body = await request.json();
     const now = new Date().toISOString();
 
     const allowedFields = ['description', 'amount', 'type', 'status', 'due_date', 'paid_at', 'client_id', 'bank_account_id', 'category_id', 'partner_id', 'notes'];
-    const updateData: Record<string, any> = {};
+    const updates: string[] = [];
+    const values: unknown[] = [];
 
     for (const field of allowedFields) {
       if (field in body) {
-        updateData[field] = field === 'amount' ? Number(body[field]) : body[field];
+        updates.push(`${field} = ?`);
+        values.push(body[field]);
       }
     }
 
     // Auto-set paid_at when marking as Pago
     if (body.status === 'Pago' && existing.status !== 'Pago') {
-      if (!body.paid_at && !updateData.paid_at) {
-        updateData.paid_at = now;
+      if (!body.paid_at) {
+        if (!updates.includes('paid_at = ?')) {
+          updates.push('paid_at = ?');
+          values.push(now);
+        }
       }
     }
 
-    if (Object.keys(updateData).length === 0) {
+    if (updates.length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    updateData.updated_at = now;
+    updates.push('updated_at = ?');
+    values.push(now);
+    values.push(id);
 
-    await txRef.set(updateData, { merge: true });
+    await db
+      .prepare(`UPDATE financial_transactions SET ${updates.join(', ')} WHERE id = ?`)
+      .bind(...values)
+      .run();
 
     await logAudit({
       userId: user.id,
       action: 'UPDATE',
-      entity: 'transaction',
-      entityId: id,
-      beforeData: existing,
-      afterData: { ...existing, ...updateData },
+      resource: 'financial_transactions',
+      resourceId: id,
+      details: `Updated transaction fields: ${Object.keys(body).join(', ')}`,
     });
 
-    const updatedDoc = await txRef.get();
-    return NextResponse.json({ data: { id: updatedDoc.id, ...updatedDoc.data() } });
-  } catch (error: any) {
+    const updated = await db.prepare('SELECT * FROM financial_transactions WHERE id = ?').bind(id).first();
+    return NextResponse.json({ data: updated });
+  } catch (error) {
     console.error('[PATCH /api/finance/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -136,26 +121,27 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const firestore = getAdminFirestore();
+    const db = getDb();
+    const existing = await db
+      .prepare('SELECT * FROM financial_transactions WHERE id = ?')
+      .bind(id)
+      .first<Record<string, unknown>>();
 
-    const txRef = firestore.collection('financial_transactions').doc(id);
-    const txDoc = await txRef.get();
-    if (!txDoc.exists) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    if (!existing) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
 
-    const existing: any = txDoc.data();
-    await txRef.delete();
+    await db.prepare('DELETE FROM financial_transactions WHERE id = ?').bind(id).run();
 
     await logAudit({
       userId: user.id,
       action: 'DELETE',
-      entity: 'transaction',
-      entityId: id,
-      beforeData: existing,
+      resource: 'transactions',
+      resourceId: id,
+      details: `Deleted transaction: ${existing.description} — R$ ${existing.amount}`,
     });
 
-    return NextResponse.json({ success: true, message: 'Transaction deleted' });
-  } catch (error: any) {
+    return NextResponse.json({ message: 'Transaction deleted successfully' });
+  } catch (error) {
     console.error('[DELETE /api/finance/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

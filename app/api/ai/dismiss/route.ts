@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -17,15 +19,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'interpretation_id is required' }, { status: 400 });
     }
 
-    const firestore = getAdminFirestore();
-    const interpRef = firestore.collection('ai_interpretations').doc(interpretation_id);
-    const interpDoc = await interpRef.get();
+    const db = getDb();
 
-    if (!interpDoc.exists) {
+    const interpretation = await db
+      .prepare('SELECT * FROM ai_interpretations WHERE id = ?')
+      .bind(interpretation_id)
+      .first<Record<string, unknown>>();
+
+    if (!interpretation) {
       return NextResponse.json({ error: 'Interpretation not found' }, { status: 404 });
     }
-
-    const interpretation: any = interpDoc.data();
 
     if (interpretation.status !== 'Pendente') {
       return NextResponse.json(
@@ -36,12 +39,14 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
 
-    await interpRef.set({
-      status: 'Dispensado',
-      dismissed_at: now,
-      dismissed_by: user.id,
-      updated_at: now,
-    }, { merge: true });
+    await db
+      .prepare(
+        `UPDATE ai_interpretations
+        SET status = 'Dispensado', dismissed_at = ?, dismissed_by = ?, updated_at = ?
+        WHERE id = ?`
+      )
+      .bind(now, user.id, now, interpretation_id)
+      .run();
 
     await logAudit(user.id, 'ai_interpretations', 'DISMISS', interpretation_id, {});
 
@@ -52,8 +57,8 @@ export async function POST(request: NextRequest) {
         dismissed_at: now,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('POST /api/ai/dismiss error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

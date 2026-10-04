@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification, notifyAdmins } from '@/lib/notifications';
@@ -16,122 +18,103 @@ export async function GET(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const taskDoc = await firestore.collection('tasks').doc(id).get();
-    if (!taskDoc.exists) {
+    const taskRow = await db
+      .prepare(`
+        SELECT t.*, c.name as client_name,
+               tc.name as category_name, tc.color as category_color,
+               u.name as created_by_name,
+               (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
+               (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
+               (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status
+        FROM tasks t
+        LEFT JOIN clients c ON t.client_id = c.id
+        LEFT JOIN task_categories tc ON t.category_id = tc.id
+        LEFT JOIN users u ON t.created_by = u.id
+        WHERE t.id = ?
+      `)
+      .bind(id)
+      .first<any>();
+
+    if (!taskRow) {
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
     }
 
-    const taskData: any = { id: taskDoc.id, ...taskDoc.data() };
+    // Normalizing aliases
+    const task = {
+      ...taskRow,
+      title: taskRow.name,
+      due_date: taskRow.delivery_date,
+    };
 
     // CLIENTE visibility check
-    if (user.role === 'CLIENTE' && taskData.client_id !== user.client_id) {
+    if (user.role === 'CLIENTE' && task.client_id !== user.client_id) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
     }
 
-    // Parallel loading of sub-collections and related entities
-    const [clientsSnap, catsSnap, usersSnap, commentsSnap, mediaSnap, historySnap, deletionSnap] = await Promise.all([
-      firestore.collection('clients').get(),
-      firestore.collection('task_categories').get(),
-      firestore.collection('users').get(),
-      firestore.collection('task_comments').where('task_id', '==', id).get(),
-      firestore.collection('task_media_links').where('task_id', '==', id).get(),
-      firestore.collection('task_status_history').where('task_id', '==', id).get(),
-      firestore.collection('task_deletion_requests').where('task_id', '==', id).where('status', '==', 'pending').get(),
-    ]);
-
-    const clientMap: Record<string, string> = {};
-    clientsSnap.docs.forEach((d: any) => { clientMap[d.id] = d.data().name; });
-
-    const catMap: Record<string, { name: string; color: string }> = {};
-    catsSnap.docs.forEach((d: any) => {
-      catMap[d.id] = { name: d.data().name, color: d.data().color || '#3B82F6' };
-    });
-
-    const userMap: Record<string, any> = {};
-    usersSnap.docs.forEach((d: any) => {
-      const u = d.data();
-      userMap[d.id] = { id: d.id, name: u.name, avatar_url: u.avatar_url || null, role: u.role, email: u.email };
-    });
-
-    // Enriched assignees
-    let assignees: any[] = [];
-    const rawList = taskData.assignee_ids || taskData.assignees || [];
-    if (Array.isArray(rawList)) {
-      assignees = rawList.map((a: any) => {
-        const uid = typeof a === 'string' ? a : a.id;
-        return userMap[uid] || (typeof a === 'object' ? a : { id: uid, name: 'Colaborador' });
-      });
-    }
+    // Assignees
+    const { results: assignees } = await db
+      .prepare(`
+        SELECT u.id, u.name, u.email, u.avatar_url, u.role, u.position_id,
+               p.name as position_name, ta.assigned_at
+        FROM task_assignees ta
+        JOIN users u ON ta.user_id = u.id
+        LEFT JOIN positions p ON u.position_id = p.id
+        WHERE ta.task_id = ?
+      `)
+      .bind(id)
+      .all<any>();
 
     // Comments
-    const comments = commentsSnap.docs
-      .map((d: any) => {
-        const c = d.data();
-        const u = c.user_id ? userMap[c.user_id] : null;
-        return {
-          id: d.id,
-          ...c,
-          user_name: u?.name || 'Usuário',
-          user_avatar: u?.avatar_url || null,
-        };
-      })
-      .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+    const { results: comments } = await db
+      .prepare(`
+        SELECT tc.*, u.name as user_name, u.avatar_url as user_avatar
+        FROM task_comments tc
+        JOIN users u ON tc.user_id = u.id
+        WHERE tc.task_id = ?
+        ORDER BY tc.created_at ASC
+      `)
+      .bind(id)
+      .all<any>();
 
     // Media links
-    const mediaLinks = mediaSnap.docs
-      .map((d: any) => {
-        const m = d.data();
-        const u = m.created_by ? userMap[m.created_by] : null;
-        return {
-          id: d.id,
-          ...m,
-          created_by_name: u?.name || null,
-        };
-      })
-      .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const { results: mediaLinks } = await db
+      .prepare(`
+        SELECT tml.*, u.name as created_by_name
+        FROM task_media_links tml
+        LEFT JOIN users u ON tml.created_by = u.id
+        WHERE tml.task_id = ?
+        ORDER BY tml.created_at DESC
+      `)
+      .bind(id)
+      .all<any>();
 
     // Status history
-    const statusHistory = historySnap.docs
-      .map((d: any) => {
-        const h = d.data();
-        const u = h.user_id ? userMap[h.user_id] : null;
-        return {
-          id: d.id,
-          ...h,
-          user_name: u?.name || 'Sistema',
-        };
-      })
-      .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const { results: statusHistory } = await db
+      .prepare(`
+        SELECT tsh.*, u.name as user_name
+        FROM task_status_history tsh
+        LEFT JOIN users u ON tsh.user_id = u.id
+        WHERE tsh.task_id = ?
+        ORDER BY tsh.created_at DESC
+      `)
+      .bind(id)
+      .all<any>();
 
-    const deletion_request_status = deletionSnap.empty ? null : 'pending';
-    const cat = taskData.category_id ? catMap[taskData.category_id] : null;
-
-    const task = {
-      ...taskData,
-      name: taskData.name || taskData.title || 'Tarefa sem título',
-      title: taskData.title || taskData.name || 'Tarefa sem título',
-      delivery_date: taskData.delivery_date || taskData.due_date || null,
-      due_date: taskData.delivery_date || taskData.due_date || null,
-      client_name: taskData.client_id ? (clientMap[taskData.client_id] || null) : null,
-      category_name: cat?.name || null,
-      category_color: cat?.color || '#3B82F6',
-      created_by_name: taskData.created_by ? (userMap[taskData.created_by]?.name || null) : null,
-      assignees,
-      comments,
-      media_links: mediaLinks,
-      status_history: statusHistory,
-      media_links_count: mediaLinks.length,
-      comments_count: comments.length,
-      deletion_request_status,
-    };
-
-    return NextResponse.json({ task });
-  } catch (error: any) {
+    return NextResponse.json({
+      task: {
+        ...task,
+        assignees,
+        comments,
+        media_links: mediaLinks,
+        status_history: statusHistory,
+      },
+    });
+  } catch (error) {
     console.error('[GET /api/tasks/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -144,97 +127,118 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     if (!user) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
-
-    const { id } = await params;
-    const firestore = getAdminFirestore();
-
-    const taskRef = firestore.collection('tasks').doc(id);
-    const taskDoc = await taskRef.get();
-    if (!taskDoc.exists) {
-      return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
-    }
-
-    const existing: any = taskDoc.data();
-
-    // Permissão: CLIENTE não pode alterar tarefas
     if (user.role === 'CLIENTE') {
       return NextResponse.json({ error: 'Sem permissão para editar tarefas' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const taskName = body.name ?? body.title;
-    const {
-      description,
-      status,
-      client_id,
-      category_id,
-      delivery_date,
-      due_date,
-      value,
-      notes,
-      assignees,
-      assignee_ids,
-    } = body;
+    const db = getDb();
+    const { id } = await params;
 
-    const taskDeliveryDate = delivery_date ?? due_date;
+    const existing = await db
+      .prepare('SELECT * FROM tasks WHERE id = ?')
+      .bind(id)
+      .first<any>();
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const taskName = body.name !== undefined ? body.name : body.title;
+    const taskDeliveryDate = body.delivery_date !== undefined ? body.delivery_date : body.due_date;
+    const { description, status, client_id, category_id, value, notes, assignees, assignee_ids } = body;
+
     const now = new Date().toISOString();
     const statusChanged = status && status !== existing.status;
     const isCompleted = status === 'Concluída';
 
-    const updateData: Record<string, any> = {
-      updated_at: now,
-    };
+    const setClauses: string[] = ['updated_at = ?'];
+    const updateParams: any[] = [now];
 
     if (taskName !== undefined) {
-      updateData.name = taskName ? taskName.trim() : existing.name;
-      updateData.title = updateData.name;
+      setClauses.push('name = ?');
+      updateParams.push(taskName ? taskName.trim() : existing.name);
     }
-    if (description !== undefined) updateData.description = description;
-    if (status !== undefined) updateData.status = status;
-    if (client_id !== undefined) updateData.client_id = client_id;
-    if (category_id !== undefined) updateData.category_id = category_id;
+    if (description !== undefined) {
+      setClauses.push('description = ?');
+      updateParams.push(description);
+    }
+    if (status !== undefined) {
+      setClauses.push('status = ?');
+      updateParams.push(status);
+    }
+    if (client_id !== undefined) {
+      setClauses.push('client_id = ?');
+      updateParams.push(client_id);
+    }
+    if (category_id !== undefined) {
+      setClauses.push('category_id = ?');
+      updateParams.push(category_id);
+    }
     if (taskDeliveryDate !== undefined) {
-      updateData.delivery_date = taskDeliveryDate;
-      updateData.due_date = taskDeliveryDate;
+      setClauses.push('delivery_date = ?');
+      updateParams.push(taskDeliveryDate);
     }
-    if (value !== undefined) updateData.value = Number(value);
-    if (notes !== undefined) updateData.notes = notes;
+    if (value !== undefined) {
+      setClauses.push('value = ?');
+      updateParams.push(Number(value));
+    }
+    if (notes !== undefined) {
+      setClauses.push('notes = ?');
+      updateParams.push(notes);
+    }
 
     if (isCompleted && !existing.completed_at) {
-      updateData.completed_at = now;
+      setClauses.push('completed_at = ?');
+      updateParams.push(now);
     } else if (status && status !== 'Concluída' && existing.completed_at) {
-      updateData.completed_at = null;
+      setClauses.push('completed_at = ?');
+      updateParams.push(null);
     }
 
+    updateParams.push(id);
+
+    await db
+      .prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`)
+      .bind(...updateParams)
+      .run();
+
+    // Update assignees if provided
     const newAssigneesList = assignee_ids || assignees;
     if (Array.isArray(newAssigneesList)) {
-      const formattedIds = newAssigneesList.map((a: any) => (typeof a === 'string' ? a : a.id)).filter(Boolean);
-      updateData.assignee_ids = formattedIds;
-      updateData.assignees = formattedIds;
+      await db.prepare('DELETE FROM task_assignees WHERE task_id = ?').bind(id).run();
+      for (const uid of newAssigneesList) {
+        const assigneeId = 'ta_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+        await db
+          .prepare(`INSERT INTO task_assignees (id, task_id, user_id, assigned_at) VALUES (?, ?, ?, ?)`)
+          .bind(assigneeId, id, uid, now)
+          .run();
+      }
     }
-
-    await taskRef.set(updateData, { merge: true });
 
     if (statusChanged) {
       const histId = 'tsh_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-      await firestore.collection('task_status_history').doc(histId).set({
-        id: histId,
-        task_id: id,
-        user_id: user.id,
-        previous_status: existing.status,
-        new_status: status,
-        comment: 'Status alterado',
-        created_at: now,
-      });
+      await db
+        .prepare(`
+          INSERT INTO task_status_history (id, task_id, user_id, previous_status, new_status, comment, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `)
+        .bind(histId, id, user.id, existing.status, status, 'Status alterado', now)
+        .run();
 
-      const notifyIds = new Set<string>();
-      if (Array.isArray(updateData.assignee_ids || existing.assignee_ids)) {
-        (updateData.assignee_ids || existing.assignee_ids).forEach((uid: string) => notifyIds.add(uid));
+      const { results: taskAssignees } = await db
+        .prepare('SELECT user_id FROM task_assignees WHERE task_id = ?')
+        .bind(id)
+        .all<{ user_id: string }>();
+
+      const notifySet = new Set<string>(taskAssignees.map((a) => a.user_id));
+      if (existing.created_by && existing.created_by !== user.id) {
+        notifySet.add(existing.created_by);
       }
-      if (existing.created_by) notifyIds.add(existing.created_by);
 
-      const displayName = taskName || existing.name || existing.title;
-      for (const targetUserId of notifyIds) {
+      const displayName = taskName || existing.name;
+
+      for (const targetUserId of notifySet) {
         if (targetUserId !== user.id) {
           await createNotification({
             userId: targetUserId,
@@ -258,6 +262,26 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       }
     }
 
+    const updatedRaw = await db
+      .prepare(`
+        SELECT t.*, c.name as client_name,
+               tc.name as category_name, tc.color as category_color,
+               u.name as created_by_name
+        FROM tasks t
+        LEFT JOIN clients c ON t.client_id = c.id
+        LEFT JOIN task_categories tc ON t.category_id = tc.id
+        LEFT JOIN users u ON t.created_by = u.id
+        WHERE t.id = ?
+      `)
+      .bind(id)
+      .first<any>();
+
+    const updated = {
+      ...updatedRaw,
+      title: updatedRaw?.name,
+      due_date: updatedRaw?.delivery_date,
+    };
+
     await logAudit({
       userId: user.id,
       action: 'UPDATE',
@@ -268,16 +292,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       ipAddress: request.headers.get('x-forwarded-for'),
     });
 
-    const updatedDoc = await taskRef.get();
-    return NextResponse.json({
-      task: {
-        id: updatedDoc.id,
-        ...updatedDoc.data(),
-      }
-    });
-  } catch (error: any) {
+    return NextResponse.json({ task: updated });
+  } catch (error) {
     console.error('[PATCH /api/tasks/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -294,34 +312,25 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
     }
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const taskRef = firestore.collection('tasks').doc(id);
-    const taskDoc = await taskRef.get();
-    if (!taskDoc.exists) {
+    const task = await db
+      .prepare('SELECT * FROM tasks WHERE id = ?')
+      .bind(id)
+      .first<any>();
+
+    if (!task) {
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
     }
 
-    const task: any = taskDoc.data();
-
     if (isAdmin(user)) {
-      // Exclui tarefa e coleções relacionadas
-      await taskRef.delete();
-
-      const [commSnap, medSnap, histSnap, delSnap] = await Promise.all([
-        firestore.collection('task_comments').where('task_id', '==', id).get(),
-        firestore.collection('task_media_links').where('task_id', '==', id).get(),
-        firestore.collection('task_status_history').where('task_id', '==', id).get(),
-        firestore.collection('task_deletion_requests').where('task_id', '==', id).get(),
-      ]);
-
-      const batch = firestore.batch();
-      commSnap.docs.forEach((d: any) => batch.delete(d.ref));
-      medSnap.docs.forEach((d: any) => batch.delete(d.ref));
-      histSnap.docs.forEach((d: any) => batch.delete(d.ref));
-      delSnap.docs.forEach((d: any) => batch.delete(d.ref));
-      await batch.commit();
+      await db.prepare('DELETE FROM task_assignees WHERE task_id = ?').bind(id).run();
+      await db.prepare('DELETE FROM task_comments WHERE task_id = ?').bind(id).run();
+      await db.prepare('DELETE FROM task_media_links WHERE task_id = ?').bind(id).run();
+      await db.prepare('DELETE FROM task_status_history WHERE task_id = ?').bind(id).run();
+      await db.prepare('DELETE FROM task_deletion_requests WHERE task_id = ?').bind(id).run();
+      await db.prepare('DELETE FROM tasks WHERE id = ?').bind(id).run();
 
       await logAudit({
         userId: user.id,
@@ -335,14 +344,13 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return NextResponse.json({ message: 'Tarefa excluída com sucesso' });
     }
 
-    // COLABORADOR -> cria solicitação de exclusão
-    const existingReq = await firestore
-      .collection('task_deletion_requests')
-      .where('task_id', '==', id)
-      .where('status', '==', 'pending')
-      .get();
+    // COLABORADOR -> create deletion request
+    const existingReq = await db
+      .prepare(`SELECT id FROM task_deletion_requests WHERE task_id = ? AND status = 'pending'`)
+      .bind(id)
+      .first<any>();
 
-    if (!existingReq.empty) {
+    if (existingReq) {
       return NextResponse.json(
         { error: 'Já existe uma solicitação de exclusão pendente para esta tarefa' },
         { status: 409 }
@@ -351,17 +359,17 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const body = await request.json().catch(() => ({}));
     const { reason } = body;
+
     const requestId = 'tdr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
 
-    await firestore.collection('task_deletion_requests').doc(requestId).set({
-      id: requestId,
-      task_id: id,
-      requested_by: user.id,
-      reason: reason || null,
-      status: 'pending',
-      created_at: now,
-    });
+    await db
+      .prepare(`
+        INSERT INTO task_deletion_requests (id, task_id, requested_by, reason, status, created_at)
+        VALUES (?, ?, ?, ?, 'pending', ?)
+      `)
+      .bind(requestId, id, user.id, reason || null, now)
+      .run();
 
     await notifyAdmins({
       title: 'Solicitação de exclusão de tarefa',
@@ -384,8 +392,8 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       message: 'Solicitação de exclusão criada. Aguardando aprovação do administrador.',
       requestId,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[DELETE /api/tasks/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

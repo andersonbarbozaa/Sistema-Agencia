@@ -1,6 +1,8 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore, getAdminAuth } from '@/lib/firebase-admin';
-import { hashPassword, createSessionToken, createFirebaseCustomToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
+import { getDb } from '@/lib/db';
+import { hashPassword, createSessionToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(request: NextRequest) {
@@ -30,36 +32,20 @@ export async function POST(request: NextRequest) {
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
-    const firestore = getAdminFirestore();
-    const auth = getAdminAuth();
+    const db = getDb();
 
-    // 1. Verificar se o e-mail já existe no Firestore
-    if (firestore) {
-      try {
-        const firestoreUserSnap = await firestore.collection('users').where('email', '==', cleanEmail).limit(1).get();
-        if (!firestoreUserSnap.empty) {
-          return NextResponse.json({ error: 'Já existe uma conta cadastrada com este e-mail.' }, { status: 409 });
-        }
-      } catch (fsCheckErr) {
-        console.warn('[Register Firestore Check Warning]:', fsCheckErr);
-      }
-    }
+    // Check if email is already registered
+    const existingUser = await db
+      .prepare('SELECT id FROM users WHERE lower(email) = ?')
+      .bind(cleanEmail)
+      .first();
 
-    // 2. Verificar se o e-mail já existe no Firebase Auth
-    if (auth) {
-      try {
-        const existingAuthUser = await auth.getUserByEmail(cleanEmail);
-        if (existingAuthUser) {
-          return NextResponse.json({ error: 'Já existe uma conta cadastrada com este e-mail no Firebase Auth.' }, { status: 409 });
-        }
-      } catch (authCheckErr: any) {
-        // auth/user-not-found é o esperado quando o usuário não existe
-      }
+    if (existingUser) {
+      return NextResponse.json({ error: 'Já existe uma conta cadastrada com este e-mail.' }, { status: 409 });
     }
 
     const hashedPassword = await hashPassword(password);
     const userId = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-    const now = new Date().toISOString();
 
     let targetWorkspaceId = '';
     let targetWorkspaceName = '';
@@ -67,37 +53,14 @@ export async function POST(request: NextRequest) {
     let userJobTitle = job_title ? job_title.trim() : '';
 
     // ========================================================
-    // CASO A: REGISTO VIA LINK DE CONVITE (MEMBRO DO WORKSPACE)
+    // CASE A: MEMBER REGISTRATION VIA INVITE LINK
     // ========================================================
     if (invite && invite.trim()) {
       const inviteCode = invite.trim();
-      let workspace: any = null;
-
-      if (firestore) {
-        try {
-          const docDirect = await firestore.collection('workspaces').doc(inviteCode).get();
-          if (docDirect.exists) {
-            workspace = { id: docDirect.id, ...docDirect.data() };
-          } else {
-            const querySnap = await firestore.collection('workspaces').where('invite_code', '==', inviteCode).limit(1).get();
-            if (!querySnap.empty) {
-              const doc = querySnap.docs[0];
-              workspace = { id: doc.id, ...doc.data() };
-            }
-          }
-        } catch (wsFsErr) {
-          console.warn('[Register Workspace Lookup Warning]:', wsFsErr);
-        }
-      }
-
-      if (!workspace && (inviteCode === 'pixelcraft' || inviteCode === 'ws_default')) {
-        workspace = {
-          id: 'ws_default',
-          name: 'PixelCraft Studio',
-          description: 'Agência Audiovisual & Criativa',
-          invite_code: 'pixelcraft',
-        };
-      }
+      const workspace = await db
+        .prepare('SELECT * FROM workspaces WHERE invite_code = ? OR id = ?')
+        .bind(inviteCode, inviteCode)
+        .first<any>();
 
       if (!workspace) {
         return NextResponse.json(
@@ -107,12 +70,30 @@ export async function POST(request: NextRequest) {
       }
 
       targetWorkspaceId = workspace.id;
-      targetWorkspaceName = workspace.name || 'Área de Trabalho';
+      targetWorkspaceName = workspace.name;
       userRole = role === 'CLIENTE' ? 'CLIENTE' : 'COLABORADOR';
       userJobTitle = userJobTitle || (userRole === 'CLIENTE' ? 'Cliente' : 'Colaborador');
+
+      await db
+        .prepare(`
+          INSERT INTO users (
+            id, name, email, password_hash, phone, role, job_title, workspace_id, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
+        `)
+        .bind(
+          userId,
+          cleanName,
+          cleanEmail,
+          hashedPassword,
+          phone ? phone.trim() : null,
+          userRole,
+          userJobTitle,
+          targetWorkspaceId
+        )
+        .run();
     }
     // ========================================================
-    // CASO B: REGISTO ISOLADO (CRIA NOVO WORKSPACE E DONO/ADMIN)
+    // CASE B: NEW OWNER ACCOUNT CREATION (CREATES NEW WORKSPACE)
     // ========================================================
     else {
       userRole = 'ADMINISTRADOR';
@@ -124,94 +105,43 @@ export async function POST(request: NextRequest) {
       const workspaceId = 'ws_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
       const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
 
-      // Cria nova Área de Trabalho no Firestore
-      if (firestore) {
-        try {
-          await firestore.collection('workspaces').doc(workspaceId).set({
-            id: workspaceId,
-            name: finalCompanyName,
-            description: finalCompanyDesc,
-            owner_id: userId,
-            invite_code: inviteCode,
-            created_at: now,
-            updated_at: now,
-          }, { merge: true });
-        } catch (wsCreateErr) {
-          console.warn('[Firestore Workspace Creation Warning]:', wsCreateErr);
-        }
-      }
+      // Create new isolated workspace
+      await db
+        .prepare(`
+          INSERT INTO workspaces (id, name, description, owner_id, invite_code, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `)
+        .bind(workspaceId, finalCompanyName, finalCompanyDesc, userId, inviteCode)
+        .run();
 
       targetWorkspaceId = workspaceId;
       targetWorkspaceName = finalCompanyName;
+
+      // Create owner user
+      await db
+        .prepare(`
+          INSERT INTO users (
+            id, name, email, password_hash, phone, role, job_title, workspace_id, is_partner, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'ADMINISTRADOR', ?, ?, 1, 'ativo', datetime('now'), datetime('now'))
+        `)
+        .bind(
+          userId,
+          cleanName,
+          cleanEmail,
+          hashedPassword,
+          phone ? phone.trim() : null,
+          userJobTitle,
+          targetWorkspaceId
+        )
+        .run();
     }
 
-    // ========================================================
-    // BACKEND/AUTH: CRIAR CONTA NO FIREBASE AUTHENTICATION
-    // ========================================================
-    if (auth) {
-      try {
-        await auth.createUser({
-          uid: userId,
-          email: cleanEmail,
-          password: password,
-          displayName: cleanName,
-        });
-
-        await auth.setCustomUserClaims(userId, {
-          role: userRole,
-          workspaceId: targetWorkspaceId,
-        });
-      } catch (authCreateErr: any) {
-        console.warn('[Firebase Auth CreateUser Warning]:', authCreateErr);
-        try {
-          await auth.setCustomUserClaims(userId, {
-            role: userRole,
-            workspaceId: targetWorkspaceId,
-          });
-        } catch {}
-      }
-    }
-
-    // ========================================================
-    // FIRESTORE: CRIAR DOCUMENTO DO USUÁRIO COM PERFIL
-    // ========================================================
-    if (firestore) {
-      try {
-        await firestore.collection('users').doc(userId).set({
-          id: userId,
-          uid: userId,
-          name: cleanName,
-          email: cleanEmail,
-          password_hash: hashedPassword,
-          phone: phone ? phone.trim() : null,
-          role: userRole,
-          job_title: userJobTitle,
-          workspace_id: targetWorkspaceId,
-          workspace_name: targetWorkspaceName,
-          status: 'ativo',
-          is_partner: userRole === 'ADMINISTRADOR' ? 1 : 0,
-          created_at: now,
-          updated_at: now,
-        }, { merge: true });
-        console.log(`[Firestore User Success] Perfil de usuário salvo no Firestore: users/${userId}`);
-      } catch (fsUserErr) {
-        console.warn('[Firestore User Doc Warning]:', fsUserErr);
-      }
-    }
-
-    // ========================================================
-    // GERAÇÃO DE TOKENS (SESSION TOKEN + FIREBASE CUSTOM TOKEN)
-    // ========================================================
+    // Generate Session Token
     const token = await createSessionToken({
       id: userId,
       email: cleanEmail,
       role: userRole as any,
       workspace_id: targetWorkspaceId,
-    });
-
-    const firebaseToken = await createFirebaseCustomToken(userId, {
-      role: userRole,
-      workspaceId: targetWorkspaceId,
     });
 
     await logAudit({
@@ -236,9 +166,9 @@ export async function POST(request: NextRequest) {
       success: true,
       user: safeUser,
       token,
-      firebase_token: firebaseToken,
     });
 
+    // Set auth cookie
     response.cookies.set({
       name: TOKEN_COOKIE_NAME,
       value: token,
@@ -250,8 +180,8 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[POST /api/auth/register]', error);
-    return NextResponse.json({ error: error?.message || 'Erro interno ao realizar cadastro.' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao realizar cadastro.' }, { status: 500 });
   }
 }

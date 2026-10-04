@@ -1,6 +1,8 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
-import { getApiUser, isAdmin } from '@/lib/auth';
+import { getDb } from '@/lib/db';
+import { getApiUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 // GET /api/contracts/[id] - Get single contract
@@ -9,34 +11,36 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const contractDoc = await firestore.collection('contracts').doc(id).get();
-    if (!contractDoc.exists) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+    const contract = await db
+      .prepare(
+        `SELECT c.*, cl.name as client_name
+        FROM contracts c
+        LEFT JOIN clients cl ON cl.id = c.client_id
+        WHERE c.id = ?`
+      )
+      .bind(id)
+      .first<Record<string, unknown>>();
 
-    const contractData: any = { id: contractDoc.id, ...contractDoc.data() };
+    if (!contract) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
 
     // CLIENTE: can only view their own contracts
-    if (user.role === 'CLIENTE' && contractData.client_id !== user.client_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    let client_name = null;
-    if (contractData.client_id) {
-      const cl = await firestore.collection('clients').doc(contractData.client_id).get();
-      if (cl.exists) client_name = cl.data()?.name || null;
-    }
-
-    return NextResponse.json({
-      data: {
-        ...contractData,
-        client_name,
+    if (user.role === 'CLIENTE') {
+      const clientRecord = await db
+        .prepare('SELECT id FROM clients WHERE user_id = ?')
+        .bind(user.id)
+        .first<{ id: string }>();
+      if (!clientRecord || clientRecord.id !== contract.client_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-    });
-  } catch (error: any) {
+    }
+
+    return NextResponse.json({ data: contract });
+  } catch (error) {
     console.error('GET /api/contracts/[id] error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -45,55 +49,55 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (user.role !== 'ADMINISTRADOR') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const contractRef = firestore.collection('contracts').doc(id);
-    const contractDoc = await contractRef.get();
-    if (!contractDoc.exists) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+    const existing = await db.prepare('SELECT id FROM contracts WHERE id = ?').bind(id).first();
+    if (!existing) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
 
-    const existing: any = contractDoc.data();
     const body = await request.json();
-    const allowedFields = ['title', 'description', 'value', 'start_date', 'end_date', 'status', 'file_url', 'client_id'];
-    const updateData: Record<string, any> = {};
+    const allowedFields = ['title', 'description', 'value', 'start_date', 'end_date', 'status', 'file_url'];
+    const updates: string[] = [];
+    const values: unknown[] = [];
 
     for (const field of allowedFields) {
       if (field in body) {
-        updateData[field] = field === 'value' ? (body[field] ? Number(body[field]) : null) : body[field];
+        updates.push(`${field} = ?`);
+        values.push(body[field]);
       }
     }
 
-    if (Object.keys(updateData).length === 0) {
+    if (updates.length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const now = new Date().toISOString();
-    updateData.updated_at = now;
+    updates.push('updated_at = ?');
+    values.push(now, id);
 
-    await contractRef.set(updateData, { merge: true });
+    await db
+      .prepare(`UPDATE contracts SET ${updates.join(', ')} WHERE id = ?`)
+      .bind(...values)
+      .run();
 
     await logAudit(user.id, 'contracts', 'UPDATE', id, body);
 
-    const updatedDoc = await contractRef.get();
-    const updatedData: any = { id: updatedDoc.id, ...updatedDoc.data() };
+    const updated = await db
+      .prepare(
+        `SELECT c.*, cl.name as client_name
+        FROM contracts c
+        LEFT JOIN clients cl ON cl.id = c.client_id
+        WHERE c.id = ?`
+      )
+      .bind(id)
+      .first();
 
-    let client_name = null;
-    if (updatedData.client_id) {
-      const cl = await firestore.collection('clients').doc(updatedData.client_id).get();
-      if (cl.exists) client_name = cl.data()?.name || null;
-    }
-
-    return NextResponse.json({
-      data: {
-        ...updatedData,
-        client_name,
-      }
-    });
-  } catch (error: any) {
+    return NextResponse.json({ data: updated });
+  } catch (error) {
     console.error('PATCH /api/contracts/[id] error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -102,22 +106,25 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (user.role !== 'ADMINISTRADOR') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const contractRef = firestore.collection('contracts').doc(id);
-    const contractDoc = await contractRef.get();
-    if (!contractDoc.exists) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+    const existing = await db
+      .prepare('SELECT id, title FROM contracts WHERE id = ?')
+      .bind(id)
+      .first<{ id: string; title: string }>();
 
-    await contractRef.delete();
+    if (!existing) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
 
-    await logAudit(user.id, 'contracts', 'DELETE', id);
+    await db.prepare('DELETE FROM contracts WHERE id = ?').bind(id).run();
 
-    return NextResponse.json({ success: true, message: 'Contrato excluído com sucesso.' });
-  } catch (error: any) {
+    await logAudit(user.id, 'contracts', 'DELETE', id, { title: existing.title });
+
+    return NextResponse.json({ message: 'Contract deleted successfully' });
+  } catch (error) {
     console.error('DELETE /api/contracts/[id] error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

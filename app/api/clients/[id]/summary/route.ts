@@ -1,10 +1,20 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 // ─── GET /api/clients/[id]/summary ───────────────────────────────────────────
+// Returns an aggregated summary for the given client:
+//   - Task stats (total / pending / completed)
+//   - Project stats (active projects count)
+//   - Financial stats (total revenue, pending revenue)
+//   - Recent transactions (last 5)
+//   - Active contracts
+//
+// CLIENTE role can only retrieve the summary for their own client record.
 export async function GET(request: Request, { params }: RouteContext) {
   try {
     const user = await getApiUser(request);
@@ -19,74 +29,99 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const firestore = getAdminFirestore();
+    const db = await getDb();
 
-    const clientDoc = await firestore.collection('clients').doc(id).get();
-    if (!clientDoc.exists) {
+    // Verify client exists
+    const client = await db
+      .prepare('SELECT id, name FROM clients WHERE id = ?')
+      .bind(id)
+      .first();
+
+    if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    const [tasksSnap, projectsSnap, txsSnap, contractsSnap] = await Promise.all([
-      firestore.collection('tasks').where('client_id', '==', id).get(),
-      firestore.collection('projects').where('client_id', '==', id).get(),
-      firestore.collection('financial_transactions').where('client_id', '==', id).get(),
-      firestore.collection('contracts').where('client_id', '==', id).get(),
-    ]);
+    // ── Task counts ─────────────────────────────────────────────────────────
+    // Tasks are linked to projects which are linked to clients
+    const taskStats = await db
+      .prepare(
+        `SELECT
+           COUNT(*)                                          AS total_tasks,
+           SUM(CASE WHEN t.status != 'concluida' THEN 1 ELSE 0 END) AS pending_tasks,
+           SUM(CASE WHEN t.status = 'concluida'  THEN 1 ELSE 0 END) AS completed_tasks
+         FROM tasks t
+         INNER JOIN projects p ON t.project_id = p.id
+         WHERE p.client_id = ?`
+      )
+      .bind(id)
+      .first() as Record<string, number> | null;
 
-    const tasks = tasksSnap.docs.map((d: any) => d.data());
-    const total_tasks = tasks.length;
-    const completed_tasks = tasks.filter((t: any) => t.status === 'Concluída' || t.status === 'Aprovada').length;
-    const pending_tasks = total_tasks - completed_tasks;
+    // ── Active projects count ───────────────────────────────────────────────
+    const projectStats = await db
+      .prepare(
+        `SELECT COUNT(*) AS active_projects
+         FROM projects
+         WHERE client_id = ? AND status = 'ativo'`
+      )
+      .bind(id)
+      .first() as Record<string, number> | null;
 
-    const projects = projectsSnap.docs.map((d: any) => d.data());
-    const active_projects = projects.filter((p: any) => p.status !== 'Concluído' && p.status !== 'Cancelado').length;
+    // ── Financial stats ─────────────────────────────────────────────────────
+    const revenueStats = await db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(amount), 0)                                               AS total_revenue,
+           COALESCE(SUM(CASE WHEN status = 'Pendente' THEN amount ELSE 0 END), 0) AS pending_revenue
+         FROM financial_transactions
+         WHERE client_id = ? AND type = 'Entrada'`
+      )
+      .bind(id)
+      .first() as Record<string, number> | null;
 
-    const txs = txsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    let total_revenue = 0;
-    let pending_revenue = 0;
+    // ── Recent transactions (last 5) ────────────────────────────────────────
+    const recentTransactions = await db
+      .prepare(
+        `SELECT id, description, amount, type, status, created_at
+         FROM financial_transactions
+         WHERE client_id = ?
+         ORDER BY created_at DESC
+         LIMIT 5`
+      )
+      .bind(id)
+      .all();
 
-    txs.forEach((t: any) => {
-      const amt = Number(t.amount || 0);
-      if (t.type === 'Entrada') {
-        total_revenue += amt;
-        if (t.status === 'Pendente') {
-          pending_revenue += amt;
-        }
-      }
-    });
-
-    const recentTransactions = [...txs]
-      .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-      .slice(0, 5);
-
-    const activeContracts = contractsSnap.docs
-      .map((d: any) => ({ id: d.id, ...d.data() }))
-      .filter((c: any) => c.status === 'Ativo' || c.status === 'ativo')
-      .sort((a: any, b: any) => new Date(b.start_date || b.created_at || 0).getTime() - new Date(a.start_date || a.created_at || 0).getTime());
+    // ── Active contracts ────────────────────────────────────────────────────
+    const activeContracts = await db
+      .prepare(
+        `SELECT id, title, value, start_date, end_date, status
+         FROM contracts
+         WHERE client_id = ? AND status = 'ativo'
+         ORDER BY start_date DESC`
+      )
+      .bind(id)
+      .all();
 
     return NextResponse.json({
       data: {
-        client: { id: clientDoc.id, ...clientDoc.data() },
+        client: { id: client.id, name: client.name },
         tasks: {
-          total_tasks,
-          pending_tasks,
-          completed_tasks,
+          total:     taskStats?.total_tasks     ?? 0,
+          pending:   taskStats?.pending_tasks   ?? 0,
+          completed: taskStats?.completed_tasks ?? 0,
         },
         projects: {
-          active_projects,
+          active: projectStats?.active_projects ?? 0,
         },
-        financial: {
-          total_revenue,
-          pending_revenue,
-          recent_transactions: recentTransactions,
+        revenue: {
+          total:   revenueStats?.total_revenue   ?? 0,
+          pending: revenueStats?.pending_revenue ?? 0,
         },
-        contracts: {
-          active_contracts: activeContracts,
-        },
+        recent_transactions: recentTransactions.results ?? [],
+        active_contracts:    activeContracts.results    ?? [],
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[GET /api/clients/[id]/summary]', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

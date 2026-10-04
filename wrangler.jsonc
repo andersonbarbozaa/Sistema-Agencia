@@ -10,13 +10,15 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agencia-db",
+      "database_id": "e9b5a3da-5578-46e2-b77e-30b6a1b098c8",
+      "migrations_dir": "migrations"
+    }
+  ],
   "vars": {
-    "DEFAULT_TIMEZONE": "America/Sao_Paulo",
-    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "sistema-agencia-5603f.firebaseapp.com",
-    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "sistema-agencia-5603f",
-    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET": "sistema-agencia-5603f.firebasestorage.app",
-    "FIREBASE_PROJECT_ID": "sistema-agencia-5603f",
-    "FIREBASE_CLIENT_EMAIL": "firebase-adminsdk-fbsvc@sistema-agencia-5603f.iam.gserviceaccount.com"
+    "DEFAULT_TIMEZONE": "America/Sao_Paulo"
   }
 }
-

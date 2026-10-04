@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,56 +12,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Código de convite não informado' }, { status: 400 });
     }
 
-    const cleanCode = code.trim();
-    const firestore = getAdminFirestore();
+    const db = getDb();
+    const workspace = await db
+      .prepare(
+        `SELECT id, name, description, invite_code, created_at
+         FROM workspaces
+         WHERE invite_code = ? OR id = ?`
+      )
+      .bind(code, code)
+      .first<{ id: string; name: string; description: string | null; invite_code: string; created_at: string }>();
 
-    // 1. Try finding by ID
-    const directDoc = await firestore.collection('workspaces').doc(cleanCode).get();
-    if (directDoc.exists) {
-      const data = directDoc.data();
-      return NextResponse.json({
-        workspace: {
-          id: directDoc.id,
-          name: data?.name || 'Área de Trabalho',
-          description: data?.description || null,
-          invite_code: data?.invite_code || cleanCode,
-          created_at: data?.created_at || new Date().toISOString(),
-        }
-      });
+    if (!workspace) {
+      return NextResponse.json({ error: 'Área de Trabalho não encontrada ou link de convite expirado.' }, { status: 404 });
     }
 
-    // 2. Try finding by invite_code
-    const querySnap = await firestore.collection('workspaces').where('invite_code', '==', cleanCode).limit(1).get();
-    if (!querySnap.empty) {
-      const doc = querySnap.docs[0];
-      const data = doc.data();
-      return NextResponse.json({
-        workspace: {
-          id: doc.id,
-          name: data?.name || 'Área de Trabalho',
-          description: data?.description || null,
-          invite_code: data?.invite_code || cleanCode,
-          created_at: data?.created_at || new Date().toISOString(),
-        }
-      });
-    }
-
-    // Special fallback for 'pixelcraft' or 'ws_default'
-    if (cleanCode === 'pixelcraft' || cleanCode === 'ws_default') {
-      const defaultWs = {
-        id: 'ws_default',
-        name: 'PixelCraft Studio',
-        description: 'Agência Audiovisual & Criativa',
-        invite_code: 'pixelcraft',
-        created_at: new Date().toISOString(),
-      };
-      await firestore.collection('workspaces').doc('ws_default').set(defaultWs, { merge: true });
-      return NextResponse.json({ workspace: defaultWs });
-    }
-
-    return NextResponse.json({ error: 'Área de Trabalho não encontrada ou link de convite expirado.' }, { status: 404 });
-  } catch (error: any) {
+    return NextResponse.json({ workspace });
+  } catch (error) {
     console.error('[GET /api/workspaces/invite-info]', error);
-    return NextResponse.json({ error: error?.message || 'Erro ao validar link de convite' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao validar link de convite' }, { status: 500 });
   }
 }

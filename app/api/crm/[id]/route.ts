@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -10,69 +12,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role === 'CLIENTE') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const leadDoc = await firestore.collection('crm_leads').doc(id).get();
-    if (!leadDoc.exists) {
-      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    }
+    const lead = await db
+      .prepare(
+        `SELECT
+          l.*,
+          u.name as assignee_name,
+          CAST((julianday('now') - julianday(l.last_activity_at)) AS INTEGER) > 7 as is_inactive
+        FROM crm_leads l
+        LEFT JOIN users u ON u.id = l.assignee_id
+        WHERE l.id = ?`
+      )
+      .bind(id)
+      .first();
 
-    const leadData: any = { id: leadDoc.id, ...leadDoc.data() };
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    // Workspace check
-    const wsId = user.workspace_id || 'ws_default';
-    if (wsId !== 'ws_default' && leadData.workspace_id && leadData.workspace_id !== wsId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const interactions = await db
+      .prepare(
+        `SELECT i.*, u.name as author_name
+        FROM crm_interactions i
+        LEFT JOIN users u ON u.id = i.user_id
+        WHERE i.lead_id = ?
+        ORDER BY i.interaction_date DESC`
+      )
+      .bind(id)
+      .all();
 
-    // Assignee name
-    let assignee_name = null;
-    if (leadData.assignee_id) {
-      const uDoc = await firestore.collection('users').doc(leadData.assignee_id).get();
-      if (uDoc.exists) {
-        assignee_name = uDoc.data()?.name || null;
-      }
-    }
-
-    const lastAct = leadData.last_activity_at ? new Date(leadData.last_activity_at).getTime() : new Date(leadData.created_at || 0).getTime();
-    const is_inactive = (Date.now() - lastAct) > (7 * 24 * 60 * 60 * 1000);
-
-    // Get interactions
-    const interSnap = await firestore
-      .collection('crm_interactions')
-      .where('lead_id', '==', id)
-      .get();
-
-    let interactions = interSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-
-    // User names for interactions
-    const userMap: Record<string, string> = {};
-    const usersSnap = await firestore.collection('users').get();
-    usersSnap.docs.forEach((uDoc: any) => {
-      const uData = uDoc.data();
-      userMap[uDoc.id] = uData.name || uData.email;
-      if (uData.id) userMap[uData.id] = uData.name || uData.email;
-    });
-
-    interactions = interactions.map((i: any) => ({
-      ...i,
-      author_name: i.user_id ? (userMap[i.user_id] || null) : null
-    }));
-
-    interactions.sort((a: any, b: any) => new Date(b.interaction_date || b.created_at || 0).getTime() - new Date(a.interaction_date || a.created_at || 0).getTime());
-
-    return NextResponse.json({
-      data: {
-        ...leadData,
-        assignee_name,
-        is_inactive: is_inactive ? 1 : 0,
-        interactions
-      }
-    });
-  } catch (error: any) {
+    return NextResponse.json({ data: { ...lead, interactions: interactions.results } });
+  } catch (error) {
     console.error('GET /api/crm/[id] error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -85,18 +57,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const leadRef = firestore.collection('crm_leads').doc(id);
-    const leadDoc = await leadRef.get();
-    if (!leadDoc.exists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-
-    const existingData: any = leadDoc.data();
-    const wsId = user.workspace_id || 'ws_default';
-    if (wsId !== 'ws_default' && existingData.workspace_id && existingData.workspace_id !== wsId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const existing = await db.prepare('SELECT * FROM crm_leads WHERE id = ?').bind(id).first();
+    if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
     const body = await request.json();
     const payload: Record<string, any> = { ...body };
@@ -104,45 +69,46 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ('platform' in payload && !('source' in payload)) payload.source = payload.platform;
 
     const allowedFields = ['contact_name', 'company', 'email', 'phone', 'status', 'assignee_id', 'notes', 'source', 'estimated_value'];
-    const updateData: Record<string, any> = {};
+    const updates: string[] = [];
+    const values: unknown[] = [];
 
     for (const field of allowedFields) {
       if (field in payload) {
-        updateData[field] = payload[field];
+        updates.push(`${field} = ?`);
+        values.push(payload[field]);
       }
     }
 
-    if (Object.keys(updateData).length === 0) {
+    if (updates.length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const now = new Date().toISOString();
-    updateData.last_activity_at = now;
-    updateData.updated_at = now;
+    updates.push('last_activity_at = ?', 'updated_at = ?');
+    values.push(now, now, id);
 
-    await leadRef.set(updateData, { merge: true });
+    await db
+      .prepare(`UPDATE crm_leads SET ${updates.join(', ')} WHERE id = ?`)
+      .bind(...values)
+      .run();
 
     await logAudit(user.id, 'crm_leads', 'UPDATE', id, body);
 
-    const updatedDoc = await leadRef.get();
-    const updatedData: any = { id: updatedDoc.id, ...updatedDoc.data() };
+    const updated = await db
+      .prepare(
+        `SELECT l.*, u.name as assignee_name,
+          CAST((julianday('now') - julianday(l.last_activity_at)) AS INTEGER) > 7 as is_inactive
+        FROM crm_leads l
+        LEFT JOIN users u ON u.id = l.assignee_id
+        WHERE l.id = ?`
+      )
+      .bind(id)
+      .first();
 
-    let assignee_name = null;
-    if (updatedData.assignee_id) {
-      const uDoc = await firestore.collection('users').doc(updatedData.assignee_id).get();
-      if (uDoc.exists) assignee_name = uDoc.data()?.name || null;
-    }
-
-    return NextResponse.json({
-      data: {
-        ...updatedData,
-        assignee_name,
-        is_inactive: 0
-      }
-    });
-  } catch (error: any) {
+    return NextResponse.json({ data: updated });
+  } catch (error) {
     console.error('PATCH /api/crm/[id] error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -151,30 +117,22 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (user.role !== 'ADMINISTRADOR') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (user.role !== 'ADMINISTRADOR') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+    const db = getDb();
     const { id } = await params;
-    const firestore = getAdminFirestore();
 
-    const leadRef = firestore.collection('crm_leads').doc(id);
-    const leadDoc = await leadRef.get();
-    if (!leadDoc.exists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    const existing = await db.prepare('SELECT * FROM crm_leads WHERE id = ?').bind(id).first();
+    if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    await leadRef.delete();
+    await db.prepare('DELETE FROM crm_interactions WHERE lead_id = ?').bind(id).run();
+    await db.prepare('DELETE FROM crm_leads WHERE id = ?').bind(id).run();
 
-    // Delete associated interactions
-    const interSnap = await firestore.collection('crm_interactions').where('lead_id', '==', id).get();
-    const batch = firestore.batch();
-    interSnap.docs.forEach((doc: any) => batch.delete(doc.ref));
-    await batch.commit();
-
-    await logAudit(user.id, 'crm_leads', 'DELETE', id);
+    await logAudit(user.id, 'crm_leads', 'DELETE', id, { contact_name: (existing as Record<string, unknown>).contact_name });
 
     return NextResponse.json({ message: 'Lead deleted successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('DELETE /api/crm/[id] error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -14,59 +16,91 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     const { id } = await params;
     const { searchParams } = new URL(request.url);
-    const targetQuery = searchParams.get('target');
+    const targetQuery = searchParams.get('target'); // 'tasks' | 'finance'
     const body = await request.json();
     const { name, color, type, is_active } = body;
 
-    const firestore = getAdminFirestore();
+    const db = getDb();
 
-    // Check collections
+    // Determine target
     let target = targetQuery;
-    let collectionName = 'task_categories';
-
     if (!target) {
-      const tc = await firestore.collection('task_categories').doc(id).get();
-      if (tc.exists) {
-        target = 'tasks';
-        collectionName = 'task_categories';
-      } else {
-        target = 'finance';
-        collectionName = 'financial_categories';
+      if (id.startsWith('tcat_') || id.startsWith('cat_task')) target = 'tasks';
+      else if (id.startsWith('fcat_') || id.startsWith('cat_fin')) target = 'finance';
+      else {
+        // Check task_categories first
+        const tc = await db.prepare('SELECT id FROM task_categories WHERE id = ?').bind(id).first();
+        if (tc) target = 'tasks';
+        else target = 'finance';
       }
+    }
+
+    if (target === 'tasks') {
+      const existing = await db.prepare('SELECT * FROM task_categories WHERE id = ?').bind(id).first();
+      if (!existing) {
+        return NextResponse.json({ error: 'Categoria não encontrada.' }, { status: 404 });
+      }
+
+      await db
+        .prepare(`
+          UPDATE task_categories
+          SET name = COALESCE(?, name),
+              color = COALESCE(?, color),
+              is_active = COALESCE(?, is_active)
+          WHERE id = ?
+        `)
+        .bind(
+          name ? name.trim() : null,
+          color ?? null,
+          is_active !== undefined ? Number(is_active) : null,
+          id
+        )
+        .run();
+
+      await logAudit({
+        userId: user.id,
+        action: 'UPDATE',
+        module: 'SETTINGS',
+        recordId: id,
+        beforeData: existing,
+        afterData: body,
+      });
+
+      return NextResponse.json({ success: true, message: 'Categoria atualizada com sucesso.' });
     } else {
-      collectionName = target === 'tasks' ? 'task_categories' : 'financial_categories';
+      const existing = await db.prepare('SELECT * FROM financial_categories WHERE id = ?').bind(id).first();
+      if (!existing) {
+        return NextResponse.json({ error: 'Categoria financeira não encontrada.' }, { status: 404 });
+      }
+
+      await db
+        .prepare(`
+          UPDATE financial_categories
+          SET name = COALESCE(?, name),
+              type = COALESCE(?, type),
+              is_active = COALESCE(?, is_active)
+          WHERE id = ?
+        `)
+        .bind(
+          name ? name.trim() : null,
+          type ?? null,
+          is_active !== undefined ? Number(is_active) : null,
+          id
+        )
+        .run();
+
+      await logAudit({
+        userId: user.id,
+        action: 'UPDATE',
+        module: 'SETTINGS',
+        recordId: id,
+        beforeData: existing,
+        afterData: body,
+      });
+
+      return NextResponse.json({ success: true, message: 'Categoria financeira atualizada com sucesso.' });
     }
-
-    const catRef = firestore.collection(collectionName).doc(id);
-    const catDoc = await catRef.get();
-    if (!catDoc.exists) {
-      return NextResponse.json({ error: 'Categoria não encontrada.' }, { status: 404 });
-    }
-
-    const existing: any = catDoc.data();
-    const updateData: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-
-    if (name !== undefined) updateData.name = name.trim();
-    if (color !== undefined) updateData.color = color;
-    if (type !== undefined) updateData.type = type;
-    if (is_active !== undefined) updateData.is_active = Number(is_active) ? 1 : 0;
-
-    await catRef.set(updateData, { merge: true });
-
-    await logAudit({
-      userId: user.id,
-      action: 'UPDATE',
-      module: 'SETTINGS',
-      recordId: id,
-      beforeData: existing,
-      afterData: body,
-    });
-
-    return NextResponse.json({ success: true, message: 'Categoria atualizada com sucesso.' });
   } catch (err: any) {
-    console.error('PATCH /api/categories/[id] error:', err);
     return NextResponse.json({ error: 'Erro ao atualizar categoria.' }, { status: 500 });
   }
 }
@@ -81,43 +115,66 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const targetQuery = searchParams.get('target');
+    const db = getDb();
 
-    const firestore = getAdminFirestore();
     let target = targetQuery;
-    let collectionName = 'task_categories';
-
     if (!target) {
-      const tc = await firestore.collection('task_categories').doc(id).get();
-      if (tc.exists) {
-        target = 'tasks';
-        collectionName = 'task_categories';
-      } else {
-        target = 'finance';
-        collectionName = 'financial_categories';
+      if (id.startsWith('tcat_') || id.startsWith('cat_task')) target = 'tasks';
+      else if (id.startsWith('fcat_') || id.startsWith('cat_fin')) target = 'finance';
+      else {
+        const tc = await db.prepare('SELECT id FROM task_categories WHERE id = ?').bind(id).first();
+        if (tc) target = 'tasks';
+        else target = 'finance';
       }
+    }
+
+    if (target === 'tasks') {
+      const existing = await db.prepare('SELECT * FROM task_categories WHERE id = ?').bind(id).first();
+      if (!existing) {
+        return NextResponse.json({ error: 'Categoria não encontrada.' }, { status: 404 });
+      }
+
+      // Check if tasks use this category
+      const tasksCount = await db
+        .prepare('SELECT COUNT(*) as count FROM tasks WHERE category_id = ?')
+        .bind(id)
+        .first<any>();
+
+      if (tasksCount && tasksCount.count > 0) {
+        // Disassociate or set is_active = 0
+        await db.prepare('UPDATE task_categories SET is_active = 0 WHERE id = ?').bind(id).run();
+        return NextResponse.json({
+          success: true,
+          message: 'Categoria desativada (possui tarefas associadas).',
+        });
+      }
+
+      await db.prepare('DELETE FROM task_categories WHERE id = ?').bind(id).run();
+      return NextResponse.json({ success: true, message: 'Categoria excluída com sucesso.' });
     } else {
-      collectionName = target === 'tasks' ? 'task_categories' : 'financial_categories';
+      const existing = await db.prepare('SELECT * FROM financial_categories WHERE id = ?').bind(id).first();
+      if (!existing) {
+        return NextResponse.json({ error: 'Categoria financeira não encontrada.' }, { status: 404 });
+      }
+
+      // Check if transactions use this category
+      const txCount = await db
+        .prepare('SELECT COUNT(*) as count FROM financial_transactions WHERE category_id = ?')
+        .bind(id)
+        .first<any>();
+
+      if (txCount && txCount.count > 0) {
+        await db.prepare('UPDATE financial_categories SET is_active = 0 WHERE id = ?').bind(id).run();
+        return NextResponse.json({
+          success: true,
+          message: 'Categoria desativada (possui transações associadas).',
+        });
+      }
+
+      await db.prepare('DELETE FROM financial_categories WHERE id = ?').bind(id).run();
+      return NextResponse.json({ success: true, message: 'Categoria financeira excluída com sucesso.' });
     }
-
-    const catRef = firestore.collection(collectionName).doc(id);
-    const catDoc = await catRef.get();
-    if (!catDoc.exists) {
-      return NextResponse.json({ error: 'Categoria não encontrada.' }, { status: 404 });
-    }
-
-    await catRef.delete();
-
-    await logAudit({
-      userId: user.id,
-      action: 'DELETE',
-      module: 'SETTINGS',
-      recordId: id,
-      beforeData: catDoc.data(),
-    });
-
-    return NextResponse.json({ success: true, message: 'Categoria removida com sucesso.' });
   } catch (err: any) {
-    console.error('DELETE /api/categories/[id] error:', err);
     return NextResponse.json({ error: 'Erro ao excluir categoria.' }, { status: 500 });
   }
 }

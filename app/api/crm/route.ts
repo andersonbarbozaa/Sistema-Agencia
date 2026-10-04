@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification } from '@/lib/notifications';
@@ -14,68 +16,59 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const assignee_id = searchParams.get('assignee_id');
-    const search = searchParams.get('search')?.toLowerCase().trim() || '';
+    const search = searchParams.get('search');
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = 20;
+    const offset = (page - 1) * limit;
 
-    const firestore = getAdminFirestore();
+    const db = getDb();
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
     const wsId = user.workspace_id || 'ws_default';
+    conditions.push('(l.workspace_id = ? OR (l.workspace_id IS NULL AND ? = "ws_default"))');
+    params.push(wsId, wsId);
 
-    let queryRef: any = firestore.collection('crm_leads');
-    if (wsId !== 'ws_default') {
-      queryRef = queryRef.where('workspace_id', '==', wsId);
-    }
-
-    const snap = await queryRef.get();
-    let leads = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-
-    if (wsId === 'ws_default') {
-      leads = leads.filter((l: any) => !l.workspace_id || l.workspace_id === 'ws_default');
-    }
-
-    if (status && status !== 'todos') {
-      leads = leads.filter((l: any) => l.status === status);
+    if (status) {
+      conditions.push('l.status = ?');
+      params.push(status);
     }
     if (assignee_id) {
-      leads = leads.filter((l: any) => l.assignee_id === assignee_id);
+      conditions.push('l.assignee_id = ?');
+      params.push(assignee_id);
     }
     if (search) {
-      leads = leads.filter((l: any) =>
-        (l.contact_name && l.contact_name.toLowerCase().includes(search)) ||
-        (l.company && l.company.toLowerCase().includes(search)) ||
-        (l.email && l.email.toLowerCase().includes(search)) ||
-        (l.phone && l.phone.toLowerCase().includes(search))
-      );
+      conditions.push('(l.contact_name LIKE ? OR l.company LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
     }
 
-    // Buscar nomes dos usuários para os assignees
-    const userMap: Record<string, string> = {};
-    const usersSnap = await firestore.collection('users').get();
-    usersSnap.docs.forEach((uDoc: any) => {
-      const uData = uDoc.data();
-      userMap[uDoc.id] = uData.name || uData.email;
-      if (uData.id) userMap[uData.id] = uData.name || uData.email;
-    });
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const nowTime = Date.now();
-    leads = leads.map((l: any) => {
-      const lastAct = l.last_activity_at ? new Date(l.last_activity_at).getTime() : new Date(l.created_at || 0).getTime();
-      const is_inactive = (nowTime - lastAct) > (7 * 24 * 60 * 60 * 1000);
-      return {
-        ...l,
-        assignee_name: l.assignee_id ? (userMap[l.assignee_id] || null) : null,
-        is_inactive: is_inactive ? 1 : 0
-      };
-    });
+    const countResult = await db
+      .prepare(`SELECT COUNT(*) as total FROM crm_leads l ${where}`)
+      .bind(...params)
+      .first<{ total: number }>();
 
-    leads.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const total = countResult?.total ?? 0;
 
-    const total = leads.length;
-    const offset = (page - 1) * limit;
-    const paginatedLeads = leads.slice(offset, offset + limit);
+    const leads = await db
+      .prepare(
+        `SELECT
+          l.*,
+          u.name as assignee_name,
+          CAST((julianday('now') - julianday(l.last_activity_at)) AS INTEGER) > 7 as is_inactive
+        FROM crm_leads l
+        LEFT JOIN users u ON u.id = l.assignee_id
+        ${where}
+        ORDER BY l.created_at DESC
+        LIMIT ? OFFSET ?`
+      )
+      .bind(...params, limit, offset)
+      .all();
 
     return NextResponse.json({
-      data: paginatedLeads,
+      data: leads.results,
       pagination: {
         page,
         limit,
@@ -83,9 +76,9 @@ export async function GET(request: NextRequest) {
         total_pages: Math.ceil(total / limit),
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('GET /api/crm error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -107,35 +100,40 @@ export async function POST(request: NextRequest) {
     const assignee_id = body.assignee_id ?? null;
     const notes = body.notes ?? null;
     const source = body.source || body.platform || null;
-    const estimated_value = body.estimated_value ? Number(body.estimated_value) : null;
+    const estimated_value = body.estimated_value ?? null;
 
     if (!contact_name) {
       return NextResponse.json({ error: 'contact_name is required' }, { status: 400 });
     }
 
-    const firestore = getAdminFirestore();
+    const db = getDb();
     const id = 'lead_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
     const wsId = user.workspace_id || 'ws_default';
 
-    const newLead = {
-      id,
-      contact_name: contact_name.trim(),
-      company,
-      email,
-      phone,
-      status,
-      assignee_id,
-      notes,
-      source,
-      estimated_value,
-      workspace_id: wsId,
-      last_activity_at: now,
-      created_at: now,
-      updated_at: now,
-    };
-
-    await firestore.collection('crm_leads').doc(id).set(newLead);
+    await db
+      .prepare(
+        `INSERT INTO crm_leads
+          (id, contact_name, company, email, phone, status, assignee_id, notes, source, estimated_value, workspace_id, last_activity_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        contact_name,
+        company,
+        email,
+        phone,
+        status ?? 'Novo',
+        assignee_id ?? null,
+        notes ?? null,
+        source ?? null,
+        estimated_value ?? null,
+        wsId,
+        now,
+        now,
+        now
+      )
+      .run();
 
     await logAudit(user.id, 'crm_leads', 'CREATE', id, { contact_name, company });
 
@@ -149,9 +147,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ data: newLead }, { status: 201 });
-  } catch (error: any) {
+    const lead = await db.prepare('SELECT * FROM crm_leads WHERE id = ?').bind(id).first();
+    return NextResponse.json({ data: lead }, { status: 201 });
+  } catch (error) {
     console.error('POST /api/crm error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

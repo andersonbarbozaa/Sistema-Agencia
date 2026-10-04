@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import { getAdminAuth, getAdminFirestore } from './firebase-admin';
+import { getDb } from './db';
 import { User, UserRole } from '@/types';
 
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'super_secret_jwt_key_creative_agency_2026_change_in_production';
@@ -21,57 +21,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   }
 }
 
-// Sincroniza usuário com o Firebase Auth
-export async function syncUserWithFirebaseAuth(user: {
-  id: string;
-  email: string;
-  password?: string;
-  name?: string;
-  role: string;
-  workspaceId?: string;
-}): Promise<void> {
-  try {
-    const auth = getAdminAuth();
-    if (!auth) return;
-
-    try {
-      // Verifica se o usuário já existe no Firebase Auth
-      await auth.getUser(user.id);
-      // Atualiza claims e dados
-      await auth.setCustomUserClaims(user.id, {
-        role: user.role,
-        workspaceId: user.workspaceId,
-      });
-      if (user.name) {
-        await auth.updateUser(user.id, { displayName: user.name });
-      }
-    } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
-        // Cria usuário no Firebase Auth
-        await auth.createUser({
-          uid: user.id,
-          email: user.email,
-          password: user.password && user.password.length >= 6 ? user.password : undefined,
-          displayName: user.name,
-        });
-        await auth.setCustomUserClaims(user.id, {
-          role: user.role,
-          workspaceId: user.workspaceId,
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[Firebase Auth Sync Warning]:', err);
-  }
-}
-
-export async function createSessionToken(user: {
-  id: string;
-  email: string;
-  role: UserRole;
-  client_id?: string | null;
-  workspace_id?: string | null;
-}): Promise<string> {
+export async function createSessionToken(user: { id: string; email: string; role: UserRole; client_id?: string | null; workspace_id?: string | null }): Promise<string> {
   return new SignJWT({
     userId: user.id,
     email: user.email,
@@ -85,26 +35,7 @@ export async function createSessionToken(user: {
     .sign(JWT_SECRET);
 }
 
-// Gera Firebase Custom Token para login no frontend
-export async function createFirebaseCustomToken(userId: string, claims?: Record<string, any>): Promise<string | null> {
-  try {
-    const auth = getAdminAuth();
-    if (auth) {
-      return await auth.createCustomToken(userId, claims);
-    }
-  } catch (err) {
-    console.warn('[Firebase Custom Token Error]:', err);
-  }
-  return null;
-}
-
-export async function verifySessionToken(token: string): Promise<{
-  userId: string;
-  email: string;
-  role: UserRole;
-  clientId?: string | null;
-  workspaceId?: string | null;
-} | null> {
+export async function verifySessionToken(token: string): Promise<{ userId: string; email: string; role: UserRole; clientId?: string | null; workspaceId?: string | null } | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload as any;
@@ -122,33 +53,21 @@ export async function getSessionUser(): Promise<User | null> {
     const payload = await verifySessionToken(token);
     if (!payload?.userId) return null;
 
-    let user: User | null = null;
-    try {
-      const firestore = getAdminFirestore();
-      if (firestore) {
-        const doc = await firestore.collection('users').doc(payload.userId).get();
-        if (doc.exists) {
-          user = { id: doc.id, ...doc.data() } as User;
-        }
-      }
-    } catch (e: any) {
-      console.warn('[getSessionUser Firestore error]:', e?.message);
-    }
-
-    // Fallback garantido a partir do JWT válido para evitar bounce de redirecionamento
-    if (!user && payload?.userId) {
-      user = {
-        id: payload.userId,
-        name: payload.email ? payload.email.split('@')[0] : 'Usuário',
-        email: payload.email || '',
-        role: payload.role || 'ADMINISTRADOR',
-        workspace_id: payload.workspaceId || 'ws_default',
-        job_title: payload.role === 'ADMINISTRADOR' ? 'Administrador' : 'Colaborador',
-        status: 'ativo',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as any;
-    }
+    const db = getDb();
+    const user = await db
+      .prepare(`
+        SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
+               u.workspace_id, u.job_title,
+               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
+               p.name as position_name, c.name as client_name
+        FROM users u
+        LEFT JOIN workspaces w ON u.workspace_id = w.id
+        LEFT JOIN positions p ON u.position_id = p.id
+        LEFT JOIN clients c ON u.client_id = c.id
+        WHERE u.id = ? AND u.status = 'ativo'
+      `)
+      .bind(payload.userId)
+      .first<User>();
 
     return user ? { ...user } : null;
   } catch (err) {
@@ -175,51 +94,26 @@ export async function getApiUser(request: Request): Promise<User | null> {
 
     if (!token) return null;
 
-    // First try internal session token
-    let payload = await verifySessionToken(token);
-    let userId = payload?.userId;
+    const payload = await verifySessionToken(token);
+    if (!payload?.userId) return null;
 
-    // If not valid JWT, check if it is a Firebase ID Token
-    if (!userId) {
-      try {
-        const auth = getAdminAuth();
-        if (auth) {
-          const decoded = await auth.verifyIdToken(token);
-          userId = decoded.uid;
-        }
-      } catch {}
-    }
+    const db = getDb();
+    const user = await db
+      .prepare(`
+        SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
+               u.workspace_id, u.job_title,
+               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
+               p.name as position_name, c.name as client_name
+        FROM users u
+        LEFT JOIN workspaces w ON u.workspace_id = w.id
+        LEFT JOIN positions p ON u.position_id = p.id
+        LEFT JOIN clients c ON u.client_id = c.id
+        WHERE u.id = ? AND u.status = 'ativo'
+      `)
+      .bind(payload.userId)
+      .first<User>();
 
-    if (!userId) return null;
-
-    let user: User | null = null;
-    try {
-      const firestore = getAdminFirestore();
-      if (firestore) {
-        const doc = await firestore.collection('users').doc(userId).get();
-        if (doc.exists) {
-          user = { id: doc.id, ...doc.data() } as User;
-        }
-      }
-    } catch (e: any) {
-      console.warn('[getApiUser Firestore error]:', e?.message);
-    }
-
-    if (!user && userId && payload) {
-      user = {
-        id: userId,
-        name: payload.email ? payload.email.split('@')[0] : 'Usuário',
-        email: payload.email || '',
-        role: payload.role || 'ADMINISTRADOR',
-        workspace_id: payload.workspaceId || 'ws_default',
-        job_title: payload.role === 'ADMINISTRADOR' ? 'Administrador' : 'Colaborador',
-        status: 'ativo',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as any;
-    }
-
-    return user ? { ...user } : null;
+    return user;
   } catch (err) {
     return null;
   }

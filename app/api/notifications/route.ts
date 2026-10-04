@@ -1,5 +1,7 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
 
 // GET /api/notifications — list notifications for current user
@@ -11,30 +13,35 @@ export async function GET(request: NextRequest) {
   const unreadOnly = searchParams.get('unread') === 'true';
 
   try {
-    const firestore = getAdminFirestore();
-    const snap = await firestore
-      .collection('notifications')
-      .where('user_id', '==', user.id)
-      .get();
+    const db = getDb();
+    const filter = unreadOnly ? 'AND n.read_at IS NULL' : '';
 
-    let list = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    const rows = await db
+      .prepare(
+        `SELECT * FROM notifications n
+         WHERE n.user_id = ? ${filter}
+         ORDER BY n.created_at DESC
+         LIMIT 100`
+      )
+      .bind(user.id)
+      .all();
 
-    const unreadCount = list.filter((n: any) => !n.read_at).length;
-
-    if (unreadOnly) {
-      list = list.filter((n: any) => !n.read_at);
-    }
-
-    list.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const unreadCount = await db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM notifications
+         WHERE user_id = ? AND read_at IS NULL`
+      )
+      .bind(user.id)
+      .first<{ count: number }>();
 
     return NextResponse.json({
-      notifications: list.slice(0, 100),
-      data: list.slice(0, 100),
-      unread_count: unreadCount,
+      notifications: rows.results,
+      data: rows.results,
+      unread_count: unreadCount?.count ?? 0,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[GET /api/notifications]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -44,36 +51,25 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const firestore = getAdminFirestore();
+    const db = getDb();
     const now = new Date().toISOString();
 
-    const snap = await firestore
-      .collection('notifications')
-      .where('user_id', '==', user.id)
-      .get();
-
-    const batch = firestore.batch();
-    let updatedCount = 0;
-
-    snap.docs.forEach((doc: any) => {
-      const data = doc.data();
-      if (!data.read_at) {
-        batch.update(doc.ref, { read_at: now });
-        updatedCount++;
-      }
-    });
-
-    if (updatedCount > 0) {
-      await batch.commit();
-    }
+    const result = await db
+      .prepare(
+        `UPDATE notifications
+         SET read_at = ?
+         WHERE user_id = ? AND read_at IS NULL`
+      )
+      .bind(now, user.id)
+      .run();
 
     return NextResponse.json({
       message: 'All notifications marked as read',
-      updated: updatedCount,
+      updated: result.meta?.changes ?? 0,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[PATCH /api/notifications]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -83,19 +79,15 @@ export async function DELETE(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const firestore = getAdminFirestore();
-    const snap = await firestore
-      .collection('notifications')
-      .where('user_id', '==', user.id)
-      .get();
-
-    const batch = firestore.batch();
-    snap.docs.forEach((doc: any) => batch.delete(doc.ref));
-    await batch.commit();
+    const db = getDb();
+    await db
+      .prepare('DELETE FROM notifications WHERE user_id = ?')
+      .bind(user.id)
+      .run();
 
     return NextResponse.json({ message: 'All notifications cleared successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[DELETE /api/notifications]', error);
-    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

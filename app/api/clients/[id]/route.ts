@@ -1,11 +1,15 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 // ─── GET /api/clients/[id] ───────────────────────────────────────────────────
+// Admins / collaborators see full details.
+// Clients (role=cliente) can only retrieve their own record.
 export async function GET(request: Request, { params }: RouteContext) {
   try {
     const user = await getApiUser(request);
@@ -15,26 +19,30 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const { id } = await params;
 
+    // CLIENTE role can only see their own client record
     if (user.role === 'CLIENTE' && user.client_id !== id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const firestore = getAdminFirestore();
-    const doc = await firestore.collection('clients').doc(id).get();
+    const db = await getDb();
+    const client = await db
+      .prepare('SELECT * FROM clients WHERE id = ?')
+      .bind(id)
+      .first();
 
-    if (!doc.exists) {
+    if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    const client = { id: doc.id, ...doc.data() };
-    return NextResponse.json({ data: client, client });
-  } catch (error: any) {
+    return NextResponse.json({ data: client });
+  } catch (error) {
     console.error('[GET /api/clients/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 // ─── PATCH /api/clients/[id] ─────────────────────────────────────────────────
+// Update client fields. Admin only.
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const user = await getApiUser(request);
@@ -47,15 +55,20 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
 
     const { id } = await params;
-    const firestore = getAdminFirestore();
-    const docRef = firestore.collection('clients').doc(id);
-    const existing = await docRef.get();
+    const db = await getDb();
 
-    if (!existing.exists) {
+    const existing = await db
+      .prepare('SELECT * FROM clients WHERE id = ?')
+      .bind(id)
+      .first();
+
+    if (!existing) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
     const body = await request.json();
+
+    // Allowed updatable fields
     const ALLOWED_FIELDS = [
       'name',
       'corporate_name',
@@ -75,39 +88,59 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       'status',
     ];
 
+    // Support legacy/alias cnpj -> document
     if ('cnpj' in body && !('document' in body)) {
       body.document = body.cnpj;
     }
 
-    const updateData: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
+    const setClauses: string[] = [];
+    const values: unknown[]    = [];
 
     for (const field of ALLOWED_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(body, field)) {
-        updateData[field] = body[field] ?? null;
+        setClauses.push(`${field} = ?`);
+        values.push(body[field] ?? null);
       }
     }
 
-    await docRef.set(updateData, { merge: true });
+    if (setClauses.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid fields provided for update' },
+        { status: 400 }
+      );
+    }
+
+    const now = new Date().toISOString();
+    setClauses.push('updated_at = ?');
+    values.push(now, id);
+
+    await db
+      .prepare(`UPDATE clients SET ${setClauses.join(', ')} WHERE id = ?`)
+      .bind(...values)
+      .run();
 
     await logAudit({
-      userId: user.id,
-      action: 'UPDATE',
-      resource: 'clients',
+      userId:     user.id,
+      action:     'UPDATE',
+      resource:   'clients',
       resourceId: id,
-      details: `Client "${id}" updated`,
+      details:    `Client "${id}" updated`,
     });
 
-    const updatedDoc = await docRef.get();
-    return NextResponse.json({ data: { id: updatedDoc.id, ...updatedDoc.data() } });
-  } catch (error: any) {
+    const updated = await db
+      .prepare('SELECT * FROM clients WHERE id = ?')
+      .bind(id)
+      .first();
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
     console.error('[PATCH /api/clients/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 // ─── DELETE /api/clients/[id] ────────────────────────────────────────────────
+// Archive a client (soft-delete: set status = 'arquivado'). Admin only.
 export async function DELETE(request: Request, { params }: RouteContext) {
   try {
     const user = await getApiUser(request);
@@ -120,30 +153,34 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     }
 
     const { id } = await params;
-    const firestore = getAdminFirestore();
-    const docRef = firestore.collection('clients').doc(id);
-    const existing = await docRef.get();
+    const db = await getDb();
 
-    if (!existing.exists) {
+    const existing = await db
+      .prepare('SELECT * FROM clients WHERE id = ?')
+      .bind(id)
+      .first();
+
+    if (!existing) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    await docRef.set({
-      status: 'arquivado',
-      updated_at: new Date().toISOString(),
-    }, { merge: true });
+    const now = new Date().toISOString();
+    await db
+      .prepare(`UPDATE clients SET status = 'arquivado', updated_at = ? WHERE id = ?`)
+      .bind(now, id)
+      .run();
 
     await logAudit({
-      userId: user.id,
-      action: 'ARCHIVE',
-      resource: 'clients',
+      userId:     user.id,
+      action:     'ARCHIVE',
+      resource:   'clients',
       resourceId: id,
-      details: `Client "${id}" archived`,
+      details:    `Client "${id}" archived`,
     });
 
     return NextResponse.json({ message: 'Client archived successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[DELETE /api/clients/[id]]', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
