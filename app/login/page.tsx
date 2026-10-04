@@ -50,16 +50,6 @@ export default function LoginPage() {
     }
   };
 
-  const fillDemo = (type: 'admin' | 'colaborador' | 'cliente') => {
-    const demos = {
-      admin: { email: 'anderson@agencia.com', password: 'admin123' },
-      colaborador: { email: 'joao@agencia.com', password: 'admin123' },
-      cliente: { email: 'contato@santacasa.com', password: 'admin123' },
-    };
-    setEmail(demos[type].email);
-    setPassword(demos[type].password);
-  };
-
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -134,31 +124,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo accounts */}
-          <div className="mt-6 pt-6 border-t border-gray-800">
-            <p className="text-xs text-gray-500 text-center mb-3">Acesso rápido para demonstração</p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => fillDemo('admin')}
-                className="text-xs bg-blue-900/30 hover:bg-blue-900/50 border border-blue-800/50 text-blue-300 rounded-lg py-2 px-1 transition-colors"
-              >
-                Administrador
-              </button>
-              <button
-                onClick={() => fillDemo('colaborador')}
-                className="text-xs bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/50 text-emerald-300 rounded-lg py-2 px-1 transition-colors"
-              >
-                Colaborador
-              </button>
-              <button
-                onClick={() => fillDemo('cliente')}
-                className="text-xs bg-violet-900/30 hover:bg-violet-900/50 border border-violet-800/50 text-violet-300 rounded-lg py-2 px-1 transition-colors"
-              >
-                Cliente
-              </button>
-            </div>
-          </div>
-
           <div className="mt-6 pt-5 border-t border-gray-800 text-center">
             <p className="text-gray-400 text-xs">
               Ainda não tem conta?{' '}
@@ -168,10 +133,6 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
-
-        <p className="text-center text-gray-600 text-xs mt-6">
-          Todos os dados são de demonstração. Senha: <span className="text-gray-400">admin123</span>
-        </p>
       </div>
     </div>
   );
