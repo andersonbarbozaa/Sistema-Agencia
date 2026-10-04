@@ -1,0 +1,12 @@
+# Variáveis e Segredos locais para teste com "npx wrangler dev"
+# Renomeie para .dev.vars para usar localmente (nunca faça commit do .dev.vars)
+
+JWT_SECRET="super_secret_jwt_key_creative_agency_2026_change_in_production"
+FIREBASE_PROJECT_ID="sistema-agencia-5603f"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk-fbsvc@sistema-agencia-5603f.iam.gserviceaccount.com"
+FIREBASE_SERVICE_ACCOUNT="{\"type\":\"service_account\",\"project_id\":\"sistema-agencia-5603f\",...}"
+NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSy..."
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="sistema-agencia-5603f.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID="sistema-agencia-5603f"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="sistema-agencia-5603f.firebasestorage.app"
+DEFAULT_TIMEZONE="America/Sao_Paulo"

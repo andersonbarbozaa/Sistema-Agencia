@@ -22,6 +22,22 @@ function getRequire() {
   }
 }
 
+function getCloudflareEnv(): Record<string, any> | null {
+  try {
+    const req = getRequire();
+    if (req) {
+      const { getCloudflareContext } = req('@opennextjs/cloudflare');
+      if (typeof getCloudflareContext === 'function') {
+        const ctx = getCloudflareContext();
+        if (ctx && ctx.env) {
+          return ctx.env;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
 function getRawCredentialString(): string | null {
   const envCandidates = [
     process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -34,6 +50,16 @@ function getRawCredentialString(): string | null {
   for (const candidate of envCandidates) {
     if (candidate && candidate.trim()) {
       return candidate.trim();
+    }
+  }
+
+  // Cloudflare Workers environment fallback
+  const cfEnv = getCloudflareEnv();
+  if (cfEnv) {
+    for (const key of ['FIREBASE_SERVICE_ACCOUNT', 'FIREBASE_SERVICE_ACCOUNT_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_CREDENTIALS', 'SERVICE_ACCOUNT']) {
+      if (cfEnv[key] && typeof cfEnv[key] === 'string' && cfEnv[key].trim()) {
+        return cfEnv[key].trim();
+      }
     }
   }
 
@@ -50,10 +76,12 @@ function getRawCredentialString(): string | null {
   if (req) {
     try {
       const fs = req('fs');
-      for (const p of secretPaths) {
-        if (fs.existsSync(p)) {
-          console.log(`[Firebase Admin] Encontrado arquivo de credenciais em: ${p}`);
-          return fs.readFileSync(p, 'utf8').trim();
+      if (fs && typeof fs.existsSync === 'function') {
+        for (const p of secretPaths) {
+          if (fs.existsSync(p)) {
+            console.log(`[Firebase Admin] Encontrado arquivo de credenciais em: ${p}`);
+            return fs.readFileSync(p, 'utf8').trim();
+          }
         }
       }
     } catch {}
@@ -66,17 +94,19 @@ function parseServiceAccount(): ServiceAccount | null {
   let raw = getRawCredentialString();
 
   if (!raw) {
+    const cfEnv = getCloudflareEnv();
+    const privateKeyEnv = process.env.FIREBASE_PRIVATE_KEY || cfEnv?.FIREBASE_PRIVATE_KEY;
     // Fallback para variáveis individuais se fornecidas
-    if (process.env.FIREBASE_PRIVATE_KEY) {
+    if (privateKeyEnv) {
       console.log('[Firebase Admin] Utilizando credenciais individuais de variáveis de ambiente.');
       return {
-        projectId: process.env.FIREBASE_PROJECT_ID || DEFAULT_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL || DEFAULT_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        projectId: process.env.FIREBASE_PROJECT_ID || cfEnv?.FIREBASE_PROJECT_ID || DEFAULT_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL || cfEnv?.FIREBASE_CLIENT_EMAIL || DEFAULT_CLIENT_EMAIL,
+        privateKey: privateKeyEnv.replace(/\\n/g, '\n'),
       };
     }
 
-    console.warn('[Firebase Admin Warning] Nenhuma credencial encontrada em FIREBASE_SERVICE_ACCOUNT nem em /etc/secrets.');
+    console.warn('[Firebase Admin Warning] Nenhuma credencial encontrada em FIREBASE_SERVICE_ACCOUNT nem em variáveis de ambiente.');
     return null;
   }
 

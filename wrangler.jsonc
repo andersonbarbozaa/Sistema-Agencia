@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sistema-agencia",
   "main": ".open-next/worker.js",
-  "compatibility_date": "2024-09-23",
+  "compatibility_date": "2025-02-04",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -11,6 +11,12 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "DEFAULT_TIMEZONE": "America/Sao_Paulo"
+    "DEFAULT_TIMEZONE": "America/Sao_Paulo",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "sistema-agencia-5603f.firebaseapp.com",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "sistema-agencia-5603f",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET": "sistema-agencia-5603f.firebasestorage.app",
+    "FIREBASE_PROJECT_ID": "sistema-agencia-5603f",
+    "FIREBASE_CLIENT_EMAIL": "firebase-adminsdk-fbsvc@sistema-agencia-5603f.iam.gserviceaccount.com"
   }
 }
+
