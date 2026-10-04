@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -13,23 +12,25 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const { id: taskId, mediaId } = await params;
 
-    const media = await db
-      .prepare('SELECT * FROM task_media_links WHERE id = ? AND task_id = ?')
-      .bind(mediaId, taskId)
-      .first<any>();
-
-    if (!media) {
+    const mediaRef = firestore.collection('task_media_links').doc(mediaId);
+    const mediaDoc = await mediaRef.get();
+    if (!mediaDoc.exists) {
       return NextResponse.json({ error: 'Mídia não encontrada.' }, { status: 404 });
+    }
+
+    const media: any = mediaDoc.data();
+    if (media.task_id !== taskId) {
+      return NextResponse.json({ error: 'Mídia não pertence a esta tarefa.' }, { status: 400 });
     }
 
     if (!isAdmin(user) && media.created_by !== user.id) {
       return NextResponse.json({ error: 'Sem permissão para excluir esta mídia.' }, { status: 403 });
     }
 
-    await db.prepare('DELETE FROM task_media_links WHERE id = ?').bind(mediaId).run();
+    await mediaRef.delete();
 
     await logAudit({
       userId: user.id,
@@ -41,6 +42,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
+    console.error('DELETE /api/tasks/[id]/media/[mediaId] error:', err);
     return NextResponse.json({ error: 'Erro ao remover mídia.' }, { status: 500 });
   }
 }

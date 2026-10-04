@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 
 export async function GET(request: Request) {
@@ -10,34 +9,32 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
     }
 
-    const db = getDb();
-    const interpretations = await db
-      .prepare(`
-        SELECT ai.*, u.name as user_name
-        FROM ai_interpretations ai
-        LEFT JOIN users u ON ai.user_id = u.id
-        ORDER BY ai.created_at DESC
-        LIMIT 25
-      `)
-      .all<any>();
+    const firestore = getAdminFirestore();
 
-    const parsed = (interpretations.results || []).map(item => {
-      let payload = item.structured_payload;
-      try {
-        if (typeof payload === 'string') {
-          payload = JSON.parse(payload);
-        }
-      } catch {
-        // keep as is
-      }
+    const [interpSnap, usersSnap] = await Promise.all([
+      firestore.collection('ai_interpretations').get(),
+      firestore.collection('users').get(),
+    ]);
+
+    const userMap: Record<string, string> = {};
+    usersSnap.docs.forEach((d: any) => {
+      userMap[d.id] = d.data().name || d.data().email;
+    });
+
+    let history = interpSnap.docs.map((doc: any) => {
+      const data = doc.data();
       return {
-        ...item,
-        structured_payload: payload,
+        id: doc.id,
+        ...data,
+        user_name: data.user_id ? (userMap[data.user_id] || null) : null,
       };
     });
 
-    return NextResponse.json({ history: parsed });
+    history.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+    return NextResponse.json({ history: history.slice(0, 25) });
   } catch (err: any) {
+    console.error('GET /api/ai/history error:', err);
     return NextResponse.json({ error: 'Erro ao buscar histórico de IA.' }, { status: 500 });
   }
 }

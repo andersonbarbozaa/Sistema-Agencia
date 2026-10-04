@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getAdminFirestore } from './firebase-admin';
 
 export interface AuditParams {
   userId?: string | null;
@@ -31,7 +31,7 @@ export async function logAudit(
   ipAddress?: string | null
 ): Promise<void> {
   try {
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const id = 'aud_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 
     let finalUserId: string | null = null;
@@ -61,22 +61,19 @@ export async function logAudit(
       finalIp = ipAddress || null;
     }
 
-    await db
-      .prepare(`
-        INSERT INTO audit_logs (id, user_id, action, module, record_id, before_data, after_data, ip_address, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `)
-      .bind(
+    if (firestore) {
+      await firestore.collection('audit_logs').doc(id).set({
         id,
-        finalUserId,
-        finalAction,
-        finalModule,
-        finalRecordId,
-        beforeStr,
-        afterStr,
-        finalIp
-      )
-      .run();
+        user_id: finalUserId,
+        action: finalAction,
+        module: finalModule,
+        record_id: finalRecordId,
+        before_data: beforeStr,
+        after_data: afterStr,
+        ip_address: finalIp,
+        created_at: new Date().toISOString()
+      });
+    }
   } catch (err) {
     console.error('[Audit Log Error]:', err);
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, getAdminFirestore } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,58 +11,55 @@ export async function GET(request: NextRequest) {
     }
 
     const cleanCode = code.trim();
-    const db = getDb();
-    let workspace = await db
-      .prepare(
-        `SELECT id, name, description, invite_code, created_at
-         FROM workspaces
-         WHERE invite_code = ? OR id = ?`
-      )
-      .bind(cleanCode, cleanCode)
-      .first<{ id: string; name: string; description: string | null; invite_code: string; created_at: string }>();
+    const firestore = getAdminFirestore();
 
-    // Fallback: Busca no Firestore
-    if (!workspace) {
-      try {
-        const firestore = getAdminFirestore();
-        if (firestore) {
-          const directDoc = await firestore.collection('workspaces').doc(cleanCode).get();
-          if (directDoc.exists) {
-            const data = directDoc.data();
-            workspace = {
-              id: directDoc.id,
-              name: data?.name || 'Área de Trabalho',
-              description: data?.description || null,
-              invite_code: data?.invite_code || cleanCode,
-              created_at: data?.created_at || new Date().toISOString(),
-            };
-          } else {
-            const querySnap = await firestore.collection('workspaces').where('invite_code', '==', cleanCode).limit(1).get();
-            if (!querySnap.empty) {
-              const doc = querySnap.docs[0];
-              const data = doc.data();
-              workspace = {
-                id: doc.id,
-                name: data?.name || 'Área de Trabalho',
-                description: data?.description || null,
-                invite_code: data?.invite_code || cleanCode,
-                created_at: data?.created_at || new Date().toISOString(),
-              };
-            }
-          }
+    // 1. Try finding by ID
+    const directDoc = await firestore.collection('workspaces').doc(cleanCode).get();
+    if (directDoc.exists) {
+      const data = directDoc.data();
+      return NextResponse.json({
+        workspace: {
+          id: directDoc.id,
+          name: data?.name || 'Área de Trabalho',
+          description: data?.description || null,
+          invite_code: data?.invite_code || cleanCode,
+          created_at: data?.created_at || new Date().toISOString(),
         }
-      } catch (fsErr) {
-        console.warn('[invite-info firestore lookup warning]:', fsErr);
-      }
+      });
     }
 
-    if (!workspace) {
-      return NextResponse.json({ error: 'Área de Trabalho não encontrada ou link de convite expirado.' }, { status: 404 });
+    // 2. Try finding by invite_code
+    const querySnap = await firestore.collection('workspaces').where('invite_code', '==', cleanCode).limit(1).get();
+    if (!querySnap.empty) {
+      const doc = querySnap.docs[0];
+      const data = doc.data();
+      return NextResponse.json({
+        workspace: {
+          id: doc.id,
+          name: data?.name || 'Área de Trabalho',
+          description: data?.description || null,
+          invite_code: data?.invite_code || cleanCode,
+          created_at: data?.created_at || new Date().toISOString(),
+        }
+      });
     }
 
-    return NextResponse.json({ workspace });
-  } catch (error) {
+    // Special fallback for 'pixelcraft' or 'ws_default'
+    if (cleanCode === 'pixelcraft' || cleanCode === 'ws_default') {
+      const defaultWs = {
+        id: 'ws_default',
+        name: 'PixelCraft Studio',
+        description: 'Agência Audiovisual & Criativa',
+        invite_code: 'pixelcraft',
+        created_at: new Date().toISOString(),
+      };
+      await firestore.collection('workspaces').doc('ws_default').set(defaultWs, { merge: true });
+      return NextResponse.json({ workspace: defaultWs });
+    }
+
+    return NextResponse.json({ error: 'Área de Trabalho não encontrada ou link de convite expirado.' }, { status: 404 });
+  } catch (error: any) {
     console.error('[GET /api/workspaces/invite-info]', error);
-    return NextResponse.json({ error: 'Erro ao validar link de convite' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Erro ao validar link de convite' }, { status: 500 });
   }
 }

@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -10,22 +9,31 @@ export async function GET(request: NextRequest) {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const workspaceId = user.workspace_id || 'ws_default';
 
-    const workspace = await db
-      .prepare('SELECT * FROM workspaces WHERE id = ?')
-      .bind(workspaceId)
-      .first<any>();
+    const wsDoc = await firestore.collection('workspaces').doc(workspaceId).get();
 
-    if (!workspace) {
+    if (!wsDoc.exists) {
+      // Default fallback
+      if (workspaceId === 'ws_default') {
+        const defaultWs = {
+          id: 'ws_default',
+          name: 'PixelCraft Studio',
+          description: 'Agência Audiovisual & Criativa',
+          invite_code: 'pixelcraft',
+          created_at: new Date().toISOString(),
+        };
+        await firestore.collection('workspaces').doc('ws_default').set(defaultWs);
+        return NextResponse.json({ workspace: defaultWs });
+      }
       return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 });
     }
 
-    return NextResponse.json({ workspace });
-  } catch (error) {
+    return NextResponse.json({ workspace: { id: wsDoc.id, ...wsDoc.data() } });
+  } catch (error: any) {
     console.error('[GET /api/workspaces/current]', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -45,34 +53,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'O Nome da Empresa é obrigatório.' }, { status: 400 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const workspaceId = user.workspace_id || 'ws_default';
+    const wsRef = firestore.collection('workspaces').doc(workspaceId);
+    const wsDoc = await wsRef.get();
 
-    const existing = await db
-      .prepare('SELECT * FROM workspaces WHERE id = ?')
-      .bind(workspaceId)
-      .first<any>();
-
-    if (!existing) {
-      return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 });
-    }
-
+    const existing: any = wsDoc.exists ? wsDoc.data() : {};
     const newName = name.trim();
-    const newDesc = description !== undefined ? (description ? description.trim() : null) : existing.description;
+    const newDesc = description !== undefined ? (description ? description.trim() : null) : (existing.description || null);
+    const now = new Date().toISOString();
 
-    await db
-      .prepare(
-        `UPDATE workspaces
-         SET name = ?, description = ?, updated_at = datetime('now')
-         WHERE id = ?`
-      )
-      .bind(newName, newDesc, workspaceId)
-      .run();
+    const updatedData = {
+      ...existing,
+      id: workspaceId,
+      name: newName,
+      description: newDesc,
+      updated_at: now,
+    };
 
-    const updated = await db
-      .prepare('SELECT * FROM workspaces WHERE id = ?')
-      .bind(workspaceId)
-      .first<any>();
+    await wsRef.set(updatedData, { merge: true });
 
     await logAudit({
       userId: user.id,
@@ -80,12 +79,12 @@ export async function PATCH(request: NextRequest) {
       module: 'SETTINGS',
       recordId: workspaceId,
       beforeData: existing,
-      afterData: updated,
+      afterData: updatedData,
     });
 
-    return NextResponse.json({ workspace: updated });
-  } catch (error) {
+    return NextResponse.json({ workspace: updatedData });
+  } catch (error: any) {
     console.error('[PATCH /api/workspaces/current]', error);
-    return NextResponse.json({ error: 'Erro ao atualizar dados da empresa' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Erro ao atualizar dados da empresa' }, { status: 500 });
   }
 }

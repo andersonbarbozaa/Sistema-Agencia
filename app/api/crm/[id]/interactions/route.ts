@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -11,27 +10,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role === 'CLIENTE') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const db = getDb();
     const { id } = await params;
+    const firestore = getAdminFirestore();
 
-    const lead = await db.prepare('SELECT id FROM crm_leads WHERE id = ?').bind(id).first();
-    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    const leadDoc = await firestore.collection('crm_leads').doc(id).get();
+    if (!leadDoc.exists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    const interactions = await db
-      .prepare(
-        `SELECT i.*, u.name as author_name
-        FROM crm_interactions i
-        LEFT JOIN users u ON u.id = i.user_id
-        WHERE i.lead_id = ?
-        ORDER BY i.interaction_date DESC`
-      )
-      .bind(id)
-      .all();
+    const interSnap = await firestore
+      .collection('crm_interactions')
+      .where('lead_id', '==', id)
+      .get();
 
-    return NextResponse.json({ data: interactions.results });
-  } catch (error) {
+    let interactions = interSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+
+    const usersSnap = await firestore.collection('users').get();
+    const userMap: Record<string, string> = {};
+    usersSnap.docs.forEach((uDoc: any) => {
+      const uData = uDoc.data();
+      userMap[uDoc.id] = uData.name || uData.email;
+      if (uData.id) userMap[uData.id] = uData.name || uData.email;
+    });
+
+    interactions = interactions.map((i: any) => ({
+      ...i,
+      author_name: i.user_id ? (userMap[i.user_id] || null) : null
+    }));
+
+    interactions.sort((a: any, b: any) =>
+      new Date(b.interaction_date || b.created_at || 0).getTime() - new Date(a.interaction_date || a.created_at || 0).getTime()
+    );
+
+    return NextResponse.json({ data: interactions });
+  } catch (error: any) {
     console.error('GET /api/crm/[id]/interactions error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -44,11 +56,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const db = getDb();
     const { id } = await params;
+    const firestore = getAdminFirestore();
 
-    const lead = await db.prepare('SELECT id FROM crm_leads WHERE id = ?').bind(id).first();
-    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    const leadRef = firestore.collection('crm_leads').doc(id);
+    const leadDoc = await leadRef.get();
+    if (!leadDoc.exists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
     const body = await request.json();
     const { type, notes, interaction_date } = body;
@@ -62,35 +75,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const now = new Date().toISOString();
     const interactionDate = interaction_date ?? now;
 
-    await db
-      .prepare(
-        `INSERT INTO crm_interactions (id, lead_id, user_id, type, notes, interaction_date, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(interactionId, id, user.id, type, notes ?? null, interactionDate, now)
-      .run();
+    const interactionData = {
+      id: interactionId,
+      lead_id: id,
+      user_id: user.id,
+      type,
+      notes: notes ?? null,
+      interaction_date: interactionDate,
+      created_at: now
+    };
+
+    await firestore.collection('crm_interactions').doc(interactionId).set(interactionData);
 
     // Update lead last_activity_at
-    await db
-      .prepare(`UPDATE crm_leads SET last_activity_at = ?, updated_at = ? WHERE id = ?`)
-      .bind(now, now, id)
-      .run();
+    await leadRef.set({
+      last_activity_at: now,
+      updated_at: now
+    }, { merge: true });
 
     await logAudit(user.id, 'crm_interactions', 'CREATE', interactionId, { lead_id: id, type });
 
-    const interaction = await db
-      .prepare(
-        `SELECT i.*, u.name as author_name
-        FROM crm_interactions i
-        LEFT JOIN users u ON u.id = i.user_id
-        WHERE i.id = ?`
-      )
-      .bind(interactionId)
-      .first();
-
-    return NextResponse.json({ data: interaction }, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({
+      data: {
+        ...interactionData,
+        author_name: user.name || user.email
+      }
+    }, { status: 201 });
+  } catch (error: any) {
     console.error('POST /api/crm/[id]/interactions error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }

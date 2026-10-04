@@ -1,13 +1,12 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification, notifyAdmins } from '@/lib/notifications';
 
 // ---------------------------------------------------------------------------
 // GET /api/tasks
-// List tasks with cursor-based pagination (20 per page) and optional filters.
+// List tasks with multi-tenant workspace isolation and filters.
 // ---------------------------------------------------------------------------
 export async function GET(request: Request) {
   try {
@@ -21,120 +20,116 @@ export async function GET(request: Request) {
     const client_id = searchParams.get('client_id');
     const assignee_id = searchParams.get('assignee_id');
     const category_id = searchParams.get('category_id');
-    const cursor = searchParams.get('cursor');
-    const limit = 20;
+    const search = searchParams.get('search')?.toLowerCase().trim() || '';
+    const limit = 50;
 
-    const db = getDb();
-
-    const baseSelect = `
-      SELECT t.*, c.name as client_name,
-             tc.name as category_name, tc.color as category_color,
-             u.name as created_by_name,
-             (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
-             (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
-             (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status
-      FROM tasks t
-      LEFT JOIN clients c ON t.client_id = c.id
-      LEFT JOIN task_categories tc ON t.category_id = tc.id
-      LEFT JOIN users u ON t.created_by = u.id
-    `;
-
-    const conditions: string[] = [];
-    const params: any[] = [];
-
+    const firestore = getAdminFirestore();
     const wsId = user.workspace_id || 'ws_default';
-    conditions.push('(t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = "ws_default"))');
-    params.push(wsId, wsId);
+
+    let queryRef: any = firestore.collection('tasks');
+    if (wsId !== 'ws_default') {
+      queryRef = queryRef.where('workspace_id', '==', wsId);
+    }
+
+    const snap = await queryRef.get();
+    let tasks = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+
+    if (wsId === 'ws_default') {
+      tasks = tasks.filter((t: any) => !t.workspace_id || t.workspace_id === 'ws_default');
+    }
 
     // Role-based visibility
     if (user.role === 'CLIENTE') {
-      conditions.push('t.client_id = ?');
-      params.push(user.client_id);
+      tasks = tasks.filter((t: any) => t.client_id === user.client_id);
+    } else if (client_id) {
+      tasks = tasks.filter((t: any) => t.client_id === client_id);
     }
 
-    if (status) {
-      conditions.push('t.status = ?');
-      params.push(status);
+    if (status && status !== 'todos') {
+      tasks = tasks.filter((t: any) => t.status === status);
     }
-    if (client_id && user.role !== 'CLIENTE') {
-      conditions.push('t.client_id = ?');
-      params.push(client_id);
+    if (category_id && category_id !== 'todos') {
+      tasks = tasks.filter((t: any) => t.category_id === category_id);
     }
-    if (category_id) {
-      conditions.push('t.category_id = ?');
-      params.push(category_id);
-    }
-
     if (assignee_id) {
-      conditions.push('EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?)');
-      params.push(assignee_id);
+      tasks = tasks.filter((t: any) => {
+        if (Array.isArray(t.assignee_ids)) return t.assignee_ids.includes(assignee_id);
+        if (Array.isArray(t.assignees)) return t.assignees.some((a: any) => (typeof a === 'string' ? a === assignee_id : a.id === assignee_id));
+        return false;
+      });
+    }
+    if (search) {
+      tasks = tasks.filter((t: any) =>
+        (t.name && t.name.toLowerCase().includes(search)) ||
+        (t.title && t.title.toLowerCase().includes(search)) ||
+        (t.description && t.description.toLowerCase().includes(search))
+      );
     }
 
-    if (cursor) {
-      const cursorDecoded = Buffer.from(cursor, 'base64').toString('utf8');
-      conditions.push("(t.created_at < ? OR (t.created_at = ? AND t.id < ?))");
-      params.push(cursorDecoded, cursorDecoded, cursor);
-    }
+    // Enrich with client, category, and user metadata
+    const [clientsSnap, catsSnap, usersSnap] = await Promise.all([
+      firestore.collection('clients').get(),
+      firestore.collection('task_categories').get(),
+      firestore.collection('users').get(),
+    ]);
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const query = `
-      ${baseSelect}
-      ${whereClause}
-      ORDER BY t.created_at DESC, t.id DESC
-      LIMIT ?
-    `;
-    params.push(limit + 1);
+    const clientMap: Record<string, string> = {};
+    clientsSnap.docs.forEach((d: any) => { clientMap[d.id] = d.data().name; });
 
-    const { results } = await db.prepare(query).bind(...params).all<any>();
+    const catMap: Record<string, { name: string; color: string }> = {};
+    catsSnap.docs.forEach((d: any) => {
+      catMap[d.id] = { name: d.data().name, color: d.data().color || '#3B82F6' };
+    });
 
-    const hasMore = results.length > limit;
-    const rawTasks = hasMore ? results.slice(0, limit) : results;
+    const userMap: Record<string, any> = {};
+    usersSnap.docs.forEach((d: any) => {
+      const u = d.data();
+      userMap[d.id] = { id: d.id, name: u.name, avatar_url: u.avatar_url || null, role: u.role };
+    });
 
-    // Normalizing task fields for both name/title and delivery_date/due_date
-    const tasks = rawTasks.map((t: any) => ({
-      ...t,
-      title: t.name,
-      due_date: t.delivery_date,
-    }));
-
-    if (tasks.length > 0) {
-      const ids = tasks.map((t: any) => `'${t.id}'`).join(',');
-      const { results: assigneeRows } = await db
-        .prepare(`
-          SELECT ta.task_id, u.id, u.name, u.avatar_url, u.role
-          FROM task_assignees ta
-          JOIN users u ON ta.user_id = u.id
-          WHERE ta.task_id IN (${ids})
-        `)
-        .all<any>();
-
-      const assigneeMap: Record<string, any[]> = {};
-      for (const row of assigneeRows) {
-        if (!assigneeMap[row.task_id]) assigneeMap[row.task_id] = [];
-        assigneeMap[row.task_id].push({ id: row.id, name: row.name, avatar_url: row.avatar_url, role: row.role });
+    tasks = tasks.map((t: any) => {
+      const cat = t.category_id ? catMap[t.category_id] : null;
+      let enrichedAssignees: any[] = [];
+      if (Array.isArray(t.assignees) && t.assignees.length > 0) {
+        enrichedAssignees = t.assignees.map((a: any) => {
+          const uId = typeof a === 'string' ? a : a.id;
+          return userMap[uId] || (typeof a === 'object' ? a : { id: uId, name: 'Colaborador' });
+        });
+      } else if (Array.isArray(t.assignee_ids) && t.assignee_ids.length > 0) {
+        enrichedAssignees = t.assignee_ids.map((uId: string) => userMap[uId] || { id: uId, name: 'Colaborador' });
       }
-      for (const task of tasks) {
-        task.assignees = assigneeMap[task.id] || [];
-      }
-    }
 
-    let nextCursor: string | null = null;
-    if (hasMore && tasks.length > 0) {
-      const last = tasks[tasks.length - 1];
-      nextCursor = Buffer.from(last.created_at).toString('base64');
-    }
+      return {
+        ...t,
+        name: t.name || t.title || 'Tarefa sem título',
+        title: t.title || t.name || 'Tarefa sem título',
+        delivery_date: t.delivery_date || t.due_date || null,
+        due_date: t.delivery_date || t.due_date || null,
+        client_name: t.client_id ? (clientMap[t.client_id] || null) : null,
+        category_name: cat?.name || null,
+        category_color: cat?.color || '#3B82F6',
+        created_by_name: t.created_by ? (userMap[t.created_by]?.name || null) : null,
+        assignees: enrichedAssignees,
+        media_links_count: t.media_links_count || 0,
+        comments_count: t.comments_count || 0,
+        deletion_request_status: t.deletion_request_status || null,
+      };
+    });
+
+    // Ordenação decrescente por created_at
+    tasks.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
     return NextResponse.json({
-      tasks,
+      tasks: tasks.slice(0, limit),
       pagination: {
-        hasMore,
-        nextCursor,
+        hasMore: tasks.length > limit,
+        nextCursor: null,
         count: tasks.length,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[GET /api/tasks]', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -160,90 +155,89 @@ export async function POST(request: Request) {
     const delivery_date = body.delivery_date || body.due_date || null;
     const value = body.value ? Number(body.value) : 0;
     const notes = body.notes || null;
-    const assignees = body.assignees || body.assignee_ids || [];
+    const rawAssignees = body.assignees || body.assignee_ids || [];
 
     if (!taskName) {
       return NextResponse.json({ error: 'Nome da tarefa é obrigatório' }, { status: 400 });
     }
-
     if (!client_id) {
       return NextResponse.json({ error: 'Cliente é obrigatório' }, { status: 400 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const id = 'task_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
-
     const wsId = user.workspace_id || 'ws_default';
 
-    await db
-      .prepare(`
-        INSERT INTO tasks (id, name, description, status, client_id,
-                           category_id, delivery_date, value, notes, created_by, workspace_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        id,
-        taskName,
-        description,
-        status,
-        client_id,
-        category_id,
-        delivery_date,
-        value,
-        notes,
-        user.id,
-        wsId,
-        now,
-        now
-      )
-      .run();
+    const assigneeIds = Array.isArray(rawAssignees)
+      ? rawAssignees.map((a: any) => (typeof a === 'string' ? a : a.id)).filter(Boolean)
+      : [];
 
-    if (Array.isArray(assignees) && assignees.length > 0) {
-      for (const userId of assignees) {
-        const assigneeId = 'ta_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-        await db
-          .prepare(`INSERT INTO task_assignees (id, task_id, user_id, assigned_at) VALUES (?, ?, ?, ?)`)
-          .bind(assigneeId, id, userId, now)
-          .run();
-      }
-    }
+    const taskDocData = {
+      id,
+      name: taskName,
+      title: taskName,
+      description,
+      status,
+      client_id,
+      category_id,
+      delivery_date,
+      due_date: delivery_date,
+      value,
+      notes,
+      created_by: user.id,
+      workspace_id: wsId,
+      assignee_ids: assigneeIds,
+      assignees: assigneeIds,
+      created_at: now,
+      updated_at: now,
+    };
 
+    await firestore.collection('tasks').doc(id).set(taskDocData);
+
+    // Salvar no histórico de status
     const histId = 'tsh_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-    await db
-      .prepare(`
-        INSERT INTO task_status_history (id, task_id, user_id, previous_status, new_status, comment, created_at)
-        VALUES (?, ?, ?, NULL, ?, ?, ?)
-      `)
-      .bind(histId, id, user.id, status, 'Tarefa criada', now)
-      .run();
+    await firestore.collection('task_status_history').doc(histId).set({
+      id: histId,
+      task_id: id,
+      user_id: user.id,
+      previous_status: null,
+      new_status: status,
+      comment: 'Tarefa criada',
+      created_at: now,
+    });
 
+    // Se valor > 0, cria transação financeira automaticamente
     if (value > 0) {
       const txId = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
       const dueDate = delivery_date || now.split('T')[0];
-      await db
-        .prepare(`
-          INSERT INTO financial_transactions (id, type, description, amount, status, due_date,
-                                              client_id, task_id,
-                                              created_by, created_at, updated_at)
-          VALUES (?, 'Entrada', ?, ?, 'Pendente', ?, ?, ?, ?, ?, ?)
-        `)
-        .bind(txId, `Recebível da tarefa: ${taskName}`, value, dueDate, client_id, id, user.id, now, now)
-        .run();
+      await firestore.collection('financial_transactions').doc(txId).set({
+        id: txId,
+        type: 'Entrada',
+        description: `Recebível da tarefa: ${taskName}`,
+        amount: value,
+        status: 'Pendente',
+        due_date: dueDate,
+        client_id,
+        task_id: id,
+        created_by: user.id,
+        workspace_id: wsId,
+        created_at: now,
+        updated_at: now,
+      });
     }
 
-    if (Array.isArray(assignees) && assignees.length > 0) {
-      for (const userId of assignees) {
-        if (userId !== user.id) {
-          await createNotification({
-            userId,
-            title: 'Nova tarefa atribuída',
-            message: `Você foi atribuído à tarefa "${taskName}"`,
-            type: 'task',
-            referenceModule: 'tasks',
-            referenceId: id,
-          });
-        }
+    // Notificar responsáveis atribuídos
+    for (const assigneeId of assigneeIds) {
+      if (assigneeId !== user.id) {
+        await createNotification({
+          userId: assigneeId,
+          title: 'Nova tarefa atribuída',
+          message: `Você foi atribuído à tarefa "${taskName}"`,
+          type: 'task',
+          referenceModule: 'tasks',
+          referenceId: id,
+        });
       }
     }
 
@@ -256,29 +250,9 @@ export async function POST(request: Request) {
       ipAddress: request.headers.get('x-forwarded-for'),
     });
 
-    return NextResponse.json(
-      {
-        task: {
-          id,
-          name: taskName,
-          title: taskName,
-          description,
-          status,
-          client_id,
-          category_id,
-          delivery_date,
-          due_date: delivery_date,
-          value,
-          notes,
-          created_by: user.id,
-          created_at: now,
-          updated_at: now,
-        },
-      },
-      { status: 201 }
-    );
-  } catch (error) {
+    return NextResponse.json({ task: taskDocData }, { status: 201 });
+  } catch (error: any) {
     console.error('[POST /api/tasks]', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
   }
 }

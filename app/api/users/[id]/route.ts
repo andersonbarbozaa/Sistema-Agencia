@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser } from '@/lib/auth';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
@@ -13,35 +12,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
 
-    // Only admin can view other users; regular users can only view themselves
     if (user.role !== 'ADMINISTRADOR' && user.id !== id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
+    const userDoc = await firestore.collection('users').doc(id).get();
+    if (!userDoc.exists) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const found = await db
-      .prepare(
-        `SELECT
-          u.id, u.name, u.email, u.role, u.status, u.phone, u.avatar_url,
-          u.position_id, u.client_id, u.is_partner, u.job_title, u.workspace_id,
-          w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
-          u.created_at, u.updated_at,
-          p.name as position_name
-        FROM users u
-        LEFT JOIN positions p ON p.id = u.position_id
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
-        WHERE u.id = ?`
-      )
-      .bind(id)
-      .first();
+    const userData: any = { id: userDoc.id, ...userDoc.data() };
+    const { password_hash, ...safeUser } = userData;
 
-    if (!found) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    let position_name = null;
+    let workspace_name = null;
 
-    return NextResponse.json({ data: found });
-  } catch (error) {
+    if (userData.position_id) {
+      const pDoc = await firestore.collection('positions').doc(userData.position_id).get();
+      if (pDoc.exists) position_name = pDoc.data()?.name || null;
+    }
+
+    if (userData.workspace_id) {
+      const wDoc = await firestore.collection('workspaces').doc(userData.workspace_id).get();
+      if (wDoc.exists) workspace_name = wDoc.data()?.name || null;
+    }
+
+    return NextResponse.json({
+      data: {
+        ...safeUser,
+        position_name,
+        workspace_name,
+      }
+    });
+  } catch (error: any) {
     console.error('GET /api/users/[id] error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -52,37 +56,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
-    const isAdmin = user.role === 'ADMINISTRADOR';
+    const isUserAdmin = user.role === 'ADMINISTRADOR';
     const isSelf = user.id === id;
 
-    if (!isAdmin && !isSelf) {
+    if (!isUserAdmin && !isSelf) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
+    const userRef = firestore.collection('users').doc(id);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const existing = await db
-      .prepare('SELECT * FROM users WHERE id = ?')
-      .bind(id)
-      .first<Record<string, unknown>>();
-
-    if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
+    const existing: any = userDoc.data();
     const body = await request.json();
-    const updates: string[] = [];
-    const values: unknown[] = [];
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
 
     // Fields any user can update on their own profile
     if (isSelf) {
       const selfFields = ['name', 'phone', 'avatar_url', 'job_title'] as const;
       for (const field of selfFields) {
         if (field in body) {
-          updates.push(`${field} = ?`);
-          values.push(body[field]);
+          updateData[field] = body[field];
         }
       }
 
-      // Password change: requires current_password verification
       if (body.new_password) {
         if (!body.current_password) {
           return NextResponse.json({ error: 'current_password is required to change password' }, { status: 400 });
@@ -91,74 +91,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (!isValid) {
           return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 });
         }
-        const hashedNew = await hashPassword(body.new_password);
-        updates.push('password_hash = ?');
-        values.push(hashedNew);
+        updateData.password_hash = await hashPassword(body.new_password);
       }
     }
 
     // Admin-only fields
-    if (isAdmin) {
-      const adminFields = ['name', 'email', 'role', 'status', 'phone', 'avatar_url', 'position_id', 'client_id', 'is_partner', 'job_title'] as const;
+    if (isUserAdmin) {
+      const adminFields = ['role', 'status', 'position_id', 'client_id', 'is_partner', 'name', 'phone', 'avatar_url', 'job_title'] as const;
       for (const field of adminFields) {
-        if (field in body && !updates.some((u) => u.startsWith(`${field} =`))) {
-          updates.push(`${field} = ?`);
-          values.push(body[field]);
+        if (field in body) {
+          updateData[field] = field === 'is_partner' ? (body[field] ? 1 : 0) : body[field];
         }
       }
 
-      // Admin can also set a new password directly (no current_password required)
-      if (body.new_password && !isSelf) {
-        const hashedNew = await hashPassword(body.new_password);
-        updates.push('password_hash = ?');
-        values.push(hashedNew);
-      }
-
-      // Check duplicate email if email is being changed
-      if (body.email && body.email !== existing.email) {
-        const emailTaken = await db
-          .prepare('SELECT id FROM users WHERE email = ? AND id != ?')
-          .bind(body.email, id)
-          .first();
-        if (emailTaken) {
-          return NextResponse.json({ error: 'Email already in use' }, { status: 409 });
-        }
+      if (body.password) {
+        updateData.password_hash = await hashPassword(body.password);
       }
     }
 
-    if (updates.length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
-    }
+    await userRef.set(updateData, { merge: true });
 
-    const now = new Date().toISOString();
-    updates.push('updated_at = ?');
-    values.push(now, id);
+    await logAudit(user.id, 'users', 'UPDATE', id, body);
 
-    await db
-      .prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
-      .bind(...values)
-      .run();
+    const updatedDoc = await userRef.get();
+    const updatedData: any = { id: updatedDoc.id, ...updatedDoc.data() };
+    const { password_hash: _, ...safeUser } = updatedData;
 
-    await logAudit(user.id, 'users', 'UPDATE', id, { updated_fields: Object.keys(body).filter((k) => k !== 'current_password' && k !== 'new_password') });
-
-    const updated = await db
-      .prepare(
-        `SELECT u.id, u.name, u.email, u.role, u.status, u.phone, u.avatar_url,
-          u.position_id, u.client_id, u.is_partner, u.job_title, u.workspace_id,
-          w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
-          u.created_at, u.updated_at, p.name as position_name
-        FROM users u
-        LEFT JOIN positions p ON p.id = u.position_id
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
-        WHERE u.id = ?`
-      )
-      .bind(id)
-      .first();
-
-    return NextResponse.json({ data: updated });
-  } catch (error) {
+    return NextResponse.json({ data: safeUser, user: safeUser });
+  } catch (error: any) {
     console.error('PATCH /api/users/[id] error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -170,31 +132,22 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (user.role !== 'ADMINISTRADOR') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { id } = await params;
-
     if (user.id === id) {
-      return NextResponse.json({ error: 'Cannot deactivate your own account' }, { status: 400 });
+      return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
+    const userRef = firestore.collection('users').doc(id);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const existing = await db
-      .prepare('SELECT id, name, email FROM users WHERE id = ?')
-      .bind(id)
-      .first<{ id: string; name: string; email: string }>();
+    await userRef.set({ status: 'inativo', updated_at: new Date().toISOString() }, { merge: true });
 
-    if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
-    const now = new Date().toISOString();
-    await db
-      .prepare(`UPDATE users SET status = 'inativo', updated_at = ? WHERE id = ?`)
-      .bind(now, id)
-      .run();
-
-    await logAudit(user.id, 'users', 'SOFT_DELETE', id, { name: existing.name, email: existing.email });
+    await logAudit(user.id, 'users', 'DEACTIVATE', id);
 
     return NextResponse.json({ message: 'User deactivated successfully' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('DELETE /api/users/[id] error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }

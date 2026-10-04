@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 
 export async function GET(request: Request) {
@@ -17,41 +16,46 @@ export async function GET(request: Request) {
     const page = Math.max(Number(searchParams.get('page')) || 1, 1);
     const offset = (page - 1) * limit;
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
 
-    let query = `
-      SELECT a.*, u.name as user_name, u.email as user_email
-      FROM audit_logs a
-      LEFT JOIN users u ON a.user_id = u.id
-      WHERE 1=1
-    `;
-    const params: any[] = [];
+    const [auditSnap, usersSnap] = await Promise.all([
+      firestore.collection('audit_logs').get(),
+      firestore.collection('users').get(),
+    ]);
 
-    if (module) {
-      query += ` AND a.module = ?`;
-      params.push(module);
-    }
-    if (action) {
-      query += ` AND a.action = ?`;
-      params.push(action);
-    }
+    const userMap: Record<string, { name: string; email: string }> = {};
+    usersSnap.docs.forEach((d: any) => {
+      const u = d.data();
+      userMap[d.id] = { name: u.name, email: u.email };
+    });
 
-    query += ` ORDER BY a.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    let logs = auditSnap.docs.map((d: any) => {
+      const a = d.data();
+      const u = a.user_id ? userMap[a.user_id] : null;
+      return {
+        id: d.id,
+        ...a,
+        user_name: u?.name || 'Sistema',
+        user_email: u?.email || null,
+      };
+    });
 
-    const logs = await db.prepare(query).bind(...params).all();
+    if (module) logs = logs.filter((l: any) => l.module === module);
+    if (action) logs = logs.filter((l: any) => l.action === action);
 
-    const countRes = await db
-      .prepare('SELECT COUNT(*) as total FROM audit_logs')
-      .first<any>();
+    logs.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+    const total = logs.length;
+    const paginated = logs.slice(offset, offset + limit);
 
     return NextResponse.json({
-      logs: logs.results || [],
-      total: countRes?.total || 0,
+      logs: paginated,
+      total,
       page,
       limit,
     });
   } catch (err: any) {
+    console.error('GET /api/audit error:', err);
     return NextResponse.json({ error: 'Erro ao buscar registros de auditoria.' }, { status: 500 });
   }
 }

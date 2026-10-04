@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -17,9 +16,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const body = await request.json();
     const { name, description } = body;
 
-    const db = getDb();
-    const existing = await db.prepare('SELECT * FROM positions WHERE id = ?').bind(id).first();
-    if (!existing) {
+    const firestore = getAdminFirestore();
+    const posRef = firestore.collection('positions').doc(id);
+    const posDoc = await posRef.get();
+    if (!posDoc.exists) {
       return NextResponse.json({ error: 'Cargo não encontrado.' }, { status: 404 });
     }
 
@@ -27,10 +27,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Nome do cargo é obrigatório.' }, { status: 400 });
     }
 
-    await db
-      .prepare('UPDATE positions SET name = ?, description = ? WHERE id = ?')
-      .bind(name.trim(), description || null, id)
-      .run();
+    const existing: any = posDoc.data();
+    const updateData: Record<string, any> = {
+      name: name.trim(),
+      description: description || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    await posRef.set(updateData, { merge: true });
 
     await logAudit({
       userId: user.id,
@@ -43,6 +47,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, message: 'Cargo atualizado com sucesso.' });
   } catch (err: any) {
+    console.error('PATCH /api/positions/[id] error:', err);
     return NextResponse.json({ error: 'Erro ao atualizar cargo.' }, { status: 500 });
   }
 }
@@ -55,29 +60,34 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const db = getDb();
+    const firestore = getAdminFirestore();
 
-    const existing = await db.prepare('SELECT * FROM positions WHERE id = ?').bind(id).first();
-    if (!existing) {
+    const posRef = firestore.collection('positions').doc(id);
+    const posDoc = await posRef.get();
+    if (!posDoc.exists) {
       return NextResponse.json({ error: 'Cargo não encontrado.' }, { status: 404 });
     }
 
     // Set position_id to null for users who have this position
-    await db.prepare('UPDATE users SET position_id = NULL WHERE position_id = ?').bind(id).run();
-
-    // Delete position
-    await db.prepare('DELETE FROM positions WHERE id = ?').bind(id).run();
+    const usersWithPos = await firestore.collection('users').where('position_id', '==', id).get();
+    const batch = firestore.batch();
+    usersWithPos.docs.forEach((d: any) => {
+      batch.update(d.ref, { position_id: null });
+    });
+    batch.delete(posRef);
+    await batch.commit();
 
     await logAudit({
       userId: user.id,
       action: 'DELETE',
       module: 'SETTINGS',
       recordId: id,
-      beforeData: existing,
+      beforeData: posDoc.data(),
     });
 
     return NextResponse.json({ success: true, message: 'Cargo excluído com sucesso.' });
   } catch (err: any) {
+    console.error('DELETE /api/positions/[id] error:', err);
     return NextResponse.json({ error: 'Erro ao excluir cargo.' }, { status: 500 });
   }
 }

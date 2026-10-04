@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb, getAdminFirestore } from '@/lib/db';
-import { verifyPassword, createSessionToken, createFirebaseCustomToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
+import { getAdminFirestore } from '@/lib/firebase-admin';
+import { verifyPassword, createSessionToken, createFirebaseCustomToken, TOKEN_COOKIE_NAME, hashPassword } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(request: Request) {
@@ -13,68 +13,68 @@ export async function POST(request: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const db = getDb();
-    let user = await db
-      .prepare(`
-        SELECT u.*, p.name as position_name, c.name as client_name,
-               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code
-        FROM users u
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
-        LEFT JOIN positions p ON u.position_id = p.id
-        LEFT JOIN clients c ON u.client_id = c.id
-        WHERE lower(u.email) = ? AND u.status = 'ativo'
-      `)
-      .bind(cleanEmail)
-      .first<any>();
+    const firestore = getAdminFirestore();
 
-    // Fallback: Procura no Firestore se não encontrado no banco local
-    if (!user) {
+    let user: any = null;
+
+    if (firestore) {
       try {
-        const firestore = getAdminFirestore();
-        if (firestore) {
-          const userSnap = await firestore.collection('users').where('email', '==', cleanEmail).limit(1).get();
-          if (!userSnap.empty) {
-            const fsUser = userSnap.docs[0].data();
-            user = {
-              ...fsUser,
-              id: fsUser.id || userSnap.docs[0].id,
-            };
-
-            // Se o usuário tem senha gravada e workspace, sincroniza para o SQLite local
-            if (user && user.password_hash) {
-              try {
-                await db
-                  .prepare(`
-                    INSERT OR REPLACE INTO users (
-                      id, name, email, password_hash, phone, role, job_title, workspace_id, is_partner, status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                  `)
-                  .bind(
-                    user.id,
-                    user.name || '',
-                    cleanEmail,
-                    user.password_hash,
-                    user.phone || null,
-                    user.role || 'COLABORADOR',
-                    user.job_title || 'Colaborador',
-                    user.workspace_id || null,
-                    user.is_partner || (user.role === 'ADMINISTRADOR' ? 1 : 0),
-                    user.status || 'ativo'
-                  )
-                  .run();
-              } catch (syncErr) {
-                console.warn('[Login SQLite Cache Warning]:', syncErr);
-              }
-            }
-          }
+        const userSnap = await firestore.collection('users').where('email', '==', cleanEmail).limit(1).get();
+        if (!userSnap.empty) {
+          const fsDoc = userSnap.docs[0];
+          user = {
+            id: fsDoc.id,
+            ...fsDoc.data(),
+          };
         }
       } catch (fsErr) {
-        console.warn('[Login Firestore Lookup Warning]:', fsErr);
+        console.warn('[Login Firestore Error]:', fsErr);
+      }
+    }
+
+    // Default admin seed se for anderson@agencia.com e ainda não existir no Firestore
+    if (!user && cleanEmail === 'anderson@agencia.com') {
+      const now = new Date().toISOString();
+      const defaultHash = '$2b$10$TNXA4RoTuecRRLfUst11TO9DmCBfbTQK1Id/dseBjOqGu3jFGfbI6'; // admin123
+      user = {
+        id: 'usr_anderson',
+        name: 'Anderson Barboza',
+        email: 'anderson@agencia.com',
+        password_hash: defaultHash,
+        role: 'ADMINISTRADOR',
+        status: 'ativo',
+        is_partner: 1,
+        job_title: 'Diretor Executivo',
+        workspace_id: 'ws_default',
+        workspace_name: 'PixelCraft Studio',
+        created_at: now,
+        updated_at: now,
+      };
+
+      if (firestore) {
+        try {
+          await firestore.collection('users').doc('usr_anderson').set(user, { merge: true });
+          await firestore.collection('workspaces').doc('ws_default').set({
+            id: 'ws_default',
+            name: 'PixelCraft Studio',
+            description: 'Agência Audiovisual & Criativa',
+            owner_id: 'usr_anderson',
+            invite_code: 'pixelcraft',
+            created_at: now,
+            updated_at: now,
+          }, { merge: true });
+        } catch (e) {
+          console.warn('[Admin Seed Firestore Warning]:', e);
+        }
       }
     }
 
     if (!user) {
       return NextResponse.json({ error: 'Credenciais inválidas ou usuário inativo.' }, { status: 401 });
+    }
+
+    if (user.status === 'inativo') {
+      return NextResponse.json({ error: 'Usuário inativo. Entre em contato com o suporte.' }, { status: 403 });
     }
 
     if (!user.password_hash) {
@@ -86,17 +86,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
     }
 
+    const wsId = user.workspace_id || 'ws_default';
+
+    // Buscar workspace details no Firestore
+    let workspaceName = user.workspace_name || 'PixelCraft Studio';
+    if (firestore && wsId) {
+      try {
+        const wsDoc = await firestore.collection('workspaces').doc(wsId).get();
+        if (wsDoc.exists) {
+          workspaceName = wsDoc.data()?.name || workspaceName;
+        }
+      } catch {}
+    }
+
     const token = await createSessionToken({
       id: user.id,
       email: user.email,
       role: user.role,
       client_id: user.client_id,
-      workspace_id: user.workspace_id,
+      workspace_id: wsId,
     });
 
     const firebaseToken = await createFirebaseCustomToken(user.id, {
       role: user.role,
-      workspaceId: user.workspace_id,
+      workspaceId: wsId,
     });
 
     await logAudit({
@@ -104,21 +117,34 @@ export async function POST(request: Request) {
       action: 'LOGIN',
       module: 'AUTH',
       recordId: user.id,
-      afterData: { email: user.email, role: user.role },
-      ipAddress: request.headers.get('x-forwarded-for') || 'local',
+      afterData: { email: user.email, role: user.role, workspace_id: wsId },
+      ipAddress: request.headers.get('x-forwarded-for') || undefined,
     });
 
-    // Remove sensitive password hash
-    const { password_hash, ...safeUser } = user;
+    const safeUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      phone: user.phone || null,
+      avatar_url: user.avatar_url || null,
+      position_id: user.position_id || null,
+      position_name: user.position_name || null,
+      client_id: user.client_id || null,
+      client_name: user.client_name || null,
+      is_partner: user.is_partner || 0,
+      job_title: user.job_title || null,
+      workspace_id: wsId,
+      workspace_name: workspaceName,
+    };
 
     const response = NextResponse.json({
-      success: true,
       user: safeUser,
       token,
       firebase_token: firebaseToken,
     });
 
-    // Set secure HTTP-only cookie
     response.cookies.set({
       name: TOKEN_COOKIE_NAME,
       value: token,
@@ -130,8 +156,8 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch (err: any) {
-    console.error('[Login API Error]:', err);
-    return NextResponse.json({ error: 'Erro interno ao realizar login.' }, { status: 500 });
+  } catch (error: any) {
+    console.error('[POST /api/auth/login]', error);
+    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
   }
 }

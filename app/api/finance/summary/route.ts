@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 
 // GET /api/finance/summary — financial dashboard summary (admin only)
@@ -10,140 +9,113 @@ export async function GET(request: NextRequest) {
   if (!isAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // First day of current month — YYYY-MM-01
     const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
-    // First day of next month (exclusive upper bound)
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     const monthEnd = nextMonth.toISOString().split('T')[0];
 
     const wsId = user.workspace_id || 'ws_default';
 
-    // ---------- Aggregates ----------
-    const [
-      entriesMonth,
-      exitsMonth,
-      pendingReceive,
-      pendingPay,
-      overdueReceive,
-      overduePay,
-    ] = await Promise.all([
-      // total_entries_month
-      db
-        .prepare(
-          `SELECT COALESCE(SUM(amount), 0) AS value
-           FROM financial_transactions
-           WHERE type = 'Entrada' AND status = 'Pago'
-             AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
-             AND paid_at >= ? AND paid_at < ?`
-        )
-        .bind(wsId, wsId, monthStart, monthEnd)
-        .first<{ value: number }>(),
+    // Obter transações e contas bancárias do workspace
+    let txQuery: any = firestore.collection('financial_transactions');
+    if (wsId !== 'ws_default') {
+      txQuery = txQuery.where('workspace_id', '==', wsId);
+    }
+    const txSnap = await txQuery.get();
+    let txs = txSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
-      // total_exits_month
-      db
-        .prepare(
-          `SELECT COALESCE(SUM(amount), 0) AS value
-           FROM financial_transactions
-           WHERE type = 'Saída' AND status = 'Pago'
-             AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
-             AND paid_at >= ? AND paid_at < ?`
-        )
-        .bind(wsId, wsId, monthStart, monthEnd)
-        .first<{ value: number }>(),
+    if (wsId === 'ws_default') {
+      txs = txs.filter((t: any) => !t.workspace_id || t.workspace_id === 'ws_default');
+    }
 
-      // total_pending_receive
-      db
-        .prepare(
-          `SELECT COALESCE(SUM(amount), 0) AS value
-           FROM financial_transactions
-           WHERE type = 'Entrada' AND status = 'Pendente'
-             AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
-        )
-        .bind(wsId, wsId)
-        .first<{ value: number }>(),
+    let accountsQuery: any = firestore.collection('bank_accounts');
+    if (wsId !== 'ws_default') {
+      accountsQuery = accountsQuery.where('workspace_id', '==', wsId);
+    }
+    const accSnap = await accountsQuery.get();
+    let accounts = accSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
-      // total_pending_pay
-      db
-        .prepare(
-          `SELECT COALESCE(SUM(amount), 0) AS value
-           FROM financial_transactions
-           WHERE type = 'Saída' AND status = 'Pendente'
-             AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
-        )
-        .bind(wsId, wsId)
-        .first<{ value: number }>(),
+    if (wsId === 'ws_default') {
+      accounts = accounts.filter((a: any) => !a.workspace_id || a.workspace_id === 'ws_default');
+    }
 
-      // overdue_receive
-      db
-        .prepare(
-          `SELECT COALESCE(SUM(amount), 0) AS value
-           FROM financial_transactions
-           WHERE type = 'Entrada' AND status = 'Pendente' AND due_date < ?
-             AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
-        )
-        .bind(todayStr, wsId, wsId)
-        .first<{ value: number }>(),
+    // Calcular agregados
+    let total_entries_month = 0;
+    let total_exits_month = 0;
+    let total_pending_receive = 0;
+    let total_pending_pay = 0;
+    let overdue_receive = 0;
+    let overdue_pay = 0;
 
-      // overdue_pay
-      db
-        .prepare(
-          `SELECT COALESCE(SUM(amount), 0) AS value
-           FROM financial_transactions
-           WHERE type = 'Saída' AND status = 'Pendente' AND due_date < ?
-             AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
-        )
-        .bind(todayStr, wsId, wsId)
-        .first<{ value: number }>(),
-    ]);
+    txs.forEach((t: any) => {
+      const amt = Number(t.amount || 0);
+      const isPaid = t.status === 'Pago';
+      const isPending = t.status === 'Pendente';
+      const paidDate = t.paid_at ? t.paid_at.substring(0, 10) : '';
+      const dueDate = t.due_date ? t.due_date.substring(0, 10) : '';
 
-    // ---------- Bank balances ----------
-    // balance = initial_balance + SUM(Entrada paid) - SUM(Saída paid)
-    const bankBalancesResult = await db
-      .prepare(
-        `SELECT
-          ba.id,
-          ba.name               AS account_name,
-          ba.initial_balance,
-          COALESCE(SUM(CASE WHEN t.type = 'Entrada' AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_entries,
-          COALESCE(SUM(CASE WHEN t.type = 'Saída'   AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_exits
-        FROM bank_accounts ba
-        LEFT JOIN financial_transactions t ON t.bank_account_id = ba.id
-        WHERE ba.status = 'ativo' AND (ba.workspace_id = ? OR (ba.workspace_id IS NULL AND ? = 'ws_default'))
-        GROUP BY ba.id, ba.name, ba.initial_balance
-        ORDER BY ba.name`
-      )
-      .bind(wsId, wsId)
-      .all<{
-        id: string;
-        account_name: string;
-        initial_balance: number;
-        total_entries: number;
-        total_exits: number;
-      }>();
+      if (t.type === 'Entrada') {
+        if (isPaid && paidDate >= monthStart && paidDate < monthEnd) {
+          total_entries_month += amt;
+        }
+        if (isPending) {
+          total_pending_receive += amt;
+          if (dueDate && dueDate < todayStr) {
+            overdue_receive += amt;
+          }
+        }
+      } else if (t.type === 'Saída') {
+        if (isPaid && paidDate >= monthStart && paidDate < monthEnd) {
+          total_exits_month += amt;
+        }
+        if (isPending) {
+          total_pending_pay += amt;
+          if (dueDate && dueDate < todayStr) {
+            overdue_pay += amt;
+          }
+        }
+      }
+    });
 
-    const bank_balances = (bankBalancesResult.results ?? []).map((row) => ({
-      id: row.id,
-      account_name: row.account_name,
-      balance: row.initial_balance + row.total_entries - row.total_exits,
-    }));
+    // Saldo bancário por conta
+    const bank_balances = accounts
+      .filter((a: any) => a.status !== 'inativo')
+      .map((acc: any) => {
+        const initial = Number(acc.initial_balance || 0);
+        let entries = 0;
+        let exits = 0;
+
+        txs.forEach((t: any) => {
+          if (t.bank_account_id === acc.id && t.status === 'Pago') {
+            const amt = Number(t.amount || 0);
+            if (t.type === 'Entrada') entries += amt;
+            if (t.type === 'Saída') exits += amt;
+          }
+        });
+
+        return {
+          id: acc.id,
+          account_name: acc.name,
+          balance: initial + entries - exits,
+        };
+      });
 
     return NextResponse.json({
       data: {
-        total_entries_month: entriesMonth?.value ?? 0,
-        total_exits_month: exitsMonth?.value ?? 0,
-        total_pending_receive: pendingReceive?.value ?? 0,
-        total_pending_pay: pendingPay?.value ?? 0,
-        overdue_receive: overdueReceive?.value ?? 0,
-        overdue_pay: overduePay?.value ?? 0,
+        total_entries_month,
+        total_exits_month,
+        total_pending_receive,
+        total_pending_pay,
+        overdue_receive,
+        overdue_pay,
         bank_balances,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[GET /api/finance/summary]', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }

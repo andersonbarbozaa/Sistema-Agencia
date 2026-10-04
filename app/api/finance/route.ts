@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -23,55 +22,71 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
   const offset = (page - 1) * PAGE_SIZE;
 
-  const db = getDb();
-
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
-
-  const wsId = user.workspace_id || 'ws_default';
-  conditions.push('(t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = "ws_default"))');
-  params.push(wsId, wsId);
-
-  if (type) { conditions.push('t.type = ?'); params.push(type); }
-  if (status) { conditions.push('t.status = ?'); params.push(status); }
-  if (client_id) { conditions.push('t.client_id = ?'); params.push(client_id); }
-  if (bank_account_id) { conditions.push('t.bank_account_id = ?'); params.push(bank_account_id); }
-  if (category_id) { conditions.push('t.category_id = ?'); params.push(category_id); }
-  if (date_from) { conditions.push('t.due_date >= ?'); params.push(date_from); }
-  if (date_to) { conditions.push('t.due_date <= ?'); params.push(date_to); }
-
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-
   try {
-    const countResult = await db
-      .prepare(`SELECT COUNT(*) as total FROM financial_transactions t ${where}`)
-      .bind(...params)
-      .first<{ total: number }>();
+    const firestore = getAdminFirestore();
+    const wsId = user.workspace_id || 'ws_default';
 
-    const total = countResult?.total ?? 0;
+    let queryRef: any = firestore.collection('financial_transactions');
+    if (wsId !== 'ws_default') {
+      queryRef = queryRef.where('workspace_id', '==', wsId);
+    }
 
-    const rows = await db
-      .prepare(
-        `SELECT
-          t.*,
-          fc.name        AS category_name,
-          ba.name        AS bank_account_name,
-          c.name         AS client_name,
-          u.name         AS created_by_name
-        FROM financial_transactions t
-        LEFT JOIN financial_categories fc ON fc.id = t.category_id
-        LEFT JOIN bank_accounts         ba ON ba.id = t.bank_account_id
-        LEFT JOIN clients                c  ON c.id  = t.client_id
-        LEFT JOIN users                  u  ON u.id  = t.created_by
-        ${where}
-        ORDER BY t.due_date DESC, t.created_at DESC
-        LIMIT ? OFFSET ?`
-      )
-      .bind(...params, PAGE_SIZE, offset)
-      .all();
+    const snap = await queryRef.get();
+    let txs = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+
+    if (wsId === 'ws_default') {
+      txs = txs.filter((t: any) => !t.workspace_id || t.workspace_id === 'ws_default');
+    }
+
+    if (type && type !== 'todos') txs = txs.filter((t: any) => t.type === type);
+    if (status && status !== 'todos') txs = txs.filter((t: any) => t.status === status);
+    if (client_id) txs = txs.filter((t: any) => t.client_id === client_id);
+    if (bank_account_id) txs = txs.filter((t: any) => t.bank_account_id === bank_account_id);
+    if (category_id) txs = txs.filter((t: any) => t.category_id === category_id);
+    if (date_from) txs = txs.filter((t: any) => t.due_date >= date_from);
+    if (date_to) txs = txs.filter((t: any) => t.due_date <= date_to);
+
+    // Carregar relacionamentos (categorias, contas bancárias, clientes, usuários) em paralelo
+    const [catsSnap, accountsSnap, clientsSnap, usersSnap] = await Promise.all([
+      firestore.collection('financial_categories').get(),
+      firestore.collection('bank_accounts').get(),
+      firestore.collection('clients').get(),
+      firestore.collection('users').get(),
+    ]);
+
+    const catMap: Record<string, string> = {};
+    catsSnap.docs.forEach((d: any) => { catMap[d.id] = d.data().name; });
+
+    const accMap: Record<string, string> = {};
+    accountsSnap.docs.forEach((d: any) => { accMap[d.id] = d.data().name; });
+
+    const cliMap: Record<string, string> = {};
+    clientsSnap.docs.forEach((d: any) => { cliMap[d.id] = d.data().name; });
+
+    const userMap: Record<string, string> = {};
+    usersSnap.docs.forEach((d: any) => { userMap[d.id] = d.data().name || d.data().email; });
+
+    txs = txs.map((t: any) => ({
+      ...t,
+      amount: Number(t.amount || 0),
+      category_name: t.category_id ? (catMap[t.category_id] || null) : null,
+      bank_account_name: t.bank_account_id ? (accMap[t.bank_account_id] || null) : null,
+      client_name: t.client_id ? (cliMap[t.client_id] || null) : null,
+      created_by_name: t.created_by ? (userMap[t.created_by] || null) : null,
+    }));
+
+    // Ordenação decrescente por due_date e created_at
+    txs.sort((a: any, b: any) => {
+      const dateA = a.due_date || a.created_at || '';
+      const dateB = b.due_date || b.created_at || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    const total = txs.length;
+    const paginated = txs.slice(offset, offset + PAGE_SIZE);
 
     return NextResponse.json({
-      data: rows.results,
+      data: paginated,
       pagination: {
         page,
         page_size: PAGE_SIZE,
@@ -79,9 +94,9 @@ export async function GET(request: NextRequest) {
         total_pages: Math.ceil(total / PAGE_SIZE),
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[GET /api/finance]', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -106,20 +121,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'type must be Entrada or Saída' }, { status: 400 });
     }
 
+    const firestore = getAdminFirestore();
     const id = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
     const txStatus = status ?? 'Pendente';
-
     const wsId = user.workspace_id || 'ws_default';
-    const db = getDb();
-    await db
-      .prepare(
-        `INSERT INTO financial_transactions
-          (id, description, amount, type, status, due_date, client_id, bank_account_id, category_id, partner_id, notes, created_by, workspace_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(id, description, amount, type, txStatus, due_date, client_id ?? null, bank_account_id ?? null, category_id ?? null, partner_id ?? null, notes ?? null, user.id, wsId, now, now)
-      .run();
+
+    const transactionData = {
+      id,
+      description: String(description).trim(),
+      amount: Number(amount),
+      type,
+      status: txStatus,
+      due_date,
+      paid_at: txStatus === 'Pago' ? (body.paid_at || now) : null,
+      client_id: client_id ?? null,
+      bank_account_id: bank_account_id ?? null,
+      category_id: category_id ?? null,
+      partner_id: partner_id ?? null,
+      notes: notes ?? null,
+      created_by: user.id,
+      workspace_id: wsId,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await firestore.collection('financial_transactions').doc(id).set(transactionData);
 
     await logAudit({
       user_id: user.id,
@@ -129,10 +156,9 @@ export async function POST(request: NextRequest) {
       details: `Created ${type} transaction: ${description} — R$ ${amount}`,
     });
 
-    const created = await db.prepare('SELECT * FROM financial_transactions WHERE id = ?').bind(id).first();
-    return NextResponse.json({ data: created }, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({ data: transactionData }, { status: 201 });
+  } catch (error: any) {
     console.error('[POST /api/finance]', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }

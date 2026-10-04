@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, getAdminFirestore } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser } from '@/lib/auth';
 import { hashPassword } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
@@ -15,61 +14,55 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
     const status = searchParams.get('status');
+    const search = searchParams.get('search')?.toLowerCase().trim() || '';
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const wsId = user.workspace_id || 'ws_default';
-    const conditions: string[] = [
-      '(u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = "ws_default"))'
-    ];
-    const params: unknown[] = [wsId, wsId];
 
-    if (role) {
-      conditions.push('u.role = ?');
-      params.push(role);
-    }
-    if (status) {
-      conditions.push('u.status = ?');
-      params.push(status);
-    }
+    const [usersSnap, posSnap] = await Promise.all([
+      firestore.collection('users').get(),
+      firestore.collection('positions').get(),
+    ]);
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const posMap: Record<string, string> = {};
+    posSnap.docs.forEach((d: any) => { posMap[d.id] = d.data().name; });
 
-    const users = await db
-      .prepare(
-        `SELECT
-          u.id, u.name, u.email, u.role, u.status, u.phone, u.avatar_url,
-          u.position_id, u.client_id, u.is_partner, u.job_title, u.workspace_id,
-          u.created_at, u.updated_at,
-          p.name as position_name
-        FROM users u
-        LEFT JOIN positions p ON p.id = u.position_id
-        ${where}
-        ORDER BY u.name ASC`
-      )
-      .bind(...params)
-      .all();
-
-    let userList = users.results || [];
-
-    // Fallback: busca diretamente no Firestore caso o cache SQLite ainda não contenha os usuários
-    if (userList.length === 0) {
-      try {
-        const firestore = getAdminFirestore();
-        if (firestore) {
-          const snap = await firestore.collection('users').where('workspace_id', '==', wsId).get();
-          if (!snap.empty) {
-            userList = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as any;
-          }
+    let userList = usersSnap.docs
+      .map((d: any) => ({ id: d.id, ...d.data() }))
+      .filter((u: any) => {
+        if (wsId === 'ws_default') {
+          return !u.workspace_id || u.workspace_id === 'ws_default';
         }
-      } catch (fsErr) {
-        console.warn('[GET /api/users Firestore fallback warning]:', fsErr);
-      }
+        return u.workspace_id === wsId;
+      });
+
+    if (role && role !== 'todos') {
+      userList = userList.filter((u: any) => u.role === role);
     }
+    if (status && status !== 'todos') {
+      userList = userList.filter((u: any) => u.status === status);
+    }
+    if (search) {
+      userList = userList.filter((u: any) =>
+        (u.name && u.name.toLowerCase().includes(search)) ||
+        (u.email && u.email.toLowerCase().includes(search))
+      );
+    }
+
+    userList = userList.map((u: any) => {
+      const { password_hash, ...safeUser } = u;
+      return {
+        ...safeUser,
+        position_name: u.position_id ? (posMap[u.position_id] || null) : null,
+      };
+    });
+
+    userList.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 
     return NextResponse.json({ users: userList, data: userList });
-  } catch (error) {
+  } catch (error: any) {
     console.error('GET /api/users error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -81,73 +74,56 @@ export async function POST(request: NextRequest) {
     if (user.role !== 'ADMINISTRADOR') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = await request.json();
-    const { name, email, password, role, status, phone, avatar_url, position_id, client_id, is_partner } = body;
+    const { name, email, password, role, status, phone, avatar_url, position_id, client_id, is_partner, job_title } = body;
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Nome, email e senha são obrigatórios.' }, { status: 400 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
 
     // Check for duplicate email
-    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-    if (existing) {
+    const existingSnap = await firestore
+      .collection('users')
+      .where('email', '==', email.toLowerCase().trim())
+      .limit(1)
+      .get();
+
+    if (!existingSnap.empty) {
       return NextResponse.json({ error: 'Email já cadastrado.' }, { status: 409 });
     }
 
     const id = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
     const wsId = user.workspace_id || 'ws_default';
-    const hashedPassword = await hashPassword(password);
-    const jobTitle = body.job_title || (role === 'ADMINISTRADOR' ? 'Administrador' : 'Colaborador');
+    const password_hash = await hashPassword(password);
 
-    await db
-      .prepare(
-        `INSERT INTO users
-          (id, name, email, password_hash, role, status, phone, avatar_url, position_id, client_id, is_partner, job_title, workspace_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        id,
-        name,
-        email,
-        hashedPassword,
-        role ?? 'COLABORADOR',
-        status ?? 'ativo',
-        phone ?? null,
-        avatar_url ?? null,
-        position_id ?? null,
-        client_id ?? null,
-        is_partner ? 1 : 0,
-        jobTitle,
-        wsId,
-        now,
-        now
-      )
-      .run();
+    const newUser = {
+      id,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password_hash,
+      role: role ?? 'COLABORADOR',
+      status: status ?? 'ativo',
+      phone: phone ?? null,
+      avatar_url: avatar_url ?? null,
+      position_id: position_id ?? null,
+      client_id: client_id ?? null,
+      is_partner: is_partner ? 1 : 0,
+      job_title: job_title ?? null,
+      workspace_id: wsId,
+      created_at: now,
+      updated_at: now,
+    };
 
-    await logAudit({
-      userId: user.id,
-      action: 'CREATE',
-      module: 'USERS',
-      recordId: id,
-      afterData: { name, email, role: role ?? 'COLABORADOR' },
-    });
+    await firestore.collection('users').doc(id).set(newUser);
 
-    const created = await db
-      .prepare(
-        `SELECT u.id, u.name, u.email, u.role, u.status, u.phone, u.avatar_url,
-          u.position_id, u.client_id, u.is_partner, u.created_at, u.updated_at, p.name as position_name
-        FROM users u
-        LEFT JOIN positions p ON p.id = u.position_id
-        WHERE u.id = ?`
-      )
-      .bind(id)
-      .first();
+    await logAudit(user.id, 'users', 'CREATE', id, { name, email, role });
 
-    return NextResponse.json({ data: created, user: created }, { status: 201 });
-  } catch (error) {
+    const { password_hash: _, ...safeUser } = newUser;
+    return NextResponse.json({ data: safeUser, user: safeUser }, { status: 201 });
+  } catch (error: any) {
     console.error('POST /api/users error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }

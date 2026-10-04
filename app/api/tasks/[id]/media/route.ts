@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser } from '@/lib/auth';
 import { detectMediaType } from '@/lib/media';
 import { generateId } from '@/lib/utils';
@@ -15,22 +14,34 @@ export async function GET(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const { id: taskId } = await params;
 
-    const mediaLinks = await db
-      .prepare(`
-        SELECT ml.*, u.name as created_by_name
-        FROM task_media_links ml
-        LEFT JOIN users u ON ml.created_by = u.id
-        WHERE ml.task_id = ?
-        ORDER BY ml.sort_order ASC, ml.created_at ASC
-      `)
-      .bind(taskId)
-      .all();
+    const [mediaSnap, usersSnap] = await Promise.all([
+      firestore.collection('task_media_links').where('task_id', '==', taskId).get(),
+      firestore.collection('users').get(),
+    ]);
 
-    return NextResponse.json({ media: mediaLinks.results || [] });
+    const userMap: Record<string, string> = {};
+    usersSnap.docs.forEach((uDoc: any) => {
+      const u = uDoc.data();
+      userMap[uDoc.id] = u.name || u.email;
+    });
+
+    const media = mediaSnap.docs
+      .map((doc: any) => {
+        const m = doc.data();
+        return {
+          id: doc.id,
+          ...m,
+          created_by_name: m.created_by ? (userMap[m.created_by] || null) : null,
+        };
+      })
+      .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+
+    return NextResponse.json({ media });
   } catch (err: any) {
+    console.error('GET /api/tasks/[id]/media error:', err);
     return NextResponse.json({ error: 'Erro ao buscar links de mídia.' }, { status: 500 });
   }
 }
@@ -42,7 +53,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const { id: taskId } = await params;
     const body = await request.json();
     const { title, url, media_type, description, sort_order = 0 } = body;
@@ -51,17 +62,23 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Título e URL são obrigatórios.' }, { status: 400 });
     }
 
-    // Auto-detect type if not provided or set to other
     const detectedType = media_type && media_type !== 'other' ? media_type : detectMediaType(url);
-
     const mediaId = generateId('med');
-    await db
-      .prepare(`
-        INSERT INTO task_media_links (id, task_id, title, url, media_type, description, sort_order, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `)
-      .bind(mediaId, taskId, title.trim(), url.trim(), detectedType, description || null, sort_order, user.id)
-      .run();
+    const now = new Date().toISOString();
+
+    const mediaData = {
+      id: mediaId,
+      task_id: taskId,
+      title: title.trim(),
+      url: url.trim(),
+      media_type: detectedType,
+      description: description || null,
+      sort_order,
+      created_by: user.id,
+      created_at: now,
+    };
+
+    await firestore.collection('task_media_links').doc(mediaId).set(mediaData);
 
     await logAudit({
       userId: user.id,
@@ -74,14 +91,8 @@ export async function POST(request: Request, { params }: RouteParams) {
     return NextResponse.json({
       success: true,
       media: {
-        id: mediaId,
-        task_id: taskId,
-        title,
-        url,
-        media_type: detectedType,
-        description,
-        sort_order,
-        created_by: user.id,
+        ...mediaData,
+        created_by_name: user.name,
       },
     });
   } catch (err: any) {

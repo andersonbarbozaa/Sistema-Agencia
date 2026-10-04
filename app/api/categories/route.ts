@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getAdminFirestore } from '@/lib/firebase-admin';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { generateId } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
@@ -15,26 +14,26 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all'; // 'tasks', 'finance', 'all'
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const wsId = user.workspace_id || 'ws_default';
 
     let taskCategories: any[] = [];
     let financialCategories: any[] = [];
 
     if (type === 'all' || type === 'tasks') {
-      const res = await db
-        .prepare('SELECT * FROM task_categories WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = "ws_default")) ORDER BY name ASC')
-        .bind(wsId, wsId)
-        .all();
-      taskCategories = res.results || [];
+      const snap = await firestore.collection('task_categories').get();
+      taskCategories = snap.docs
+        .map((d: any) => ({ id: d.id, ...d.data() }))
+        .filter((c: any) => !c.workspace_id || c.workspace_id === wsId || (wsId === 'ws_default' && c.workspace_id === 'ws_default'))
+        .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
     }
 
     if ((type === 'all' || type === 'finance') && user.role !== 'CLIENTE') {
-      const res = await db
-        .prepare('SELECT * FROM financial_categories WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = "ws_default")) ORDER BY name ASC')
-        .bind(wsId, wsId)
-        .all();
-      financialCategories = res.results || [];
+      const snap = await firestore.collection('financial_categories').get();
+      financialCategories = snap.docs
+        .map((d: any) => ({ id: d.id, ...d.data() }))
+        .filter((c: any) => !c.workspace_id || c.workspace_id === wsId || (wsId === 'ws_default' && c.workspace_id === 'ws_default'))
+        .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
     }
 
     return NextResponse.json({
@@ -42,6 +41,7 @@ export async function GET(request: Request) {
       financial_categories: financialCategories,
     });
   } catch (err: any) {
+    console.error('GET /api/categories error:', err);
     return NextResponse.json({ error: 'Erro ao listar categorias.' }, { status: 500 });
   }
 }
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
     }
 
-    const db = getDb();
+    const firestore = getAdminFirestore();
     const wsId = user.workspace_id || 'ws_default';
     const body = await request.json();
     const { target, name, color, type = 'both', is_active = 1 } = body; // target: 'tasks' | 'finance'
@@ -62,12 +62,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 });
     }
 
+    const now = new Date().toISOString();
+
     if (target === 'tasks') {
       const id = generateId('tcat');
-      await db
-        .prepare(`INSERT INTO task_categories (id, name, color, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-        .bind(id, name.trim(), color || '#3b82f6', is_active, wsId)
-        .run();
+      const catData = {
+        id,
+        name: name.trim(),
+        color: color || '#3b82f6',
+        is_active: Number(is_active) ? 1 : 0,
+        workspace_id: wsId,
+        created_at: now,
+      };
+
+      await firestore.collection('task_categories').doc(id).set(catData);
 
       await logAudit({
         userId: user.id,
@@ -77,13 +85,19 @@ export async function POST(request: Request) {
         afterData: { target: 'task_category', name, color },
       });
 
-      return NextResponse.json({ success: true, id });
+      return NextResponse.json({ success: true, id, data: catData });
     } else if (target === 'finance') {
       const id = generateId('fcat');
-      await db
-        .prepare(`INSERT INTO financial_categories (id, name, type, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-        .bind(id, name.trim(), type, is_active, wsId)
-        .run();
+      const catData = {
+        id,
+        name: name.trim(),
+        type,
+        is_active: Number(is_active) ? 1 : 0,
+        workspace_id: wsId,
+        created_at: now,
+      };
+
+      await firestore.collection('financial_categories').doc(id).set(catData);
 
       await logAudit({
         userId: user.id,
@@ -93,11 +107,12 @@ export async function POST(request: Request) {
         afterData: { target: 'financial_category', name, type },
       });
 
-      return NextResponse.json({ success: true, id });
+      return NextResponse.json({ success: true, id, data: catData });
     }
 
     return NextResponse.json({ error: 'Alvo de categoria inválido.' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: 'Erro ao salvar categoria.' }, { status: 500 });
+    console.error('POST /api/categories error:', err);
+    return NextResponse.json({ error: 'Erro ao criar categoria.' }, { status: 500 });
   }
 }
