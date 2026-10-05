@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sistema-agencia",
   "main": ".open-next/worker.js",
-  "compatibility_date": "2025-02-04",
+  "compatibility_date": "2026-10-01",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "agencia-db",
-      "database_id": "6ba14de3-5622-4f31-8387-dc9fdedb655f",
+      "database_id": "e87bc5e2-afc5-44e3-a1d7-13435974f852",
       "migrations_dir": "migrations"
     }
   ],
