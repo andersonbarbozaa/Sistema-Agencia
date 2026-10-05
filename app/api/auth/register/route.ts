@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       userRole = role === 'CLIENTE' ? 'CLIENTE' : 'COLABORADOR';
       userJobTitle = userJobTitle || (userRole === 'CLIENTE' ? 'Cliente' : 'Colaborador');
 
-      await db
+      const inviteUserResult = await db
         .prepare(`
           INSERT INTO users (
             id, name, email, password_hash, phone, role, job_title, workspace_id, status, created_at, updated_at
@@ -90,6 +90,10 @@ export async function POST(request: NextRequest) {
           targetWorkspaceId
         )
         .run();
+
+      if (inviteUserResult && inviteUserResult.success === false) {
+        throw new Error(inviteUserResult.error || 'Falha ao vincular usuário à Área de Trabalho no banco de dados.');
+      }
     }
     // ========================================================
     // CASE B: NEW OWNER ACCOUNT CREATION (CREATES NEW WORKSPACE)
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
       const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
 
       // Create new isolated workspace
-      await db
+      const wsResult = await db
         .prepare(`
           INSERT INTO workspaces (id, name, description, owner_id, invite_code, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
@@ -113,11 +117,15 @@ export async function POST(request: NextRequest) {
         .bind(workspaceId, finalCompanyName, finalCompanyDesc, userId, inviteCode)
         .run();
 
+      if (wsResult && wsResult.success === false) {
+        throw new Error(wsResult.error || 'Falha ao criar Área de Trabalho no banco de dados.');
+      }
+
       targetWorkspaceId = workspaceId;
       targetWorkspaceName = finalCompanyName;
 
       // Create owner user
-      await db
+      const userResult = await db
         .prepare(`
           INSERT INTO users (
             id, name, email, password_hash, phone, role, job_title, workspace_id, is_partner, status, created_at, updated_at
@@ -133,6 +141,10 @@ export async function POST(request: NextRequest) {
           targetWorkspaceId
         )
         .run();
+
+      if (userResult && userResult.success === false) {
+        throw new Error(userResult.error || 'Falha ao registrar usuário no banco de dados.');
+      }
     }
 
     // Generate Session Token
@@ -179,8 +191,9 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('[POST /api/auth/register]', error);
-    return NextResponse.json({ error: 'Erro interno ao realizar cadastro.' }, { status: 500 });
+    const errorMessage = error?.message || (typeof error === 'string' ? error : 'Erro interno ao realizar cadastro.');
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

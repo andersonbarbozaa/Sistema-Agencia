@@ -76,6 +76,7 @@ export async function POST(request: Request) {
     return response;
   } catch (err: any) {
     console.error('[Login API Error]:', err);
-    return NextResponse.json({ error: 'Erro interno ao realizar login.' }, { status: 500 });
+    const errorMessage = err?.message || (typeof err === 'string' ? err : 'Erro interno ao realizar login.');
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
