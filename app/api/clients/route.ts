@@ -208,8 +208,8 @@ export async function POST(request: Request) {
       .first();
 
     return NextResponse.json({ data: created }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[POST /api/clients]', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }
