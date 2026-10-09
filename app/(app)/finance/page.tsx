@@ -108,7 +108,7 @@ export default function FinancePage() {
       }
       if (sumRes.ok) {
         const d = await sumRes.json();
-        setSummary(d);
+        setSummary(d.data || d);
       }
       if (catRes.ok) {
         const d = await catRes.json();
