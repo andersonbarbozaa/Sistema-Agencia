@@ -336,6 +336,11 @@ ALTER TABLE tasks ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELE
 ALTER TABLE task_categories ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE financial_transactions ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE financial_categories ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+ALTER TABLE bank_accounts ADD COLUMN bank TEXT;
+ALTER TABLE bank_accounts ADD COLUMN type TEXT DEFAULT 'Corrente';
+ALTER TABLE bank_accounts ADD COLUMN initial_balance REAL DEFAULT 0;
+ALTER TABLE bank_accounts ADD COLUMN responsible_partner_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE financial_transactions ADD COLUMN partner_id TEXT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE bank_accounts ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE contracts ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE crm_leads ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
