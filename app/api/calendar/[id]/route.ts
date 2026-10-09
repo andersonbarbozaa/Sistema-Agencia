@@ -35,9 +35,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
     return NextResponse.json({ data: event });
-  } catch (error) {
+  } catch (error: any) {
     console.error('GET /api/calendar/[id] error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -122,9 +122,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .first();
 
     return NextResponse.json({ data: updated });
-  } catch (error) {
+  } catch (error: any) {
     console.error('PATCH /api/calendar/[id] error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -166,9 +166,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     return NextResponse.json({ message: 'Event deleted successfully' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('DELETE /api/calendar/[id] error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
 

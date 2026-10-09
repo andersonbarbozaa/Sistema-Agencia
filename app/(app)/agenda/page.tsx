@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import {
@@ -45,6 +45,7 @@ export default function AgendaPage() {
 
   // Edit / View Event Modal
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [selectedTaskPreview, setSelectedTaskPreview] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     title: '',
     description: '',
@@ -213,7 +214,7 @@ export default function AgendaPage() {
   };
 
   const monthNames = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Janeiro', 'Fevereiro', 'MarÃ§o', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
 
@@ -264,7 +265,7 @@ export default function AgendaPage() {
               )}
             >
               <CalendarIcon className="w-3.5 h-3.5" />
-              Calendário
+              CalendÃ¡rio
             </button>
             <button
               onClick={() => setViewMode('list')}
@@ -296,14 +297,14 @@ export default function AgendaPage() {
             <button
               onClick={prevMonth}
               className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors"
-              title="Mês anterior"
+              title="MÃªs anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={nextMonth}
               className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors"
-              title="Próximo mês"
+              title="PrÃ³ximo mÃªs"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -330,7 +331,7 @@ export default function AgendaPage() {
                 <div>Qua</div>
                 <div>Qui</div>
                 <div>Sex</div>
-                <div>Sáb</div>
+                <div>SÃ¡b</div>
               </div>
 
               {/* Days Grid */}
@@ -394,7 +395,7 @@ export default function AgendaPage() {
                     {dayTasks.map((task) => (
                       <div
                         key={`task-${task.id}`}
-                        onClick={() => window.location.href = `/tasks?id=${task.id}`}
+                        onClick={() => setSelectedTaskPreview(task)}
                         className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg text-[11px] cursor-pointer transition-all truncate text-amber-900 font-medium"
                         title={`Tarefa: ${task.name}${task.client_name ? ` - ${task.client_name}` : ''}`}
                       >
@@ -434,7 +435,7 @@ export default function AgendaPage() {
                 .map((item) => (
                   <div
                     key={`${item.type}-${item.id}`}
-                    onClick={() => item.type === 'event' ? openEditModal(item) : window.location.href = `/tasks?id=${item.id}`}
+                    onClick={() => item.type === 'event' ? openEditModal(item) : setSelectedTaskPreview(item)}
                     className="p-4 hover:bg-gray-50 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
                     <div className="space-y-1">
@@ -482,7 +483,7 @@ export default function AgendaPage() {
                           if (item.type === 'event') {
                             openEditModal(item);
                           } else {
-                            window.location.href = `/tasks?id=${item.id}`;
+                            setSelectedTaskPreview(item);
                           }
                         }}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1.5 transition-colors"
@@ -517,12 +518,12 @@ export default function AgendaPage() {
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Título do Compromisso *
+                  TÃ­tulo do Compromisso *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Gravação externa, Reunião de Alinhamento..."
+                  placeholder="Ex: GravaÃ§Ã£o externa, ReuniÃ£o de Alinhamento..."
                   value={newEvent.title}
                   onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -541,7 +542,7 @@ export default function AgendaPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Início *</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">InÃ­cio *</label>
                   <input
                     type="time"
                     required
@@ -565,7 +566,7 @@ export default function AgendaPage() {
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Local / Link</label>
                 <input
                   type="text"
-                  placeholder="Ex: Estúdio A, Google Meet..."
+                  placeholder="Ex: EstÃºdio A, Google Meet..."
                   value={newEvent.location}
                   onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -589,10 +590,10 @@ export default function AgendaPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Pauta</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">DescriÃ§Ã£o / Pauta</label>
                 <textarea
                   rows={2}
-                  placeholder="Informações adicionais, roteiro ou tópicos..."
+                  placeholder="InformaÃ§Ãµes adicionais, roteiro ou tÃ³picos..."
                   value={newEvent.description}
                   onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -621,6 +622,89 @@ export default function AgendaPage() {
       )}
 
       {/* EDIT / DELETE EVENT MODAL */}
+      
+      {/* Modal de Pré-visualização de Tarefa */}
+      {selectedTaskPreview && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex justify-between items-center">
+              <h3 className="text-sm font-bold text-gray-900">Detalhes da Tarefa</h3>
+              <button
+                onClick={() => setSelectedTaskPreview(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 flex-1 overflow-y-auto space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Título</label>
+                <p className="text-sm text-gray-900">{selectedTaskPreview.title}</p>
+              </div>
+              
+              {selectedTaskPreview.client_name && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente</label>
+                  <p className="text-sm text-gray-900">{selectedTaskPreview.client_name}</p>
+                </div>
+              )}
+
+              {selectedTaskPreview.project_name && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Projeto</label>
+                  <p className="text-sm text-gray-900">{selectedTaskPreview.project_name}</p>
+                </div>
+              )}
+
+              {selectedTaskPreview.description && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição</label>
+                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedTaskPreview.description}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Data de Entrega</label>
+                <p className="text-sm text-gray-900">
+                  {selectedTaskPreview.event_date ? new Date(selectedTaskPreview.event_date).toLocaleDateString('pt-BR') : 'Sem data'}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+              <button
+                onClick={async () => {
+                  if (!confirm(`Tem certeza que deseja excluir a tarefa "${selectedTaskPreview.title}"?`)) return;
+                  try {
+                    const res = await fetch(`/api/tasks/${selectedTaskPreview.id}`, { method: 'DELETE' });
+                    if (res.ok) {
+                      setSelectedTaskPreview(null);
+                      await fetchData();
+                    } else {
+                      const err = await res.json();
+                      alert(err.error || 'Erro ao excluir tarefa.');
+                    }
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-sm font-semibold transition-colors"
+              >
+                Excluir
+              </button>
+              
+              <button
+                onClick={() => window.location.href = `/tasks?id=${selectedTaskPreview.id}`}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors flex-1 text-center"
+              >
+                Editar Completo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
@@ -639,7 +723,7 @@ export default function AgendaPage() {
             <form onSubmit={handleUpdateEvent} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Título do Compromisso *
+                  TÃ­tulo do Compromisso *
                 </label>
                 <input
                   type="text"
@@ -662,7 +746,7 @@ export default function AgendaPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Início *</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">InÃ­cio *</label>
                   <input
                     type="time"
                     required
@@ -709,7 +793,7 @@ export default function AgendaPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Pauta</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">DescriÃ§Ã£o / Pauta</label>
                 <textarea
                   rows={2}
                   value={editForm.description}
@@ -742,7 +826,7 @@ export default function AgendaPage() {
                     disabled={isSaving}
                     className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors disabled:opacity-50 shadow-sm"
                   >
-                    {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+                    {isSaving ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
                   </button>
                 </div>
               </div>
