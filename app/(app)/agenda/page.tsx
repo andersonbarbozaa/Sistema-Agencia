@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ModalPortal from '@/components/ModalPortal';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -500,7 +501,7 @@ export default function AgendaPage() {
       )}
 
       {/* CREATE EVENT MODAL */}
-      {showCreateModal && (
+      {showCreateModal && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
@@ -619,12 +620,12 @@ export default function AgendaPage() {
             </form>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
       {/* EDIT / DELETE EVENT MODAL */}
       
       {/* Modal de Pré-visualização de Tarefa */}
-      {selectedTaskPreview && (
+      {selectedTaskPreview && (<ModalPortal>
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4">
           <div className="bg-white sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-h-[90vh] max-w-md overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex justify-between items-center sticky top-0 z-10">
@@ -703,9 +704,9 @@ export default function AgendaPage() {
             </div>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
-      {selectedEvent && (
+      {selectedEvent && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
@@ -833,7 +834,7 @@ export default function AgendaPage() {
             </form>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
     </div>
   );
 }

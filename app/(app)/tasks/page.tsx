@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ModalPortal from '@/components/ModalPortal';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -895,7 +896,7 @@ export default function TasksPage() {
       {/* ======================================================== */}
       {/* TASK DETAIL MODAL / DRAWER                               */}
       {/* ======================================================== */}
-      {selectedTask && (
+      {selectedTask && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
             {/* Modal Header */}
@@ -1151,12 +1152,12 @@ export default function TasksPage() {
             </div>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: SOLICITAR ALTERAÇÃO (Obrigatório descrever)       */}
       {/* ======================================================== */}
-      {showChangeRequestModal && (
+      {showChangeRequestModal && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <h3 className="text-base font-bold text-gray-900 mb-1">Solicitar Alteração</h3>
@@ -1192,12 +1193,12 @@ export default function TasksPage() {
             </div>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: ADICIONAR LINK DE MÍDIA                           */}
       {/* ======================================================== */}
-      {showAddMediaModal && (
+      {showAddMediaModal && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <h3 className="text-base font-bold text-gray-900 mb-1">Adicionar Link de Mídia</h3>
@@ -1262,12 +1263,12 @@ export default function TasksPage() {
             </form>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: CRIAR NOVA TAREFA                                 */}
       {/* ======================================================== */}
-      {showCreateModal && (
+      {showCreateModal && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
@@ -1446,12 +1447,12 @@ export default function TasksPage() {
             </form>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: EDITAR TAREFA                                      */}
       {/* ======================================================== */}
-      {showEditTaskModal && selectedTask && (
+      {showEditTaskModal && selectedTask && (<ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
@@ -1644,7 +1645,7 @@ export default function TasksPage() {
             </form>
           </div>
         </div>
-      )}
+      </ModalPortal>)}
 
       {/* MediaViewer Overlay */}
       {mediaViewerState && (
