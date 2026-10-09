@@ -59,7 +59,7 @@ export async function GET(request: Request) {
           COUNT(ft.id) as transaction_count
         FROM clients c
         LEFT JOIN financial_transactions ft ON ft.client_id = c.id 
-        WHERE (c.workspace_id = ? OR (c.workspace_id IS NULL AND ? = 'ws_default'))
+        WHERE 1=1
         GROUP BY c.id, c.name
         ORDER BY total_received DESC
       `)

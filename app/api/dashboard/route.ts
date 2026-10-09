@@ -1,4 +1,4 @@
-﻿
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isClient, isAdmin } from '@/lib/auth';
@@ -179,7 +179,7 @@ export async function GET(request: Request) {
           FROM financial_transactions
           WHERE 1=1
         `)
-        .bind(currentMonth, currentMonth, prevMonth, prevMonth, wsId, wsId)
+        .bind(currentMonth, currentMonth, prevMonth, prevMonth)
         .first<any>();
 
       // Total balance in bank accounts
@@ -230,7 +230,7 @@ export async function GET(request: Request) {
           FROM users u
           WHERE u.is_partner = 1 AND u.status = 'ativo' 
         `)
-        .bind(currentMonth, currentMonth, wsId, wsId)
+        .bind(currentMonth, currentMonth)
         .all();
 
       // Monthly revenue goal
