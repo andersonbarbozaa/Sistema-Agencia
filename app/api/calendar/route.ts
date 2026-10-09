@@ -111,8 +111,8 @@ export async function POST(request: NextRequest) {
     await db
       .prepare(
         `INSERT INTO calendar_events
-          (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -127,7 +127,6 @@ export async function POST(request: NextRequest) {
         location ?? null,
         
         user.id,
-        wsId,
         now,
         now
       )
