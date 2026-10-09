@@ -31,6 +31,7 @@ import {
 import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
+import TaskTimeTracker from '@/components/TaskTimeTracker';
 
 const STATUS_COLUMNS: TaskStatus[] = [
   'Não iniciada',
@@ -659,6 +660,14 @@ export default function TasksPage() {
             return (
               <div
                 key={colStatus}
+                onDragOver={(e) => { e.preventDefault(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const taskId = e.dataTransfer.getData('taskId');
+                  if (taskId) {
+                    handleUpdateStatus(taskId, colStatus);
+                  }
+                }}
                 className="w-[280px] min-w-[280px] flex-shrink-0 bg-gray-100/80 rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-xs"
               >
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -677,6 +686,8 @@ export default function TasksPage() {
                     return (
                       <div
                         key={task.id}
+                        draggable
+                        onDragStart={(e) => e.dataTransfer.setData('taskId', task.id.toString())}
                         onClick={() => openTaskDetail(task.id)}
                         className={cn(
                           'bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group',
@@ -885,10 +896,10 @@ export default function TasksPage() {
       {/* TASK DETAIL MODAL / DRAWER                               */}
       {/* ======================================================== */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl h-full bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
             {/* Modal Header */}
-            <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50">
+            <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50 sticky top-0 z-10">
               <div className="min-w-0 pr-4">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span
@@ -993,6 +1004,9 @@ export default function TasksPage() {
                   </p>
                 </div>
               </div>
+
+              {/* TIME TRACKER */}
+              <TaskTimeTracker taskId={selectedTask.id} currentUser={currentUser} />
 
               {/* Description */}
               {selectedTask.description && (
@@ -1298,16 +1312,46 @@ export default function TasksPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-                  <select
-                    value={newTask.category_id}
-                    onChange={(e) => setNewTask({ ...newTask, category_id: e.target.value })}
+                  <input
+                    list="category-options-new"
+                    value={categories.find(c => c.id === newTask.category_id)?.name || newTask.category_id}
+                    onChange={(e) => {
+                       const val = e.target.value;
+                       const match = categories.find(c => c.name === val);
+                       if (match) {
+                           setNewTask({ ...newTask, category_id: match.id });
+                       } else {
+                           setNewTask({ ...newTask, category_id: val });
+                       }
+                    }}
+                    onKeyDown={async (e) => {
+                       if (e.key === 'Enter') {
+                           e.preventDefault();
+                           const val = (e.target as HTMLInputElement).value;
+                           if (!val || categories.some(c => c.name === val)) return;
+                           try {
+                               const res = await fetch('/api/categories?target=tasks', {
+                                   method: 'POST',
+                                   headers: { 'Content-Type': 'application/json' },
+                                   body: JSON.stringify({ name: val })
+                               });
+                               if (res.ok) {
+                                   const data = await res.json();
+                                   const newCat = { id: data.id, name: val };
+                                   setCategories([...categories, newCat]);
+                                   setNewTask({ ...newTask, category_id: newCat.id });
+                               }
+                           } catch (err) {}
+                       }
+                    }}
+                    placeholder="Selecione ou digite e tecle Enter"
                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Selecione Categoria</option>
+                  />
+                  <datalist id="category-options-new">
                     {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      <option key={cat.id} value={cat.name} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
               </div>
 
@@ -1455,16 +1499,46 @@ export default function TasksPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-                  <select
-                    value={editTaskForm.category_id}
-                    onChange={(e) => setEditTaskForm({ ...editTaskForm, category_id: e.target.value })}
+                  <input
+                    list="category-options-edit"
+                    value={categories.find(c => c.id === editTaskForm.category_id)?.name || editTaskForm.category_id}
+                    onChange={(e) => {
+                       const val = e.target.value;
+                       const match = categories.find(c => c.name === val);
+                       if (match) {
+                           setEditTaskForm({ ...editTaskForm, category_id: match.id });
+                       } else {
+                           setEditTaskForm({ ...editTaskForm, category_id: val });
+                       }
+                    }}
+                    onKeyDown={async (e) => {
+                       if (e.key === 'Enter') {
+                           e.preventDefault();
+                           const val = (e.target as HTMLInputElement).value;
+                           if (!val || categories.some(c => c.name === val)) return;
+                           try {
+                               const res = await fetch('/api/categories?target=tasks', {
+                                   method: 'POST',
+                                   headers: { 'Content-Type': 'application/json' },
+                                   body: JSON.stringify({ name: val })
+                               });
+                               if (res.ok) {
+                                   const data = await res.json();
+                                   const newCat = { id: data.id, name: val };
+                                   setCategories([...categories, newCat]);
+                                   setEditTaskForm({ ...editTaskForm, category_id: newCat.id });
+                               }
+                           } catch (err) {}
+                       }
+                    }}
+                    placeholder="Selecione ou digite e tecle Enter"
                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Selecione Categoria</option>
+                  />
+                  <datalist id="category-options-edit">
                     {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      <option key={cat.id} value={cat.name} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
               </div>
 

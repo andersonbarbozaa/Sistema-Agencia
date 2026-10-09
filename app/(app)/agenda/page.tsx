@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import {
@@ -625,9 +625,9 @@ export default function AgendaPage() {
       
       {/* Modal de Pré-visualização de Tarefa */}
       {selectedTaskPreview && (
-        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex justify-between items-center">
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4">
+          <div className="bg-white sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-h-[90vh] max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex justify-between items-center sticky top-0 z-10">
               <h3 className="text-sm font-bold text-gray-900">Detalhes da Tarefa</h3>
               <button
                 onClick={() => setSelectedTaskPreview(null)}

@@ -63,9 +63,7 @@ export async function GET(request: NextRequest) {
       .bind(...params)
       .all();
 
-    const tasks = await db.prepare(`SELECT t.id, t.name as title, t.description, t.delivery_date as event_date, '00:00' as start_time, '23:59' as end_time, c.name as client_name, p.name as project_name, u.name as created_by_name, 'task' as type FROM tasks t LEFT JOIN clients c ON c.id = t.client_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN users u ON u.id = t.created_by ${taskWhere}`).bind(...params).all();
-    const allItems = [...(events.results || []).map((e: any) => ({...e, type: 'event'})), ...(tasks.results || [])];
-    return NextResponse.json({ data: allItems });
+    return NextResponse.json({ data: events.results || [] });
   } catch (error: any) {
     console.error('GET /api/calendar error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
