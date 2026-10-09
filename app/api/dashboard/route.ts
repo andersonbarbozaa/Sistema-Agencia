@@ -1,4 +1,4 @@
-
+﻿
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isClient, isAdmin } from '@/lib/auth';
@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   try {
     const user = await getApiUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+      return NextResponse.json({ error: 'NÃ£o autenticado.' }, { status: 401 });
     }
 
     const db = getDb();
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     if (isClient(user)) {
       const clientId = user.client_id;
       if (!clientId) {
-        return NextResponse.json({ error: 'Cliente não vinculado.' }, { status: 400 });
+        return NextResponse.json({ error: 'Cliente nÃ£o vinculado.' }, { status: 400 });
       }
 
       // Client's tasks
@@ -30,10 +30,10 @@ export async function GET(request: Request) {
           WHERE t.client_id = ?
           ORDER BY 
             CASE 
-              WHEN t.status = 'Em aprovação' THEN 1
-              WHEN t.status = 'Em produção' THEN 2
-              WHEN t.status = 'Em alteração' THEN 3
-              WHEN t.status = 'Não iniciada' THEN 4
+              WHEN t.status = 'Em aprovaÃ§Ã£o' THEN 1
+              WHEN t.status = 'Em produÃ§Ã£o' THEN 2
+              WHEN t.status = 'Em alteraÃ§Ã£o' THEN 3
+              WHEN t.status = 'NÃ£o iniciada' THEN 4
               ELSE 5
             END,
             t.delivery_date ASC
@@ -46,9 +46,9 @@ export async function GET(request: Request) {
       const counts = await db
         .prepare(`
           SELECT 
-            COUNT(CASE WHEN status != 'Concluída' THEN 1 END) as pending_tasks,
-            COUNT(CASE WHEN status = 'Em aprovação' THEN 1 END) as awaiting_approval,
-            COUNT(CASE WHEN status = 'Concluída' THEN 1 END) as completed_tasks
+            COUNT(CASE WHEN status != 'ConcluÃ­da' THEN 1 END) as pending_tasks,
+            COUNT(CASE WHEN status = 'Em aprovaÃ§Ã£o' THEN 1 END) as awaiting_approval,
+            COUNT(CASE WHEN status = 'ConcluÃ­da' THEN 1 END) as completed_tasks
           FROM tasks
           WHERE client_id = ?
         `)
@@ -81,11 +81,11 @@ export async function GET(request: Request) {
     const taskStats = await db
       .prepare(`
         SELECT 
-          COUNT(CASE WHEN status NOT IN ('Concluída', 'Aprovada') THEN 1 END) as pending_tasks,
-          COUNT(CASE WHEN status = 'Em produção' THEN 1 END) as in_production_tasks,
-          COUNT(CASE WHEN status = 'Em aprovação' THEN 1 END) as in_approval_tasks,
-          COUNT(CASE WHEN status NOT IN ('Concluída', 'Aprovada') AND delivery_date <= date('now', '+3 days') THEN 1 END) as due_soon_tasks,
-          COUNT(CASE WHEN status NOT IN ('Concluída', 'Aprovada') AND delivery_date < date('now') THEN 1 END) as overdue_tasks
+          COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') THEN 1 END) as pending_tasks,
+          COUNT(CASE WHEN status = 'Em produÃ§Ã£o' THEN 1 END) as in_production_tasks,
+          COUNT(CASE WHEN status = 'Em aprovaÃ§Ã£o' THEN 1 END) as in_approval_tasks,
+          COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') AND delivery_date <= date('now', '+3 days') THEN 1 END) as due_soon_tasks,
+          COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') AND delivery_date < date('now') THEN 1 END) as overdue_tasks
         FROM tasks
         WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
       `)
@@ -102,7 +102,7 @@ export async function GET(request: Request) {
         LEFT JOIN clients c ON t.client_id = c.id
         LEFT JOIN projects p ON t.project_id = p.id
         LEFT JOIN task_categories tc ON t.category_id = tc.id
-        WHERE t.status NOT IN ('Concluída', 'Aprovada')
+        WHERE t.status NOT IN ('ConcluÃ­da', 'Aprovada')
           AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))
         ORDER BY t.delivery_date ASC
         LIMIT 5
@@ -115,10 +115,10 @@ export async function GET(request: Request) {
       .prepare(`
         SELECT p.*, c.name as client_name,
                (SELECT COUNT(*) FROM tasks WHERE project_id = p.id) as total_tasks,
-               (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'Concluída') as completed_tasks
+               (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'ConcluÃ­da') as completed_tasks
         FROM projects p
         LEFT JOIN clients c ON p.client_id = c.id
-        WHERE p.status NOT IN ('Concluído', 'Cancelado')
+        WHERE p.status NOT IN ('ConcluÃ­do', 'Cancelado')
           AND (p.workspace_id = ? OR (p.workspace_id IS NULL AND ? = 'ws_default'))
         ORDER BY p.deadline ASC
         LIMIT 5
@@ -170,12 +170,12 @@ export async function GET(request: Request) {
       const finMonth = await db
         .prepare(`
           SELECT 
-            COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', paid_at) = ? THEN amount ELSE 0 END), 0) as current_entries,
-            COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', paid_at) = ? THEN amount ELSE 0 END), 0) as current_exits,
-            COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', paid_at) = ? THEN amount ELSE 0 END), 0) as prev_entries,
-            COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', paid_at) = ? THEN amount ELSE 0 END), 0) as prev_exits,
+            COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as current_entries,
+            COALESCE(SUM(CASE WHEN type = 'SaÃ­da' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as current_exits,
+            COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as prev_entries,
+            COALESCE(SUM(CASE WHEN type = 'SaÃ­da' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as prev_exits,
             COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_receive,
-            COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_pay
+            COALESCE(SUM(CASE WHEN type = 'SaÃ­da' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_pay
           FROM financial_transactions
           WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
         `)
@@ -187,7 +187,7 @@ export async function GET(request: Request) {
         .prepare(`
           SELECT ba.id, ba.name, ba.bank, ba.initial_balance,
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'Entrada' AND status = 'Pago'), 0) as total_entries,
-            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'Saída' AND status = 'Pago'), 0) as total_exits
+            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'SaÃ­da' AND status = 'Pago'), 0) as total_exits
           FROM bank_accounts ba
           WHERE ba.status = 'ativo' AND (ba.workspace_id = ? OR (ba.workspace_id IS NULL AND ? = 'ws_default'))
         `)
@@ -221,12 +221,12 @@ export async function GET(request: Request) {
         .bind(wsId, wsId)
         .all();
 
-      // Partner expenses comparison (Requisito 14 & 28: sem ranking, apenas dados analíticos)
+      // Partner expenses comparison (Requisito 14 & 28: sem ranking, apenas dados analÃ­ticos)
       const partnersData = await db
         .prepare(`
           SELECT u.id, u.name,
-            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', paid_at) = ?), 0) as month_expenses,
-            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', paid_at) = ?), 0) as month_entries
+            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'SaÃ­da' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_expenses,
+            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_entries
           FROM users u
           WHERE u.is_partner = 1 AND u.status = 'ativo' AND (u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))
         `)
@@ -273,3 +273,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: String(err) + String(err?.stack) }, { status: 500 });
   }
 }
+

@@ -1,9 +1,9 @@
-
+﻿
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 
-// GET /api/finance/summary — financial dashboard summary (admin only or partner)
+// GET /api/finance/summary â€” financial dashboard summary (admin only or partner)
 export async function GET(request: NextRequest) {
   const user = await getApiUser(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // First day of current month — YYYY-MM-01
+    // First day of current month â€” YYYY-MM-01
     const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
     // First day of next month (exclusive upper bound)
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
            FROM financial_transactions
            WHERE type = 'Entrada' AND status = 'Pago'
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
-             AND paid_at >= ? AND paid_at < ?`
+             AND COALESCE(paid_at, due_date, created_at) >= ? AND COALESCE(paid_at, due_date, created_at) < ?`
         )
         .bind(wsId, wsId, monthStart, monthEnd)
         .first<{ value: number }>(),
@@ -48,9 +48,9 @@ export async function GET(request: NextRequest) {
         .prepare(
           `SELECT COALESCE(SUM(amount), 0) AS value
            FROM financial_transactions
-           WHERE type = 'Saída' AND status = 'Pago'
+           WHERE type = 'SaÃ­da' AND status = 'Pago'
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
-             AND paid_at >= ? AND paid_at < ?`
+             AND COALESCE(paid_at, due_date, created_at) >= ? AND COALESCE(paid_at, due_date, created_at) < ?`
         )
         .bind(wsId, wsId, monthStart, monthEnd)
         .first<{ value: number }>(),
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         .prepare(
           `SELECT COALESCE(SUM(amount), 0) AS value
            FROM financial_transactions
-           WHERE type = 'Saída' AND status = 'Pendente'
+           WHERE type = 'SaÃ­da' AND status = 'Pendente'
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
         )
         .bind(wsId, wsId)
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         .prepare(
           `SELECT COALESCE(SUM(amount), 0) AS value
            FROM financial_transactions
-           WHERE type = 'Saída' AND status = 'Pendente' AND due_date < ?
+           WHERE type = 'SaÃ­da' AND status = 'Pendente' AND due_date < ?
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
         )
         .bind(todayStr, wsId, wsId)
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // ---------- Bank balances ----------
-    // balance = initial_balance + SUM(Entrada paid) - SUM(Saída paid)
+    // balance = initial_balance + SUM(Entrada paid) - SUM(SaÃ­da paid)
     const bankBalancesResult = await db
       .prepare(
         `SELECT
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
           ba.name               AS account_name,
           ba.initial_balance,
           COALESCE(SUM(CASE WHEN t.type = 'Entrada' AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_entries,
-          COALESCE(SUM(CASE WHEN t.type = 'Saída'   AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_exits
+          COALESCE(SUM(CASE WHEN t.type = 'SaÃ­da'   AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_exits
         FROM bank_accounts ba
         LEFT JOIN financial_transactions t ON t.bank_account_id = ba.id
         WHERE ba.status = 'ativo' AND (ba.workspace_id = ? OR (ba.workspace_id IS NULL AND ? = 'ws_default'))
@@ -147,3 +147,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+

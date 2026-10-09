@@ -6,14 +6,14 @@ import { logAudit } from '@/lib/audit';
 
 const PAGE_SIZE = 20;
 
-// GET /api/finance — list transactions (all roles except CLIENTE)
+// GET /api/finance â€” list transactions (all roles except CLIENTE)
 export async function GET(request: NextRequest) {
   const user = await getApiUser(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (user.role === 'CLIENTE') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type');           // Entrada | Saída
+  const type = searchParams.get('type');           // Entrada | SaÃ­da
   const status = searchParams.get('status');       // Pendente | Pago
   const client_id = searchParams.get('client_id');
   const bank_account_id = searchParams.get('bank_account_id');
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/finance — create transaction (admin only)
+// POST /api/finance â€” create transaction (admin only)
 export async function POST(request: NextRequest) {
   const user = await getApiUser(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['Entrada', 'Saída'].includes(type)) {
-      return NextResponse.json({ error: 'type must be Entrada or Saída' }, { status: 400 });
+    if (!['Entrada', 'SaÃ­da'].includes(type)) {
+      return NextResponse.json({ error: 'type must be Entrada or SaÃ­da' }, { status: 400 });
     }
 
     const id = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
@@ -115,10 +115,10 @@ export async function POST(request: NextRequest) {
     await db
       .prepare(
         `INSERT INTO financial_transactions
-          (id, description, amount, type, status, due_date, client_id, bank_account_id, category_id, partner_id, notes, created_by, workspace_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, description, amount, type, status, due_date, client_id, bank_account_id, category_id, partner_id, notes, created_by, workspace_id, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(id, description, amount, type, txStatus, due_date, client_id || null, bank_account_id || null, category_id || null, partner_id || null, notes ?? null, user.id, wsId, now, now)
+      .bind(id, description, amount, type, txStatus, due_date, client_id || null, bank_account_id || null, category_id || null, partner_id || null, notes ?? null, user.id, wsId, txStatus === 'Pago' ? now : null, now, now)
       .run();
 
     await logAudit({
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       action: 'CREATE',
       entity: 'transaction',
       entity_id: id,
-      details: `Created ${type} transaction: ${description} — R$ ${amount}`,
+      details: `Created ${type} transaction: ${description} â€” R$ ${amount}`,
     });
 
     const created = await db.prepare('SELECT * FROM financial_transactions WHERE id = ?').bind(id).first();
@@ -136,3 +136,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
   }
 }
+
