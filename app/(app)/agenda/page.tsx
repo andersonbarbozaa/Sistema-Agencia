@@ -396,12 +396,12 @@ export default function AgendaPage() {
                         key={`task-${task.id}`}
                         onClick={() => window.location.href = `/tasks?id=${task.id}`}
                         className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg text-[11px] cursor-pointer transition-all truncate text-amber-900 font-medium"
-                        title={`Tarefa: ${task.name}`}
+                        title={`Tarefa: ${task.name}${task.client_name ? ` - ${task.client_name}` : ''}`}
                       >
                         <span className="font-bold text-amber-700 mr-1">
-                          Tarefa
+                          Tarefa:
                         </span>
-                        <span>{task.name}</span>
+                        <span>{task.name}{task.client_name ? ` (${task.client_name})` : ''}</span>
                       </div>
                     ))}
                   </div>
