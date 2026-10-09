@@ -87,9 +87,9 @@ export async function GET(request: Request) {
           COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') AND delivery_date <= date('now', '+3 days') THEN 1 END) as due_soon_tasks,
           COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') AND delivery_date < date('now') THEN 1 END) as overdue_tasks
         FROM tasks
-        WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
+        WHERE 1=1
       `)
-      .bind(wsId, wsId)
+      
       .first<any>();
 
     // Initial 5 urgent tasks
@@ -103,11 +103,11 @@ export async function GET(request: Request) {
         LEFT JOIN projects p ON t.project_id = p.id
         LEFT JOIN task_categories tc ON t.category_id = tc.id
         WHERE t.status NOT IN ('ConcluÃ­da', 'Aprovada')
-          AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))
+          
         ORDER BY t.delivery_date ASC
         LIMIT 5
       `)
-      .bind(wsId, wsId)
+      
       .all();
 
     // 2. Active Projects (limit 5)
@@ -119,11 +119,11 @@ export async function GET(request: Request) {
         FROM projects p
         LEFT JOIN clients c ON p.client_id = c.id
         WHERE p.status NOT IN ('ConcluÃ­do', 'Cancelado')
-          AND (p.workspace_id = ? OR (p.workspace_id IS NULL AND ? = 'ws_default'))
+          
         ORDER BY p.deadline ASC
         LIMIT 5
       `)
-      .bind(wsId, wsId)
+      
       .all();
 
     // 3. Upcoming Calendar Events (limit 5)
@@ -133,11 +133,11 @@ export async function GET(request: Request) {
         FROM calendar_events e
         LEFT JOIN clients c ON e.client_id = c.id
         WHERE e.event_date >= date('now')
-          AND (e.workspace_id = ? OR (e.workspace_id IS NULL AND ? = 'ws_default'))
+          
         ORDER BY e.event_date ASC, e.start_time ASC
         LIMIT 5
       `)
-      .bind(wsId, wsId)
+      
       .all();
 
     // 4. CRM Leads (limit 5 with dynamic 7-day inactive flag)
@@ -148,11 +148,11 @@ export async function GET(request: Request) {
         FROM crm_leads l
         LEFT JOIN users u ON l.assignee_id = u.id
         WHERE l.status NOT IN ('Finalizado positivo', 'Finalizado negativo')
-          AND (l.workspace_id = ? OR (l.workspace_id IS NULL AND ? = 'ws_default'))
+          
         ORDER BY l.last_activity_at DESC
         LIMIT 5
       `)
-      .bind(wsId, wsId)
+      
       .all();
 
     // 5. Financial Summary (Admin only, or restricted view)
@@ -177,7 +177,7 @@ export async function GET(request: Request) {
             COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_receive,
             COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_pay
           FROM financial_transactions
-          WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
+          WHERE 1=1
         `)
         .bind(currentMonth, currentMonth, prevMonth, prevMonth, wsId, wsId)
         .first<any>();
@@ -189,9 +189,9 @@ export async function GET(request: Request) {
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'Entrada' AND status = 'Pago'), 0) as total_entries,
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'Saída' AND status = 'Pago'), 0) as total_exits
           FROM bank_accounts ba
-          WHERE ba.status = 'ativo' AND (ba.workspace_id = ? OR (ba.workspace_id IS NULL AND ? = 'ws_default'))
+          WHERE ba.status = 'ativo' 
         `)
-        .bind(wsId, wsId)
+        
         .all<any>();
 
       let totalBalance = 0;
@@ -214,11 +214,11 @@ export async function GET(request: Request) {
           LEFT JOIN financial_categories fc ON ft.category_id = fc.id
           LEFT JOIN clients c ON ft.client_id = c.id
           WHERE ft.status = 'Pendente'
-            AND (ft.workspace_id = ? OR (ft.workspace_id IS NULL AND ? = 'ws_default'))
+            
           ORDER BY ft.due_date ASC
           LIMIT 5
         `)
-        .bind(wsId, wsId)
+        
         .all();
 
       // Partner expenses comparison (Requisito 14 & 28: sem ranking, apenas dados analÃ­ticos)
@@ -228,7 +228,7 @@ export async function GET(request: Request) {
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_expenses,
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_entries
           FROM users u
-          WHERE u.is_partner = 1 AND u.status = 'ativo' AND (u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))
+          WHERE u.is_partner = 1 AND u.status = 'ativo' 
         `)
         .bind(currentMonth, currentMonth, wsId, wsId)
         .all();

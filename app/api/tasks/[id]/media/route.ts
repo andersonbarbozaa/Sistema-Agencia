@@ -22,9 +22,9 @@ export async function GET(request: Request, { params }: RouteParams) {
       .prepare(`
         SELECT ml.*, u.name as created_by_name
         FROM task_media_links ml
-        LEFT JOIN users u ON ml.created_by = u.id
+        LEFT JOIN users u ON ml.uploaded_by = u.id
         WHERE ml.task_id = ?
-        ORDER BY ml.sort_order ASC, ml.created_at ASC
+        ORDER BY ml.created_at ASC
       `)
       .bind(taskId)
       .all();
@@ -38,29 +38,21 @@ export async function GET(request: Request, { params }: RouteParams) {
 export async function POST(request: Request, { params }: RouteParams) {
   try {
     const user = await getApiUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
     const db = getDb();
     const { id: taskId } = await params;
     const body = await request.json();
-    const { title, url, media_type, description, sort_order = 0 } = body;
+    const { url, media_type, description } = body;
 
-    if (!title || !url) {
-      return NextResponse.json({ error: 'Título e URL são obrigatórios.' }, { status: 400 });
-    }
+    if (!url) return NextResponse.json({ error: 'A URL é obrigatória.' }, { status: 400 });
 
-    // Auto-detect type if not provided or set to other
     const detectedType = media_type && media_type !== 'other' ? media_type : detectMediaType(url);
-
     const mediaId = generateId('med');
+    
     await db
-      .prepare(`
-        INSERT INTO task_media_links (id, task_id, title, url, media_type, description, sort_order, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `)
-      .bind(mediaId, taskId, title.trim(), url.trim(), detectedType, description || null, sort_order, user.id)
+      .prepare('INSERT INTO task_media_links (id, task_id, url, media_type, description, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))')
+      .bind(mediaId, taskId, url.trim(), detectedType, description || null, user.id)
       .run();
 
     await logAudit({
@@ -68,7 +60,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       action: 'ADD_MEDIA',
       module: 'TASKS',
       recordId: mediaId,
-      afterData: { taskId, title, url, media_type: detectedType },
+      afterData: { taskId, url, media_type: detectedType },
     });
 
     return NextResponse.json({
@@ -76,16 +68,13 @@ export async function POST(request: Request, { params }: RouteParams) {
       media: {
         id: mediaId,
         task_id: taskId,
-        title,
         url,
         media_type: detectedType,
         description,
-        sort_order,
-        created_by: user.id,
+        uploaded_by: user.id,
       },
     });
-  } catch (err: any) {
-    console.error('[Add Media Error]:', err);
-    return NextResponse.json({ error: 'Erro ao adicionar link de mídia.' }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Erro ao adicionar link.' }, { status: 500 });
   }
 }

@@ -27,11 +27,11 @@ export async function GET(request: Request) {
           SUM(CASE WHEN type = 'Saída' AND status = 'Pendente' THEN amount ELSE 0 END) as exits_pending
         FROM financial_transactions
         WHERE strftime('%Y', COALESCE(paid_at, due_date)) = ?
-          AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
+          
         GROUP BY strftime('%m', COALESCE(paid_at, due_date))
         ORDER BY month ASC
       `)
-      .bind(year, wsId, wsId)
+      .bind(year)
       .all<any>();
 
     // 2. Spending by category (Saídas Pagas)
@@ -41,11 +41,11 @@ export async function GET(request: Request) {
         FROM financial_transactions ft
         JOIN financial_categories fc ON ft.category_id = fc.id
         WHERE ft.type = 'Saída' AND ft.status = 'Pago'
-          AND (ft.workspace_id = ? OR (ft.workspace_id IS NULL AND ? = 'ws_default'))
+          
         GROUP BY fc.id, fc.name
         ORDER BY total_amount DESC
       `)
-      .bind(wsId, wsId)
+      
       .all<any>();
 
     // 3. Billing by Client (Faturamento por Cliente - Requisito 30)
@@ -58,12 +58,12 @@ export async function GET(request: Request) {
           COALESCE(SUM(CASE WHEN ft.type = 'Entrada' AND ft.status = 'Pendente' AND ft.due_date < date('now') THEN ft.amount ELSE 0 END), 0) as total_overdue,
           COUNT(ft.id) as transaction_count
         FROM clients c
-        LEFT JOIN financial_transactions ft ON ft.client_id = c.id AND (ft.workspace_id = ? OR (ft.workspace_id IS NULL AND ? = 'ws_default'))
+        LEFT JOIN financial_transactions ft ON ft.client_id = c.id 
         WHERE (c.workspace_id = ? OR (c.workspace_id IS NULL AND ? = 'ws_default'))
         GROUP BY c.id, c.name
         ORDER BY total_received DESC
       `)
-      .bind(wsId, wsId, wsId, wsId)
+      
       .all<any>();
 
     // 4. Partner breakdown (Requisito 28: sem ranking, comparação analítica de despesas e receitas por sócio)
@@ -75,11 +75,11 @@ export async function GET(request: Request) {
           COALESCE(SUM(CASE WHEN ft.type = 'Entrada' AND ft.status = 'Pago' THEN ft.amount ELSE 0 END), 0) as total_entries,
           COUNT(ft.id) as transaction_count
         FROM users u
-        LEFT JOIN financial_transactions ft ON ft.partner_id = u.id AND (ft.workspace_id = ? OR (ft.workspace_id IS NULL AND ? = 'ws_default'))
-        WHERE u.is_partner = 1 AND u.status = 'ativo' AND (u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))
+        LEFT JOIN financial_transactions ft ON ft.partner_id = u.id 
+        WHERE u.is_partner = 1 AND u.status = 'ativo' 
         GROUP BY u.id, u.name
       `)
-      .bind(wsId, wsId, wsId, wsId)
+      
       .all<any>();
 
     return NextResponse.json({
