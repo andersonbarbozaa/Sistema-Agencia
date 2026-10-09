@@ -160,7 +160,7 @@ export async function GET(request: Request) {
     let partnerExpenses = null;
     let overdueBills = null;
 
-    if (isAdmin(user)) {
+    if (isAdmin(user) || user.is_partner === 1) {
       // Month totals (current month)
       const currentMonth = today.substring(0, 7); // YYYY-MM
       const prevDate = new Date();

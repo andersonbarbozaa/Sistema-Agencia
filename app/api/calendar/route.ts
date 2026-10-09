@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const events = await db
+    const taskConditions = conditions.map(c => c.replace(/e\./g, 't.').replace(/event_date/g, 'delivery_date')); const taskWhere = taskConditions.length > 0 ? WHERE  : ''; const events = await db
       .prepare(
         `SELECT
           e.*,
@@ -62,7 +62,9 @@ export async function GET(request: NextRequest) {
       .bind(...params)
       .all();
 
-    return NextResponse.json({ data: events.results });
+    const tasks = await db.prepare(`SELECT t.id, t.name as title, t.description, t.delivery_date as event_date, '00:00' as start_time, '23:59' as end_time, c.name as client_name, p.name as project_name, u.name as created_by_name, 'task' as type FROM tasks t LEFT JOIN clients c ON c.id = t.client_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN users u ON u.id = t.created_by ${taskWhere}`).bind(...params).all();
+    const allItems = [...events.results.map((e: any) => ({...e, type: 'event'})), ...tasks.results];
+    return NextResponse.json({ data: allItems });
   } catch (error) {
     console.error('GET /api/calendar error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -87,9 +89,9 @@ export async function POST(request: NextRequest) {
       end_time,
       client_id,
       project_id,
-      event_type,
+      
       location,
-      attendees,
+      
     } = body;
 
     if (!title || !event_date) {
@@ -109,8 +111,8 @@ export async function POST(request: NextRequest) {
     await db
       .prepare(
         `INSERT INTO calendar_events
-          (id, title, description, event_date, start_time, end_time, client_id, project_id, event_type, location, attendees, created_by, workspace_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -121,9 +123,9 @@ export async function POST(request: NextRequest) {
         end_time ?? null,
         client_id || null,
         project_id || null,
-        event_type ?? 'Geral',
+        
         location ?? null,
-        attendees ? JSON.stringify(attendees) : null,
+        
         user.id,
         wsId,
         now,

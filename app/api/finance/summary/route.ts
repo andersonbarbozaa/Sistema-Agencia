@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 
-// GET /api/finance/summary — financial dashboard summary (admin only)
+// GET /api/finance/summary — financial dashboard summary (admin only or partner)
 export async function GET(request: NextRequest) {
   const user = await getApiUser(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!isAdmin(user) && user.is_partner !== 1) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const db = getDb();

@@ -92,10 +92,10 @@ export default function FinancePage() {
         fetch('/api/finance'),
         fetch('/api/bank-accounts'),
         fetch('/api/finance/summary'),
-        fetch('/api/finance/categories'),
+        fetch('/api/categories'),
         fetch('/api/clients'),
         fetch('/api/users'),
-        fetch(`/api/finance/reports?year=${reportYear}`),
+        fetch(`/api/reports?year=${reportYear}`),
       ]);
 
       if (transRes.ok) {
