@@ -171,11 +171,11 @@ export async function GET(request: Request) {
         .prepare(`
           SELECT 
             COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as current_entries,
-            COALESCE(SUM(CASE WHEN type = 'SaÃ­da' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as current_exits,
+            COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as current_exits,
             COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as prev_entries,
-            COALESCE(SUM(CASE WHEN type = 'SaÃ­da' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as prev_exits,
+            COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ? THEN amount ELSE 0 END), 0) as prev_exits,
             COALESCE(SUM(CASE WHEN type = 'Entrada' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_receive,
-            COALESCE(SUM(CASE WHEN type = 'SaÃ­da' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_pay
+            COALESCE(SUM(CASE WHEN type = 'Saída' AND status = 'Pendente' THEN amount ELSE 0 END), 0) as to_pay
           FROM financial_transactions
           WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
         `)
@@ -187,7 +187,7 @@ export async function GET(request: Request) {
         .prepare(`
           SELECT ba.id, ba.name, ba.bank, ba.initial_balance,
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'Entrada' AND status = 'Pago'), 0) as total_entries,
-            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'SaÃ­da' AND status = 'Pago'), 0) as total_exits
+            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE bank_account_id = ba.id AND type = 'Saída' AND status = 'Pago'), 0) as total_exits
           FROM bank_accounts ba
           WHERE ba.status = 'ativo' AND (ba.workspace_id = ? OR (ba.workspace_id IS NULL AND ? = 'ws_default'))
         `)
@@ -225,7 +225,7 @@ export async function GET(request: Request) {
       const partnersData = await db
         .prepare(`
           SELECT u.id, u.name,
-            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'SaÃ­da' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_expenses,
+            COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Saída' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_expenses,
             COALESCE((SELECT SUM(amount) FROM financial_transactions WHERE partner_id = u.id AND type = 'Entrada' AND status = 'Pago' AND strftime('%Y-%m', COALESCE(paid_at, due_date, created_at)) = ?), 0) as month_entries
           FROM users u
           WHERE u.is_partner = 1 AND u.status = 'ativo' AND (u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))

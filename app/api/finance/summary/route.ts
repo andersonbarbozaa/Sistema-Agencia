@@ -1,4 +1,4 @@
-﻿
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         .prepare(
           `SELECT COALESCE(SUM(amount), 0) AS value
            FROM financial_transactions
-           WHERE type = 'SaÃ­da' AND status = 'Pago'
+           WHERE type = 'Saída' AND status = 'Pago'
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
              AND COALESCE(paid_at, due_date, created_at) >= ? AND COALESCE(paid_at, due_date, created_at) < ?`
         )
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         .prepare(
           `SELECT COALESCE(SUM(amount), 0) AS value
            FROM financial_transactions
-           WHERE type = 'SaÃ­da' AND status = 'Pendente'
+           WHERE type = 'Saída' AND status = 'Pendente'
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
         )
         .bind(wsId, wsId)
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         .prepare(
           `SELECT COALESCE(SUM(amount), 0) AS value
            FROM financial_transactions
-           WHERE type = 'SaÃ­da' AND status = 'Pendente' AND due_date < ?
+           WHERE type = 'Saída' AND status = 'Pendente' AND due_date < ?
              AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))`
         )
         .bind(todayStr, wsId, wsId)
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
           ba.name               AS account_name,
           ba.initial_balance,
           COALESCE(SUM(CASE WHEN t.type = 'Entrada' AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_entries,
-          COALESCE(SUM(CASE WHEN t.type = 'SaÃ­da'   AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_exits
+          COALESCE(SUM(CASE WHEN t.type = 'Saída'   AND t.status = 'Pago' THEN t.amount ELSE 0 END), 0)  AS total_exits
         FROM bank_accounts ba
         LEFT JOIN financial_transactions t ON t.bank_account_id = ba.id
         WHERE ba.status = 'ativo' AND (ba.workspace_id = ? OR (ba.workspace_id IS NULL AND ? = 'ws_default'))
@@ -147,4 +147,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
 

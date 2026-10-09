@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['Entrada', 'SaÃ­da'].includes(type)) {
-      return NextResponse.json({ error: 'type must be Entrada or SaÃ­da' }, { status: 400 });
+    if (!['Entrada', 'Saída'].includes(type)) {
+      return NextResponse.json({ error: 'type must be Entrada or Saída' }, { status: 400 });
     }
 
     const id = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
