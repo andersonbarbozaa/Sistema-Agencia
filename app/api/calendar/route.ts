@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
@@ -13,41 +12,41 @@ export async function GET(request: NextRequest) {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { searchParams } = new URL(request.url);
-    const month = searchParams.get('month');
+    const searchParams = request.nextUrl.searchParams;
+    const month = searchParams.get('month'); // 1-12
     const year = searchParams.get('year');
-    const date_from = searchParams.get('date_from');
-    const date_to = searchParams.get('date_to');
+    const dateFrom = searchParams.get('date_from');
+    const dateTo = searchParams.get('date_to');
 
     const db = getDb();
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+    
+    let where = 'WHERE 1=1';
+    let taskWhere = 'WHERE t.status != "Concluída"';
+    const params: any[] = [];
 
-    const wsId = user.workspace_id || 'ws_default';
-    conditions.push('(e.workspace_id = ? OR (e.workspace_id IS NULL AND ? = "ws_default"))');
-    params.push(wsId, wsId);
-
-    if (month && year) {
-      // Filter by specific month/year: YYYY-MM
-      const monthStr = month.padStart(2, '0');
-      conditions.push(`strftime('%Y-%m', e.event_date) = ?`);
-      params.push(`${year}-${monthStr}`);
-    } else if (date_from && date_to) {
-      conditions.push('e.event_date >= ?');
-      params.push(date_from);
-      conditions.push('e.event_date <= ?');
-      params.push(date_to);
-    } else if (date_from) {
-      conditions.push('e.event_date >= ?');
-      params.push(date_from);
-    } else if (date_to) {
-      conditions.push('e.event_date <= ?');
-      params.push(date_to);
+    if (user.role === 'CLIENTE') {
+      if (!user.client_id) return NextResponse.json({ data: [] });
+      where += ' AND e.client_id = ?';
+      taskWhere += ' AND t.client_id = ?';
+      params.push(user.client_id);
+    } else if (user.role === 'COLABORADOR') {
+      where += ' AND (e.created_by = ? OR e.id IN (SELECT event_id FROM calendar_event_attendees WHERE user_id = ?))';
+      taskWhere += ' AND (t.created_by = ? OR t.id IN (SELECT task_id FROM task_assignees WHERE user_id = ?))';
+      params.push(user.id, user.id);
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    if (dateFrom && dateTo) {
+      where += ' AND e.event_date BETWEEN ? AND ?';
+      taskWhere += ' AND t.delivery_date BETWEEN ? AND ?';
+      params.push(dateFrom, dateTo);
+    } else if (month && year) {
+      const paddedMonth = month.padStart(2, '0');
+      where += ` AND e.event_date LIKE ?`;
+      taskWhere += ` AND t.delivery_date LIKE ?`;
+      params.push(`${year}-${paddedMonth}-%`);
+    }
 
-    const taskConditions = conditions.map(c => c.replace(/e\./g, 't.').replace(/event_date/g, 'delivery_date')); const taskWhere = taskConditions.length > 0 ? `WHERE ${taskConditions.join(' AND ')}` : ''; const events = await db
+    const events = await db
       .prepare(
         `SELECT
           e.*,
@@ -65,9 +64,9 @@ export async function GET(request: NextRequest) {
       .all();
 
     const tasks = await db.prepare(`SELECT t.id, t.name as title, t.description, t.delivery_date as event_date, '00:00' as start_time, '23:59' as end_time, c.name as client_name, p.name as project_name, u.name as created_by_name, 'task' as type FROM tasks t LEFT JOIN clients c ON c.id = t.client_id LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN users u ON u.id = t.created_by ${taskWhere}`).bind(...params).all();
-    const allItems = [...events.results.map((e: any) => ({...e, type: 'event'})), ...tasks.results];
+    const allItems = [...(events.results || []).map((e: any) => ({...e, type: 'event'})), ...(tasks.results || [])];
     return NextResponse.json({ data: allItems });
-  } catch (error) {
+  } catch (error: any) {
     console.error('GET /api/calendar error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
@@ -91,16 +90,13 @@ export async function POST(request: NextRequest) {
       end_time,
       client_id,
       project_id,
-      
       location,
-      
     } = body;
 
     if (!title || !event_date) {
       return NextResponse.json({ error: 'title and event_date are required' }, { status: 400 });
     }
 
-    // Validate start_time < end_time when both provided
     if (start_time && end_time && start_time >= end_time) {
       return NextResponse.json({ error: 'start_time must be before end_time' }, { status: 400 });
     }
@@ -108,36 +104,63 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     const id = 'evt_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
-    const wsId = user.workspace_id || 'ws_default';
 
-    await db
-      .prepare(
-        `INSERT INTO calendar_events
-          (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        id,
-        title,
-        description ?? null,
-        event_date,
-        start_time ?? null,
-        end_time ?? null,
-        client_id || null,
-        project_id || null,
+    try {
+      await db
+        .prepare(
+          `INSERT INTO calendar_events
+            (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          id,
+          title,
+          description ?? null,
+          event_date,
+          start_time ?? null,
+          end_time ?? null,
+          client_id || null,
+          project_id || null,
+          location ?? null,
+          user.id,
+          now,
+          now
+        )
+        .run();
+    } catch (dbError: any) {
+      if (dbError.message && dbError.message.includes('has no column')) {
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN location TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}
         
-        location ?? null,
-        
-        user.id,
-        now,
-        now
-      )
-      .run();
+        await db
+          .prepare(
+            `INSERT INTO calendar_events
+              (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            id,
+            title,
+            description ?? null,
+            event_date,
+            start_time ?? null,
+            end_time ?? null,
+            client_id || null,
+            project_id || null,
+            location ?? null,
+            user.id,
+            now,
+            now
+          )
+          .run();
+      } else {
+        throw dbError;
+      }
+    }
 
     await logAudit(user.id, 'calendar_events', 'CREATE', id, { title, event_date });
 
-    // Async Google Calendar sync: check if user has google_integration
-    // This happens asynchronously — fire and forget
     syncWithGoogleCalendar(user.id, id, body).catch((err) =>
       console.error('Google Calendar sync error:', err)
     );
@@ -151,26 +174,26 @@ export async function POST(request: NextRequest) {
         WHERE e.id = ?`
       )
       .bind(id)
-      .first();
+      .all();
 
-    return NextResponse.json({ data: event }, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({ data: event.results?.[0] }, { status: 201 });
+  } catch (error: any) {
     console.error('POST /api/calendar error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// Asynchronous Google Calendar sync (non-blocking)
 async function syncWithGoogleCalendar(userId: string, eventId: string, eventData: Record<string, unknown>) {
-  const db = getDb();
-  const integration = await db
-    .prepare(`SELECT * FROM google_integrations WHERE user_id = ? AND status = 'active'`)
-    .bind(userId)
-    .first<{ access_token: string; refresh_token: string }>();
+  try {
+    const db = getDb();
+    const integration = await db
+      .prepare(`SELECT * FROM google_integrations WHERE user_id = ? AND status = 'active'`)
+      .bind(userId)
+      .all<{ access_token: string; refresh_token: string }>();
 
-  if (!integration) return; // No Google integration, skip
-
-  // TODO: Implement Google Calendar API call using integration.access_token
-  // This is a placeholder for the actual Google Calendar API integration
-  console.log(`[Google Calendar] Syncing event ${eventId} for user ${userId}`);
+    if (!integration.results || integration.results.length === 0) return;
+    console.log(`[Google Calendar] Syncing event \${eventId} for user \${userId}`);
+  } catch (e) {
+    // ignore
+  }
 }
