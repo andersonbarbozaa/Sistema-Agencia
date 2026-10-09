@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const taskConditions = conditions.map(c => c.replace(/e\./g, 't.').replace(/event_date/g, 'delivery_date')); const taskWhere = taskConditions.length > 0 ? WHERE  : ''; const events = await db
+    const taskConditions = conditions.map(c => c.replace(/e\./g, 't.').replace(/event_date/g, 'delivery_date')); const taskWhere = taskConditions.length > 0 ? `WHERE ${taskConditions.join(' AND ')}` : ''; const events = await db
       .prepare(
         `SELECT
           e.*,
