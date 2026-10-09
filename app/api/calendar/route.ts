@@ -5,6 +5,8 @@ import { getApiUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/calendar - List events with optional month/year or date range filters
 export async function GET(request: NextRequest) {
   try {
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: allItems });
   } catch (error) {
     console.error('GET /api/calendar error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: event }, { status: 201 });
   } catch (error) {
     console.error('POST /api/calendar error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
