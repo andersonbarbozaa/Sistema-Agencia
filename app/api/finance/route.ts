@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[GET /api/finance]', error);
-    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
   }
 }
 
@@ -133,6 +133,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/finance]', error);
-    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
   }
 }

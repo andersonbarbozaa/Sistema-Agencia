@@ -113,7 +113,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('[GET /api/tasks/[id]]', error);
-    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
   }
 }
 
@@ -294,7 +294,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     return NextResponse.json({ task: updated });
   } catch (error) {
     console.error('[PATCH /api/tasks/[id]]', error);
-    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
   }
 }
 
@@ -393,6 +393,6 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('[DELETE /api/tasks/[id]]', error);
-    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
   }
 }
