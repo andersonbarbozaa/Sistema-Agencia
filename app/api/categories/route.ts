@@ -55,8 +55,13 @@ export async function POST(request: Request) {
 
     const db = getDb();
     const wsId = user.workspace_id || 'ws_default';
+    const { searchParams } = new URL(request.url);
+    const targetUrl = searchParams.get('target');
+
     const body = await request.json();
-    const { target, name, color, type = 'both', is_active = 1 } = body; // target: 'tasks' | 'finance'
+    const { target: targetBody, name, color, type = 'both', is_active = 1 } = body; 
+    
+    const target = targetUrl || targetBody;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 });

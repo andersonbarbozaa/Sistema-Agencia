@@ -32,7 +32,7 @@ function getLocalDatabase(): D1DatabaseInterface {
     if (getMod) {
       const sqliteMod = getMod('node:sqlite');
       if (sqliteMod?.DatabaseSync) {
-        sqlite = new sqliteMod.DatabaseSync(':memory:');
+        sqlite = new sqliteMod.DatabaseSync('.data/local.db');
       }
     }
   } catch {}
