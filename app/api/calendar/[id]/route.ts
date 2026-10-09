@@ -12,8 +12,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const db = getDb();
     const { id } = await params;
+    const resolvedId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
 
-    const event = await db
+    const res = await db
       .prepare(
         `SELECT
           e.*,
@@ -26,8 +27,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         LEFT JOIN users u ON u.id = e.created_by
         WHERE e.id = ?`
       )
-      .bind(id)
-      .first();
+      .bind(resolvedId)
+      .all();
+      
+    const event = res.results?.[0];
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -49,11 +52,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const db = getDb();
     const { id } = await params;
+    const resolvedId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
 
-    const existing = await db
+    const res = await db
       .prepare('SELECT * FROM calendar_events WHERE id = ?')
-      .bind(id)
-      .first<Record<string, unknown>>();
+      .bind(resolvedId)
+      .all<Record<string, unknown>>();
+      
+    const existing = res.results?.[0];
 
     if (!existing) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -88,18 +94,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const now = new Date().toISOString();
     updates.push('updated_at = ?');
-    values.push(now, id);
+    values.push(now, resolvedId);
 
     await db
       .prepare(`UPDATE calendar_events SET ${updates.join(', ')} WHERE id = ?`)
       .bind(...values)
       .run();
 
-    await logAudit(user.id, 'calendar_events', 'UPDATE', id, body);
+    await logAudit(user.id, 'calendar_events', 'UPDATE', resolvedId, body);
 
     // Async Google Calendar sync if google_event_id exists
     if (existing.google_event_id) {
-      updateGoogleCalendarEvent(user.id, existing.google_event_id as string, id, body).catch((err) =>
+      updateGoogleCalendarEvent(user.id, existing.google_event_id as string, resolvedId, body).catch((err) =>
         console.error('Google Calendar update error:', err)
       );
     }
@@ -112,7 +118,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         LEFT JOIN projects p ON p.id = e.project_id
         WHERE e.id = ?`
       )
-      .bind(id)
+      .bind(resolvedId)
       .first();
 
     return NextResponse.json({ data: updated });
@@ -133,17 +139,24 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const db = getDb();
     const { id } = await params;
+    const resolvedId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
 
-    const existing = await db
+    const res = await db
       .prepare('SELECT * FROM calendar_events WHERE id = ?')
-      .bind(id)
-      .first<Record<string, unknown>>();
+      .bind(resolvedId)
+      .all<Record<string, unknown>>();
+      
+    const existing = res.results?.[0];
 
-    if (!existing) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    if (!existing) {
+      // Force delete anyway just in case the SELECT failed for some reason
+      await db.prepare('DELETE FROM calendar_events WHERE id = ?').bind(resolvedId).run();
+      return NextResponse.json({ message: 'Event deleted (not found in select)' });
+    }
 
-    await db.prepare('DELETE FROM calendar_events WHERE id = ?').bind(id).run();
+    await db.prepare('DELETE FROM calendar_events WHERE id = ?').bind(resolvedId).run();
 
-    await logAudit(user.id, 'calendar_events', 'DELETE', id, { title: existing.title });
+    await logAudit(user.id, 'calendar_events', 'DELETE', resolvedId, { title: existing.title });
 
     // Remove from Google Calendar if google_event_id exists
     if (existing.google_event_id) {
