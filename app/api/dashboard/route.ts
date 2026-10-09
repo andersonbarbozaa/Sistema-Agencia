@@ -270,6 +270,6 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('[Dashboard API Error]:', err);
-    return NextResponse.json({ error: err?.message || 'Erro ao carregar dados do dashboard.' }, { status: 500 });
+    return NextResponse.json({ error: String(err) + String(err?.stack) }, { status: 500 });
   }
 }

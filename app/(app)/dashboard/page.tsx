@@ -159,8 +159,8 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const res = await fetch('/api/dashboard');
-      if (!res.ok) throw new Error('Falha ao carregar dashboard');
-      const json = await res.json();
+      const json = await res.json().catch(() => ({})); if (!res.ok) throw new Error(json.error || json.message || json.stack || 'Falha ao carregar dashboard');
+      
       setData(json.data || json);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar dados');

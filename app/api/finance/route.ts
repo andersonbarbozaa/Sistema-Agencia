@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[GET /api/finance]', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
   }
 }
 
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
           (id, description, amount, type, status, due_date, client_id, bank_account_id, category_id, partner_id, notes, created_by, workspace_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(id, description, amount, type, txStatus, due_date, client_id ?? null, bank_account_id ?? null, category_id ?? null, partner_id ?? null, notes ?? null, user.id, wsId, now, now)
+      .bind(id, description, amount, type, txStatus, due_date, client_id || null, bank_account_id || null, category_id || null, partner_id || null, notes ?? null, user.id, wsId, now, now)
       .run();
 
     await logAudit({
@@ -133,6 +133,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/finance]', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: String(error) + String((error)?.stack) }, { status: 500 });
   }
 }
