@@ -63,9 +63,9 @@ export default function AgendaPage() {
     try {
       setLoading(true);
       const [evtRes, tasksRes, clientsRes] = await Promise.all([
-        fetch('/api/calendar'),
-        fetch('/api/tasks'),
-        fetch('/api/clients'),
+        fetch('/api/calendar', { cache: 'no-store' }),
+        fetch('/api/tasks', { cache: 'no-store' }),
+        fetch('/api/clients', { cache: 'no-store' }),
       ]);
 
       if (evtRes.ok) {

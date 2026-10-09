@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const db = getDb();
     const { id } = await params;
-    const resolvedId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const resolvedId = String(id);
 
     const res = await db
       .prepare(
@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const db = getDb();
     const { id } = await params;
-    const resolvedId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const resolvedId = String(id);
 
     const res = await db
       .prepare('SELECT * FROM calendar_events WHERE id = ?')
@@ -139,7 +139,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const db = getDb();
     const { id } = await params;
-    const resolvedId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const resolvedId = String(id);
 
     const res = await db
       .prepare('SELECT * FROM calendar_events WHERE id = ?')
