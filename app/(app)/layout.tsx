@@ -23,7 +23,7 @@ export default async function AppLayout({
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header user={plainUser} />
         <main className="flex-1 overflow-y-auto">
-          <div className="p-3.5 sm:p-6 pb-[130px] md:pb-6">
+          <div className="p-3.5 sm:p-6 pb-[40px] md:pb-6">
             {children}
           </div>
         </main>

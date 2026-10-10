@@ -221,7 +221,7 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
   return (
     <>
       {/* Floating Action Trigger Button */}
-      <div className="fixed bottom-[130px] sm:bottom-6 right-4 sm:right-6 z-40">
+      <div className="fixed bottom-[40px] sm:bottom-6 right-4 sm:right-6 z-40">
         <button
           onClick={() => setIsOpen(!isOpen)}
           title="Assistente IA PixelCraft"
@@ -240,7 +240,7 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
 
       {/* Floating Chat Modal */}
       {isOpen && (
-        <div className="fixed bottom-[200px] sm:bottom-24 right-3 sm:right-6 left-3 sm:left-auto z-40 sm:w-[420px] max-h-[calc(100vh-210px)] sm:max-h-[600px] h-[500px] sm:h-[560px] bg-white rounded-3xl shadow-2xl border border-gray-200/90 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 zoom-in-95 duration-200 select-none">
+        <div className="fixed bottom-[96px] sm:bottom-24 right-3 sm:right-6 left-3 sm:left-auto z-40 sm:w-[420px] max-h-[calc(100vh-100px)] sm:max-h-[600px] h-[500px] sm:h-[560px] bg-white rounded-3xl shadow-2xl border border-gray-200/90 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 zoom-in-95 duration-200 select-none">
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-gray-900 via-gray-900 to-indigo-950 text-white flex items-center justify-between border-b border-gray-800">
             <div className="flex items-center gap-2.5">
