@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   DollarSign,
   TrendingUp,
@@ -84,6 +85,7 @@ export default function FinancePage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   const fetchData = async () => {
     try {
@@ -242,26 +244,32 @@ export default function FinancePage() {
   // Delete Transaction
   const handleDeleteTransaction = async () => {
     if (!editingTrans) return;
-    if (!confirm(`Tem certeza que deseja excluir o lançamento "${editingTrans.description}"?`)) return;
 
-    try {
-      setIsSubmitting(true);
-      const res = await fetch(`/api/finance/${editingTrans.id}`, {
-        method: 'DELETE',
-      });
+    setConfirmState({
+      isOpen: true,
+      title: 'Confirmar Exclusão',
+      message: `Tem certeza que deseja excluir o lançamento "${editingTrans.description}"?`,
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          const res = await fetch(`/api/finance/${editingTrans.id}`, {
+            method: 'DELETE',
+          });
 
-      if (res.ok) {
-        setEditingTrans(null);
-        await fetchData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir lançamento.');
+          if (res.ok) {
+            setEditingTrans(null);
+            await fetchData();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir lançamento.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSubmitting(false);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   // Quick toggle status
@@ -339,83 +347,83 @@ export default function FinancePage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* TOP NAVIGATION TABS (Colocados no topo antes dos cards) */}
-      <div className="bg-white p-2 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-2 sm:pb-2">
+      <div className="bg-white p-2 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap sm:flex-nowrap items-center gap-2 pb-2">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'dashboard'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           )}
         >
           <BarChart3 className="w-3.5 h-3.5" />
-          Visão Geral / Dashboard
+          Geral
         </button>
 
         <button
           onClick={() => setActiveTab('all')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'all'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           )}
         >
           <Layers className="w-3.5 h-3.5" />
-          Todos os Lançamentos ({transactions.length})
+          Todos ({transactions.length})
         </button>
 
         <button
           onClick={() => setActiveTab('entries')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'entries'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-emerald-700 hover:bg-emerald-50'
           )}
         >
           <TrendingUp className="w-3.5 h-3.5" />
-          Entradas ({transactions.filter((t) => t.type === 'Entrada').length})
+          Renda ({transactions.filter((t) => t.type === 'Entrada').length})
         </button>
 
         <button
           onClick={() => setActiveTab('exits')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'exits'
               ? 'bg-rose-600 text-white shadow-xs'
               : 'text-rose-700 hover:bg-rose-50'
           )}
         >
           <TrendingDown className="w-3.5 h-3.5" />
-          Saídas ({transactions.filter((t) => t.type === 'Saída').length})
+          Despesas ({transactions.filter((t) => t.type === 'Saída').length})
         </button>
 
         <button
           onClick={() => setActiveTab('partners')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'partners'
               ? 'bg-purple-600 text-white shadow-xs'
               : 'text-purple-700 hover:bg-purple-50'
           )}
         >
           <Users className="w-3.5 h-3.5" />
-          Comparativo entre Sócios/Parceiros
+          Usuários
         </button>
 
         <button
           onClick={() => setActiveTab('reports')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'reports'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-indigo-700 hover:bg-indigo-50'
           )}
         >
           <FileText className="w-3.5 h-3.5" />
-          Relatórios & DRE Anual
+          Tendência
         </button>
       </div>
 
@@ -445,7 +453,7 @@ export default function FinancePage() {
 
             <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Entradas no Mês</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Renda no Mês</span>
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <TrendingUp className="w-4 h-4" />
                 </div>
@@ -462,7 +470,7 @@ export default function FinancePage() {
 
             <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Saídas no Mês</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Despesas no Mês</span>
                 <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
                   <TrendingDown className="w-4 h-4" />
                 </div>
@@ -509,7 +517,7 @@ export default function FinancePage() {
               <div>
                 <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-blue-600" />
-                  Comparativo Financeiro: Entradas vs Saídas
+                  Comparativo Financeiro: Renda vs Despesas
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Visualização de receitas e despesas ao longo do exercício ({reportYear})
@@ -519,11 +527,11 @@ export default function FinancePage() {
               <div className="flex items-center gap-2 text-xs">
                 <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
                   <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
-                  Entradas
+                  Renda
                 </span>
                 <span className="flex items-center gap-1.5 font-semibold text-rose-700 ml-3">
                   <span className="w-3 h-3 rounded-full bg-rose-500 inline-block" />
-                  Saídas
+                  Despesas
                 </span>
               </div>
             </div>
@@ -550,13 +558,13 @@ export default function FinancePage() {
                       <div
                         className="w-2.5 sm:w-3.5 bg-emerald-500 rounded-t-sm transition-all group-hover:bg-emerald-600 relative cursor-pointer"
                         style={{ height: `${Math.max(4, entHeight)}%` }}
-                        title={`${mName} - Entradas: ${formatCurrency(ent)}`}
+                        title={`${mName} - Renda: ${formatCurrency(ent)}`}
                       />
                       {/* Exit Bar */}
                       <div
                         className="w-2.5 sm:w-3.5 bg-rose-500 rounded-t-sm transition-all group-hover:bg-rose-600 relative cursor-pointer"
                         style={{ height: `${Math.max(4, extHeight)}%` }}
-                        title={`${mName} - Saídas: ${formatCurrency(ext)}`}
+                        title={`${mName} - Despesas: ${formatCurrency(ext)}`}
                       />
                     </div>
                     <span className="text-[10px] font-bold text-gray-500 group-hover:text-blue-600 transition-colors">
@@ -694,7 +702,7 @@ export default function FinancePage() {
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
+              <thead className="hidden md:table-header-group">
                 <tr className="border-b border-gray-200 text-gray-500 bg-gray-50 font-semibold text-[11px] uppercase tracking-wider">
                   <th className="py-3 px-3">Status</th>
                   <th className="py-3 px-3">Descrição</th>
@@ -706,10 +714,10 @@ export default function FinancePage() {
                   <th className="py-3 px-3 text-center">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 flex flex-col md:table-row-group">
                 {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-400">
+                  <tr className="block md:table-row">
+                    <td colSpan={8} className="py-8 text-center text-gray-400 block md:table-cell">
                       Nenhum lançamento encontrado para os filtros selecionados.
                     </td>
                   </tr>
@@ -718,9 +726,62 @@ export default function FinancePage() {
                     <tr
                       key={tx.id}
                       onClick={() => openEditTransaction(tx)}
-                      className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                      className="hover:bg-gray-50 transition-colors cursor-pointer group flex flex-col md:table-row border-b border-gray-100 md:border-0 p-4 md:p-0"
                     >
-                      <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                      {/* MOBILE VIEW */}
+                      <td className="md:hidden flex flex-col gap-2">
+                        <div className="flex justify-between items-start">
+                          <div className="flex flex-col items-start gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleToggleStatus(tx); }}
+                              className={cn(
+                                'px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 transition-colors',
+                                tx.status === 'Pago'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                              )}
+                            >
+                              {tx.status === 'Pago' ? (
+                                <>
+                                  <CheckCircle className="w-3 h-3" />
+                                  Pago
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3 h-3" />
+                                  Pendente
+                                </>
+                              )}
+                            </button>
+                            <span className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                              {tx.description}
+                            </span>
+                          </div>
+                          <span
+                            className={cn(
+                              'font-bold text-xs',
+                              tx.type === 'Entrada' ? 'text-emerald-600' : 'text-rose-600'
+                            )}
+                          >
+                            {tx.type === 'Entrada' ? '+' : '-'} {formatCurrency(tx.amount)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                          <div className="text-[11px] text-gray-500">
+                            {tx.status === 'Pago' ? 'Pago em: ' : 'Vencimento: '}
+                            {formatDate(tx.due_date)}
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditTransaction(tx); }}
+                            className="p-1 rounded-lg bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* DESKTOP VIEW */}
+                      <td className="hidden md:table-cell py-3 px-3" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleToggleStatus(tx)}
                           className={cn(
@@ -743,7 +804,7 @@ export default function FinancePage() {
                           )}
                         </button>
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="hidden md:table-cell py-3 px-3">
                         <div className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
                           {tx.description}
                         </div>
@@ -751,15 +812,15 @@ export default function FinancePage() {
                           <div className="text-[11px] text-gray-400 line-clamp-1">{tx.notes}</div>
                         )}
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="hidden md:table-cell py-3 px-3">
                         <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[11px] font-medium border border-gray-200">
                           {tx.category_name || 'Sem categoria'}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-gray-600">
+                      <td className="hidden md:table-cell py-3 px-3 text-gray-600">
                         {tx.bank_account_name || '—'}
                       </td>
-                      <td className="py-3 px-3 text-gray-600">
+                      <td className="hidden md:table-cell py-3 px-3 text-gray-600">
                         {tx.client_name ? (
                           <span className="font-medium text-gray-800">{tx.client_name}</span>
                         ) : tx.partner_id ? (
@@ -768,10 +829,10 @@ export default function FinancePage() {
                           '—'
                         )}
                       </td>
-                      <td className="py-3 px-3 text-gray-600">
+                      <td className="hidden md:table-cell py-3 px-3 text-gray-600">
                         {formatDate(tx.due_date)}
                       </td>
-                      <td className="py-3 px-3 text-right">
+                      <td className="hidden md:table-cell py-3 px-3 text-right">
                         <span
                           className={cn(
                             'font-bold text-xs',
@@ -781,7 +842,7 @@ export default function FinancePage() {
                           {tx.type === 'Entrada' ? '+' : '-'} {formatCurrency(tx.amount)}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="hidden md:table-cell py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => openEditTransaction(tx)}
                           className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
@@ -845,7 +906,7 @@ export default function FinancePage() {
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-xs">
-                          <span className="text-gray-500">Receitas / Entradas Geradas:</span>
+                          <span className="text-gray-500">Receitas / Renda Geradas:</span>
                           <span className="font-semibold text-emerald-600">
                             {formatCurrency(p.total_entries || 0)}
                           </span>
@@ -1392,6 +1453,17 @@ export default function FinancePage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={() => {
+          confirmState.onConfirm();
+          setConfirmState({ ...confirmState, isOpen: false });
+        }}
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
+      />
     </div>
   );
 }

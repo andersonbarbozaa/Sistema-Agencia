@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import ModalPortal from '@/components/ModalPortal';
-import ConfirmModal from '@/components/ConfirmModal';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -48,7 +47,6 @@ export default function TasksPage() {
   const searchParams = useSearchParams();
   const initialTaskId = searchParams.get('id');
 
-  const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'danger' as 'danger' | 'warning' });
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -329,20 +327,12 @@ export default function TasksPage() {
         setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, deletion_request_status: 'pending' } : t));
       }
     } else {
-      setConfirmState({
-        isOpen: true,
-        title: 'Confirmar Exclusão',
-        message: 'Deseja realmente excluir esta tarefa permanentemente?',
-        type: 'danger',
-        onConfirm: async () => {
-          setConfirmState(prev => ({ ...prev, isOpen: false }));
-          const res = await fetch(`/api/tasks/${selectedTask.id}`, { method: 'DELETE' });
-          if (res.ok) {
-            setSelectedTask(null);
-            setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-          }
-        }
-      });
+      if (!confirm('Deseja realmente excluir esta tarefa permanentemente?')) return;
+      const res = await fetch(`/api/tasks/${selectedTask.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSelectedTask(null);
+        setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+      }
     }
   };
 
@@ -561,8 +551,8 @@ export default function TasksPage() {
       {viewMode === 'list' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 text-gray-500 hidden md:table-header-group">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase font-semibold text-[11px] tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4">Tarefa</th>
                   <th className="py-3.5 px-4">Cliente</th>
@@ -574,10 +564,10 @@ export default function TasksPage() {
                   <th className="py-3.5 px-4 text-right">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 flex flex-col md:table-row-group">
+              <tbody className="divide-y divide-gray-100">
                 {filteredTasks.length === 0 ? (
-                  <tr className="block md:table-row">
-                    <td colSpan={8} className="p-8 text-center text-gray-400 block md:table-cell">
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-gray-400">
                       Nenhuma tarefa encontrada.
                     </td>
                   </tr>
@@ -589,50 +579,12 @@ export default function TasksPage() {
                       <tr
                         key={task.id}
                         className={cn(
-                          'hover:bg-gray-50/80 transition-colors cursor-pointer flex flex-col md:table-row py-3 px-4 md:py-0 md:px-0',
-                          isDeletionPending ? 'bg-red-50/60 opacity-60 text-red-900 md:border-l-4 md:border-red-500' : ''
+                          'hover:bg-gray-50/80 transition-colors cursor-pointer',
+                          isDeletionPending ? 'bg-red-50/60 opacity-60 text-red-900 border-l-4 border-red-500' : ''
                         )}
                         onClick={() => openTaskDetail(task.id)}
                       >
-                        {/* MOBILE VIEW */}
-                        <td className="md:hidden flex flex-col gap-1.5 w-full">
-                          <div className="flex justify-between items-start">
-                            <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase", 
-                              task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                              task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
-                              task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                              task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
-                              'bg-blue-100 text-blue-800'
-                            )}>
-                              {task.status}
-                            </span>
-                            {task.assignees && task.assignees.length > 0 && (
-                              <div className="flex -space-x-1.5">
-                                {task.assignees.map((a: any, i: number) => (
-                                  <div key={i} className="w-6 h-6 rounded-full bg-blue-600 border border-white flex items-center justify-center text-[10px] text-white font-bold shadow-sm" title={a.name}>
-                                    {a.name.charAt(0).toUpperCase()}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="font-semibold text-gray-900 text-base leading-tight mt-0.5">
-                            {task.name}
-                            {isDeletionPending && (
-                              <span className="ml-2 px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold">
-                                Exclusão
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center text-xs text-gray-500 gap-2 mt-1">
-                            <span className="font-medium text-gray-700">{formatDate(task.delivery_date)}</span>
-                            <span>•</span>
-                            <span className="truncate">{task.client_name || '-'}</span>
-                          </div>
-                        </td>
-
-                        {/* DESKTOP VIEW */}
-                        <td className="hidden md:table-cell py-3 px-4 font-semibold text-gray-900">
+                        <td className="py-3 px-4 font-semibold text-gray-900">
                           <div className="flex items-center gap-2">
                             <span
                               className="w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -646,39 +598,48 @@ export default function TasksPage() {
                             )}
                           </div>
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-gray-600 truncate max-w-[140px]">
+                        <td className="py-3 px-4 text-gray-600 truncate max-w-[140px]">
                           {task.client_name || '-'}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4">
-                          <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-semibold", 
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                             task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
                             task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
                             task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
                             task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
                             'bg-blue-100 text-blue-800'
-                          )}>
+                          }`}>
                             {task.status}
                           </span>
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-gray-600">
+                        <td className="py-3 px-4 text-gray-600">
                           {task.category_name || '-'}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-gray-700 font-medium">
+                        <td className="py-3 px-4 text-gray-700 font-medium">
                           {formatDate(task.delivery_date)}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4">
+                        <td className="py-3 px-4">
                           {task.media_links_count ? (
-                            <span className="flex items-center gap-1.5 text-blue-600 font-medium text-xs">
-                              <Film size={14} /> {task.media_links_count}
+                            <span className="inline-flex items-center gap-1 text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-md">
+                              <Film size={12} />
+                              {task.media_links_count}
                             </span>
-                          ) : <span className="text-gray-300">-</span>}
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 font-medium text-gray-900">
-                          {task.value && task.value > 0 ? formatCurrency(task.value) : <span className="text-gray-300">-</span>}
+                        <td className="py-3 px-4 text-gray-700 font-medium">
+                          {task.value ? formatCurrency(task.value) : '-'}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-right">
-                          <button className="text-gray-400 hover:text-blue-600 transition-colors">
-                            <ChevronRight size={18} />
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openTaskDetail(task.id);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                          >
+                            Abrir
                           </button>
                         </td>
                       </tr>
@@ -1695,15 +1656,6 @@ export default function TasksPage() {
           onClose={() => setMediaViewerState(null)}
         />
       )}
-    
-      <ConfirmModal
-        isOpen={confirmState.isOpen}
-        title={confirmState.title}
-        message={confirmState.message}
-        type={confirmState.type}
-        onConfirm={confirmState.onConfirm}
-        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
-      />
     </div>
   );
 }

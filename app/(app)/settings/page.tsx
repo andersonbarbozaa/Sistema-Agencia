@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   Settings,
   Users,
@@ -35,6 +36,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 
 function SettingsContent() {
   const searchParams = useSearchParams();
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const initialTab = searchParams.get('tab');
 
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'users' | 'categories' | 'finance' | 'ai'>(
@@ -508,26 +510,33 @@ function SettingsContent() {
 
   const handleDeletePosition = async () => {
     if (!editingPosition) return;
-    if (!confirm(`Deseja realmente remover o cargo "${editingPosition.name}"?`)) return;
 
-    try {
-      setIsSubmitting(true);
-      const res = await fetch(`/api/positions/${editingPosition.id}`, {
-        method: 'DELETE',
-      });
+    setConfirmState({
+      isOpen: true,
+      title: 'Remover Cargo',
+      message: `Deseja realmente remover o cargo "${editingPosition.name}"?`,
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          const res = await fetch(`/api/positions/${editingPosition.id}`, {
+            method: 'DELETE',
+          });
 
-      if (res.ok) {
-        setEditingPosition(null);
-        await fetchData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir cargo.');
+          if (res.ok) {
+            setEditingPosition(null);
+            await fetchData();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir cargo.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSubmitting(false);
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   // --- CATEGORY HANDLERS ---
@@ -603,26 +612,33 @@ function SettingsContent() {
 
   const handleDeleteCategory = async () => {
     if (!editingCategory) return;
-    if (!confirm(`Deseja realmente remover a categoria "${editingCategory.name}"?`)) return;
 
-    try {
-      setIsSubmitting(true);
-      const res = await fetch(`/api/categories/${editingCategory.id}?target=${editCatForm.target}`, {
-        method: 'DELETE',
-      });
+    setConfirmState({
+      isOpen: true,
+      title: 'Remover Categoria',
+      message: `Deseja realmente remover a categoria "${editingCategory.name}"?`,
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          const res = await fetch(`/api/categories/${editingCategory.id}?target=${editCatForm.target}`, {
+            method: 'DELETE',
+          });
 
-      if (res.ok) {
-        setEditingCategory(null);
-        await fetchData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir categoria.');
+          if (res.ok) {
+            setEditingCategory(null);
+            await fetchData();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir categoria.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSubmitting(false);
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   // --- BANK ACCOUNT HANDLERS ---
@@ -687,26 +703,33 @@ function SettingsContent() {
 
   const handleDeleteAccount = async () => {
     if (!editingAccount) return;
-    if (!confirm(`Deseja realmente desativar/excluir a conta "${editingAccount.name}"?`)) return;
 
-    try {
-      setIsSubmitting(true);
-      const res = await fetch(`/api/bank-accounts/${editingAccount.id}`, {
-        method: 'DELETE',
-      });
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Conta',
+      message: `Deseja realmente desativar/excluir a conta "${editingAccount.name}"?`,
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          const res = await fetch(`/api/bank-accounts/${editingAccount.id}`, {
+            method: 'DELETE',
+          });
 
-      if (res.ok) {
-        setShowAccountModal(false);
-        await fetchData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir conta.');
+          if (res.ok) {
+            setShowAccountModal(false);
+            await fetchData();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir conta.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSubmitting(false);
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   return (
@@ -2233,6 +2256,13 @@ function SettingsContent() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev: any) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   Bell,
   CheckCircle2,
@@ -20,6 +21,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'3days' | 'all' | 'unread'>('3days');
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   const fetchNotifications = async () => {
     try {
@@ -76,15 +78,21 @@ export default function NotificationsPage() {
   };
 
   const handleClearAll = async () => {
-    if (!confirm('Deseja realmente limpar todas as notificações?')) return;
-    try {
-      const res = await fetch('/api/notifications', { method: 'DELETE' });
-      if (res.ok) {
-        setNotifications([]);
+    setConfirmState({
+      isOpen: true,
+      title: 'Confirmar Ação',
+      message: 'Deseja realmente limpar todas as notificações?',
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/notifications', { method: 'DELETE' });
+          if (res.ok) {
+            setNotifications([]);
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleNotificationClick = async (n: Notification) => {
@@ -127,6 +135,16 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      <ConfirmModal 
+        isOpen={confirmState.isOpen} 
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
+        onConfirm={() => {
+          confirmState.onConfirm();
+          setConfirmState({ ...confirmState, isOpen: false });
+        }}
+        title={confirmState.title}
+        message={confirmState.message}
+      />
       {/* Filter tabs & actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold">
         <div className="flex items-center gap-2 flex-wrap">

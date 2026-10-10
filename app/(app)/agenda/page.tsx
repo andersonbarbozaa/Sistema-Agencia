@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ModalPortal from '@/components/ModalPortal';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -27,6 +28,8 @@ export default function AgendaPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   // Month navigation for Calendar view
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -176,7 +179,12 @@ export default function AgendaPage() {
 
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return;
-    if (!confirm(`Tem certeza que deseja excluir o evento "${selectedEvent.title}"?`)) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Confirmar Exclusão',
+      message: `Tem certeza que deseja excluir o evento "${selectedEvent.title}"?`,
+      onConfirm: async () => {
+        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
 
     try {
       setIsDeleting(true);
@@ -196,6 +204,10 @@ export default function AgendaPage() {
     } finally {
       setIsDeleting(false);
     }
+      },
+      onCancel: () => setConfirmState((prev: any) => ({ ...prev, isOpen: false })),
+      type: 'danger'
+    });
   };
 
   // Calendar calculations

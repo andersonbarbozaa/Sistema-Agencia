@@ -42,7 +42,7 @@ export default function Header({ user }: HeaderProps) {
   const getRouteConfig = () => {
     if (pathname.startsWith('/tasks')) {
       return {
-        title: 'Tarefas & Produção',
+        title: 'Tarefas',
         subtitle: 'Produção audiovisual, aprovação de conteúdos e prazos de entrega.',
         actionLabel: 'Nova Tarefa',
         actionType: 'task',
@@ -52,7 +52,7 @@ export default function Header({ user }: HeaderProps) {
     }
     if (pathname.startsWith('/clients')) {
       return {
-        title: 'Carteira de Clientes',
+        title: 'Clientes',
         subtitle: 'Gestão cadastral, contratos, projetos e histórico financeiro de cada conta.',
         actionLabel: 'Novo Cliente',
         actionType: 'client',
@@ -72,7 +72,7 @@ export default function Header({ user }: HeaderProps) {
     }
     if (pathname.startsWith('/finance')) {
       return {
-        title: 'Financeiro & Gestão de Caixa',
+        title: 'Financeiro',
         subtitle: 'Controle de entradas, saídas, conciliação e comparativo de parceiros.',
         actionLabel: 'Novo Lançamento',
         actionType: 'transaction',
@@ -82,7 +82,7 @@ export default function Header({ user }: HeaderProps) {
     }
     if (pathname.startsWith('/agenda')) {
       return {
-        title: 'Agenda & Calendário',
+        title: 'Agenda',
         subtitle: 'Gerenciamento de reuniões, gravações, ensaios e compromissos da agência.',
         actionLabel: 'Novo Compromisso',
         actionType: 'event',

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Client } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -31,6 +32,7 @@ export default function ClientsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'finance'>('overview');
   const [clientSummary, setClientSummary] = useState<any | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc'>('name_asc');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'inativo' | 'arquivado'>('todos');
@@ -216,24 +218,32 @@ export default function ClientsPage() {
 
   const handleArchiveClient = async () => {
     if (!selectedClient) return;
-    if (!confirm(`Deseja realmente arquivar o cliente "${selectedClient.name}"?`)) return;
+    
+    setConfirmState({
+      isOpen: true,
+      title: 'Arquivar Cliente',
+      message: `Deseja realmente arquivar o cliente "${selectedClient.name}"?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/clients/${selectedClient.id}`, {
+            method: 'DELETE',
+          });
 
-    try {
-      const res = await fetch(`/api/clients/${selectedClient.id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        setShowEditModal(false);
-        setSelectedClient(null);
-        fetchClients();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao arquivar cliente.');
+          if (res.ok) {
+            setShowEditModal(false);
+            setSelectedClient(null);
+            fetchClients();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao arquivar cliente.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const filteredClients = clients
@@ -930,6 +940,14 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev: any) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

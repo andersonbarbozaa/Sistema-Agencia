@@ -1,0 +1,11 @@
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-10-09T20:05:04Z sender=f4b9dada-e24f-4448-bcaa-aa8d6cebda7d priority=MESSAGE_PRIORITY_HIGH content=The user wants to replace all native browser `window.confirm()` dialogs with a custom, beautifully styled React modal that matches the app's style.
+
+1. Create a reusable `<ConfirmModal />` component in `components/ConfirmModal.tsx`. It should accept `isOpen`, `title`, `message`, `onConfirm`, `onCancel`, and `type` (e.g., 'danger', 'warning'). It should use `ModalPortal` (if available) or just `fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999]` with a centered dialog.
+2. Search through the entire `app/(app)` directory for usages of `window.confirm` or `confirm(`. 
+3. Replace them by importing the `ConfirmModal` component, managing its open state (`const [confirmState, setConfirmState] = useState(...)`), and using the custom modal instead of the browser native one.
+
+Target files likely include `tasks/page.tsx`, `finance/page.tsx`, `clients/page.tsx`, `crm/page.tsx`, `agenda/page.tsx`, `projects/page.tsx`, etc. Please be thorough and replace all deletion/confirmation native prompts.
+</SYSTEM_MESSAGE>

@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   { href: '/clients', label: 'Clientes', icon: Users, roles: ['ADMINISTRADOR', 'COLABORADOR'] },
   { href: '/crm', label: 'CRM', icon: TrendingUp, roles: ['ADMINISTRADOR', 'COLABORADOR'] },
   { href: '/finance', label: 'Financeiro', icon: DollarSign, roles: ['ADMINISTRADOR'] },
-  { href: '/agenda', label: 'Agenda & Calendário', icon: Calendar },
+  { href: '/agenda', label: 'Agenda', icon: Calendar },
   { href: '/settings', label: 'Configurações', icon: Settings, roles: ['ADMINISTRADOR'] },
 ];
 

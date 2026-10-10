@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   TrendingUp,
   Plus,
@@ -39,6 +40,7 @@ const CRM_STATUSES: CRMLeadStatus[] = [
 ];
 
 export default function CRMPage() {
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [loading, setLoading] = useState(true);
@@ -130,23 +132,30 @@ export default function CRMPage() {
 
   const handleDeleteLead = async () => {
     if (!selectedLead) return;
-    if (!confirm(`Deseja realmente excluir o lead "${selectedLead.contact_name}"?`)) return;
 
-    try {
-      const res = await fetch(`/api/crm/${selectedLead.id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        setShowEditLeadModal(false);
-        setSelectedLead(null);
-        fetchLeads();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir lead');
+    setConfirmState({
+      isOpen: true,
+      title: 'Confirmar Exclusão',
+      message: `Deseja realmente excluir o lead "${selectedLead.contact_name}"?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/crm/${selectedLead.id}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            setShowEditLeadModal(false);
+            setSelectedLead(null);
+            fetchLeads();
+            setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir lead');
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const fetchLeads = async () => {
@@ -914,6 +923,14 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
+      />
     </div>
   );
 }

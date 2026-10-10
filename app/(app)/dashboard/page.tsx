@@ -20,9 +20,11 @@ import {
   Edit2,
   Trash2,
   X,
+  Settings,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
+import ConfirmModal from '@/components/ConfirmModal';
 import { TaskMediaLink } from '@/types';
 
 export default function DashboardPage() {
@@ -30,6 +32,44 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<{ list: TaskMediaLink[]; index: number } | null>(null);
+  const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+  const defaultLayoutPrefs = {
+    showFinanceiro: true,
+    showProximasEntregas: true,
+    showStatusProjetos: true,
+    showLembretes: true,
+    showDesempenhoVendas: true,
+    showProximosCompromissos: true,
+    showAtividadesRecentes: true,
+  };
+  const [layoutPrefs, setLayoutPrefs] = useState(defaultLayoutPrefs);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+
+  useEffect(() => {
+    if (data) {
+      const uid = data?.user?.id || data?.id || 'default';
+      const saved = localStorage.getItem(`dashboard_layout_${uid}`);
+      if (saved) {
+        try {
+          setLayoutPrefs(JSON.parse(saved));
+        } catch(e) {}
+      }
+    }
+  }, [data]);
+
+  const toggleLayout = (key: keyof typeof layoutPrefs) => {
+    const newPrefs = { ...layoutPrefs, [key]: !layoutPrefs[key] };
+    setLayoutPrefs(newPrefs);
+    const uid = data?.user?.id || data?.id || 'default';
+    localStorage.setItem(`dashboard_layout_${uid}`, JSON.stringify(newPrefs));
+  };
+
+  const restoreLayout = () => {
+    setLayoutPrefs(defaultLayoutPrefs);
+    const uid = data?.user?.id || data?.id || 'default';
+    localStorage.removeItem(`dashboard_layout_${uid}`);
+  };
 
   // Dashboard Lead Modal
   const [selectedDashboardLead, setSelectedDashboardLead] = useState<any | null>(null);
@@ -79,19 +119,25 @@ export default function DashboardPage() {
 
   const handleDeleteDashboardLead = async () => {
     if (!selectedDashboardLead) return;
-    if (!confirm(`Deseja realmente excluir o lead "${selectedDashboardLead.contact_name}"?`)) return;
-    try {
-      const res = await fetch(`/api/crm/${selectedDashboardLead.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setSelectedDashboardLead(null);
-        fetchDashboard();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir lead');
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Lead',
+      message: `Deseja realmente excluir o lead "${selectedDashboardLead.contact_name}"?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/crm/${selectedDashboardLead.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            setSelectedDashboardLead(null);
+            fetchDashboard();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir lead');
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   // Dashboard Event Modal
@@ -140,19 +186,25 @@ export default function DashboardPage() {
 
   const handleDeleteDashboardEvent = async () => {
     if (!selectedDashboardEvent) return;
-    if (!confirm(`Deseja excluir o compromisso "${selectedDashboardEvent.title}"?`)) return;
-    try {
-      const res = await fetch(`/api/calendar/${selectedDashboardEvent.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setSelectedDashboardEvent(null);
-        fetchDashboard();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao excluir compromisso');
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Compromisso',
+      message: `Deseja excluir o compromisso "${selectedDashboardEvent.title}"?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/calendar/${selectedDashboardEvent.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            setSelectedDashboardEvent(null);
+            fetchDashboard();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir compromisso');
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const fetchDashboard = async () => {
@@ -301,7 +353,55 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-end relative z-10 mb-2">
+        <button
+          onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 border border-gray-200 bg-white shadow-sm"
+          title="Configurar Widgets"
+        >
+          <Settings size={18} />
+          <span className="text-xs font-semibold">Layout</span>
+        </button>
+
+        {showLayoutMenu && (
+          <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-50">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-bold text-sm text-gray-900">Widgets do Dashboard</h4>
+              <button onClick={() => setShowLayoutMenu(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+            </div>
+            <div className="space-y-2">
+              {Object.entries({
+                showFinanceiro: 'Financeiro',
+                showProximasEntregas: 'Próximas Entregas',
+                showStatusProjetos: 'Status dos Projetos',
+                showLembretes: 'Lembretes & Alertas',
+                showDesempenhoVendas: 'Desempenho de Vendas',
+                showProximosCompromissos: 'Próximos Compromissos',
+                showAtividadesRecentes: 'Atividades Recentes'
+              }).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutPrefs[key as keyof typeof layoutPrefs]}
+                    onChange={() => toggleLayout(key as keyof typeof layoutPrefs)}
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-gray-700">{label}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={restoreLayout}
+              className="mt-4 w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors"
+            >
+              Restaurar padrão
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Task Metric Cards - Clickable to filter on /tasks */}
+      {layoutPrefs.showStatusProjetos && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
           href="/tasks?filter=abertas"
@@ -342,13 +442,14 @@ export default function DashboardPage() {
           <p className="text-xs text-gray-500 mt-1">Necessitam atenção &bull; Clique para filtrar</p>
         </Link>
       </div>
+      )}
 
       {/* Financial Overview (If Admin) */}
-      {financial && (
+      {layoutPrefs.showFinanceiro && financial && (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="font-bold text-base text-gray-900">Painel Financeiro do Mês</h3>
+              <h3 className="font-bold text-base text-gray-900">Financeiro</h3>
               <p className="text-xs text-gray-500">Saldo consolidado, meta e fluxo de caixa</p>
             </div>
             <Link href="/finance" className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
@@ -480,10 +581,11 @@ export default function DashboardPage() {
       {/* Main Grid: Urgent Tasks + Active Projects */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Urgent Tasks */}
+        {layoutPrefs.showProximasEntregas && (
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-5 border-b border-gray-100 flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-base text-gray-900">Próximas Entregas (Tarefas)</h3>
+              <h3 className="font-bold text-base text-gray-900">Próximas Entregas</h3>
               <p className="text-xs text-gray-500">Listagem progressiva inicial (5 registros)</p>
             </div>
             <Link href="/tasks" className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
@@ -542,10 +644,12 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+        )}
 
         {/* Right Col: Active Projects & Upcoming Agenda */}
         <div className="space-y-6">
           {/* Leads Recentes do CRM */}
+          {layoutPrefs.showAtividadesRecentes && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
@@ -584,8 +688,10 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+          )}
 
           {/* Agenda Events - Click to edit or delete */}
+          {layoutPrefs.showProximosCompromissos && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-sm text-gray-900">Agenda / Compromissos</h3>
@@ -621,6 +727,7 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
 
@@ -856,6 +963,17 @@ export default function DashboardPage() {
           onClose={() => setSelectedMedia(null)}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={() => {
+          confirmState.onConfirm();
+          setConfirmState({ ...confirmState, isOpen: false });
+        }}
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
+      />
     </div>
   );
 }
