@@ -81,10 +81,27 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
       };
 
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join('');
-        setInputText(baseTextRef.current + transcript);
+        const transcripts = Array.from(event.results).map((result: any) => result[0].transcript);
+        let combined = '';
+        
+        for (const t of transcripts) {
+          const tStr = String(t);
+          if (tStr.startsWith(' ') && combined !== '') {
+            // Desktop continuation
+            combined += tStr;
+          } else {
+            const tTrim = tStr.trim().toLowerCase();
+            const cTrim = combined.trim().toLowerCase();
+            if (cTrim && tTrim.startsWith(cTrim)) {
+              // Android full-string replacement bug
+              combined = tStr;
+            } else {
+              combined += (combined && !tStr.startsWith(' ') ? ' ' : '') + tStr;
+            }
+          }
+        }
+        
+        setInputText(baseTextRef.current + combined);
       };
 
       recognition.onerror = (event: any) => {
@@ -135,14 +152,15 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
       }
 
       const data = await res.json();
-      setCurrentInterpretation(data);
+      const interpPayload = { id: data.id, ...data.interpretation };
+      setCurrentInterpretation(interpPayload);
 
       setMessages((prev) => [
         ...prev,
         {
           sender: 'ai',
-          text: `Entendi! Detectei a ação "${data.detected_action}". Revise os dados abaixo para confirmar e gravar no sistema:`,
-          interpretation: data,
+          text: `Entendi! Detectei a ação "${interpPayload.detected_action}". Revise os dados abaixo para confirmar e gravar no sistema:`,
+          interpretation: interpPayload,
         },
       ]);
     } catch (err: any) {
