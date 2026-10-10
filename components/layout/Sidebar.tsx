@@ -162,7 +162,7 @@ export default function Sidebar({ user }: SidebarProps) {
         </nav>
 
         {/* Mobile User Profile: Área 2 - Dados do Utilizador */}
-        <div className="border-t border-gray-800/80 p-3.5 bg-gray-950/60">
+        <div className="border-t border-gray-800/80 p-3.5 pb-8 bg-gray-950/60">
           <div className="flex items-center justify-between gap-2">
             <Link
               href="/settings?tab=profile"
