@@ -43,6 +43,7 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const baseTextRef = useRef("");
 
   useEffect(() => {
     if (isOpen) {
@@ -70,18 +71,20 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
       setError('');
       const recognition = new SpeechRecognition();
       recognition.lang = 'pt-BR';
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
 
       recognition.onstart = () => {
         setIsRecording(true);
+        // store the current input text as the base
+        baseTextRef.current = inputText ? inputText + ' ' : '';
       };
 
       recognition.onresult = (event: any) => {
         const transcript = Array.from(event.results)
           .map((result: any) => result[0].transcript)
           .join('');
-        setInputText(transcript);
+        setInputText(baseTextRef.current + transcript);
       };
 
       recognition.onerror = (event: any) => {
@@ -288,10 +291,10 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
                   <div className="w-full bg-white rounded-2xl border border-blue-200 p-3.5 shadow-sm space-y-3 text-xs mt-1">
                     <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                       <span className="font-bold text-gray-900 flex items-center gap-1.5">
-                        {m.interpretation.detected_action === 'create_task' && <CheckSquare size={14} className="text-blue-600" />}
-                        {m.interpretation.detected_action === 'create_transaction' && <DollarSign size={14} className="text-emerald-600" />}
-                        {m.interpretation.detected_action === 'create_lead' && <TrendingUp size={14} className="text-purple-600" />}
-                        {m.interpretation.detected_action === 'create_event' && <Calendar size={14} className="text-indigo-600" />}
+                        {m.interpretation.detected_action === 'TASK' && <CheckSquare size={14} className="text-blue-600" />}
+                        {m.interpretation.detected_action === 'TRANSACTION' && <DollarSign size={14} className="text-emerald-600" />}
+                        {m.interpretation.detected_action === 'CRM_LEAD' && <TrendingUp size={14} className="text-purple-600" />}
+                        {m.interpretation.detected_action === 'CALENDAR_EVENT' && <Calendar size={14} className="text-indigo-600" />}
                         Ação: {m.interpretation.detected_action}
                       </span>
                       <span className="text-[10px] text-gray-500 font-medium">
