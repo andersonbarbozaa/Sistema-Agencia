@@ -46,9 +46,9 @@ export async function GET(request: Request) {
       const counts = await db
         .prepare(`
           SELECT 
-            COUNT(CASE WHEN status != 'ConcluÃ­da' THEN 1 END) as pending_tasks,
-            COUNT(CASE WHEN status = 'Em aprovaÃ§Ã£o' THEN 1 END) as awaiting_approval,
-            COUNT(CASE WHEN status = 'ConcluÃ­da' THEN 1 END) as completed_tasks
+            COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' THEN 1 END) as pending_tasks,
+            COUNT(CASE WHEN LOWER(status) LIKE '%aprova%' AND LOWER(status) NOT LIKE '%altera%' THEN 1 END) as awaiting_approval,
+            COUNT(CASE WHEN LOWER(status) LIKE '%conclu%' OR LOWER(status) LIKE '%aprovad%' THEN 1 END) as completed_tasks
           FROM tasks
           WHERE client_id = ?
         `)
@@ -81,15 +81,14 @@ export async function GET(request: Request) {
     const taskStats = await db
       .prepare(`
         SELECT 
-          COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') THEN 1 END) as pending_tasks,
-          COUNT(CASE WHEN status = 'Em produÃ§Ã£o' THEN 1 END) as in_production_tasks,
-          COUNT(CASE WHEN status = 'Em aprovaÃ§Ã£o' THEN 1 END) as in_approval_tasks,
-          COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') AND delivery_date <= date('now', '+3 days') THEN 1 END) as due_soon_tasks,
-          COUNT(CASE WHEN status NOT IN ('ConcluÃ­da', 'Aprovada') AND delivery_date < date('now') THEN 1 END) as overdue_tasks
+          COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' THEN 1 END) as pending_tasks,
+          COUNT(CASE WHEN LOWER(status) LIKE '%produ%' THEN 1 END) as in_production_tasks,
+          COUNT(CASE WHEN LOWER(status) LIKE '%aprova%' AND LOWER(status) NOT LIKE '%altera%' THEN 1 END) as in_approval_tasks,
+          COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' AND delivery_date IS NOT NULL AND date(delivery_date) <= date('now', '+3 days') AND date(delivery_date) >= date('now') THEN 1 END) as due_soon_tasks,
+          COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' AND delivery_date IS NOT NULL AND date(delivery_date) < date('now') THEN 1 END) as overdue_tasks
         FROM tasks
         WHERE 1=1
       `)
-      
       .first<any>();
 
     // Initial 5 urgent tasks
@@ -102,12 +101,10 @@ export async function GET(request: Request) {
         LEFT JOIN clients c ON t.client_id = c.id
         LEFT JOIN projects p ON t.project_id = p.id
         LEFT JOIN task_categories tc ON t.category_id = tc.id
-        WHERE t.status NOT IN ('ConcluÃ­da', 'Aprovada')
-          
+        WHERE LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%'
         ORDER BY t.delivery_date ASC
         LIMIT 5
       `)
-      
       .all();
 
     // 2. Active Projects (limit 5)

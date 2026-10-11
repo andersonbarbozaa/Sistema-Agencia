@@ -32,21 +32,27 @@ import {
   Copy,
   Check,
   Link as LinkIcon,
+  Sun,
+  Moon,
+  Laptop,
+  Highlighter,
+  Type,
 } from 'lucide-react';
 import { Position, TaskCategory, FinancialCategory, BankAccount } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
+import { TextFormatPreset, DEFAULT_TEXT_PRESETS } from '@/components/RichTextEditor';
 
 function SettingsContent() {
   const searchParams = useSearchParams();
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const initialTab = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'users' | 'categories' | 'finance' | 'ai'>(
-    initialTab && ['profile', 'users', 'categories', 'finance', 'ai'].includes(initialTab)
+  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'users' | 'categories' | 'finance' | 'ai' | 'appearance' | 'formatting'>(
+    initialTab && ['profile', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting'].includes(initialTab)
       ? (initialTab as any)
       : 'overview'
   );
-    const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -75,6 +81,97 @@ function SettingsContent() {
     } else {
       alert('Seu navegador não suporta a instalação via botão ou o aplicativo já está instalado.');
     }
+  };
+
+  // THEME (Aparência)
+  const [appTheme, setAppTheme] = useState<'light' | 'dark' | 'system'>('system');
+
+  useEffect(() => {
+    try {
+      const savedTheme = (localStorage.getItem('agency_app_theme') as any) || 'system';
+      setAppTheme(savedTheme);
+    } catch (e) {}
+  }, []);
+
+  const changeTheme = (newTheme: 'light' | 'dark' | 'system') => {
+    setAppTheme(newTheme);
+    try {
+      localStorage.setItem('agency_app_theme', newTheme);
+      const isDark =
+        newTheme === 'dark' ||
+        (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (e) {}
+  };
+
+  // TEXT FORMATTING PRESETS
+  const [formattingPresets, setFormattingPresets] = useState<TextFormatPreset[]>(DEFAULT_TEXT_PRESETS);
+  const [editingPreset, setEditingPreset] = useState<TextFormatPreset | null>(null);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetForm, setPresetForm] = useState<TextFormatPreset>({
+    id: '',
+    name: '',
+    tag: 'p',
+    fontSize: 'base',
+    textColor: '#111827',
+    highlightColor: '',
+    bold: false,
+    italic: false,
+    underline: false,
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('agency_text_formatting_presets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFormattingPresets(parsed);
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleSavePreset = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!presetForm.name.trim()) return;
+
+    let updated: TextFormatPreset[];
+    if (editingPreset) {
+      updated = formattingPresets.map((p) => (p.id === editingPreset.id ? { ...presetForm, id: editingPreset.id } : p));
+    } else {
+      const newP: TextFormatPreset = {
+        ...presetForm,
+        id: 'preset_' + Math.random().toString(36).substring(2, 9),
+      };
+      updated = [...formattingPresets, newP];
+    }
+
+    setFormattingPresets(updated);
+    try {
+      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(updated));
+    } catch (e) {}
+    setShowPresetModal(false);
+    setEditingPreset(null);
+  };
+
+  const handleDeletePreset = (id: string) => {
+    const updated = formattingPresets.filter((p) => p.id !== id);
+    setFormattingPresets(updated);
+    try {
+      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const handleResetPresets = () => {
+    setFormattingPresets(DEFAULT_TEXT_PRESETS);
+    try {
+      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(DEFAULT_TEXT_PRESETS));
+    } catch (e) {}
   };
 
   // Entities
@@ -889,6 +986,54 @@ function SettingsContent() {
               </div>
             </div>
 
+            {/* Card 7: Tema do App */}
+            <div
+              onClick={() => setActiveTab('appearance')}
+              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+                  {appTheme === 'dark' ? <Moon className="w-6 h-6" /> : appTheme === 'light' ? <Sun className="w-6 h-6" /> : <Laptop className="w-6 h-6" />}
+                </div>
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
+                  Aparência & Tema
+                </h3>
+                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                  Alterne entre tema claro, escuro ou use a preferência automática do seu dispositivo.
+                </p>
+              </div>
+              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-purple-600">
+                <span>Personalizar tema &rarr;</span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[11px] font-bold capitalize">
+                  {appTheme === 'dark' ? 'Modo Escuro' : appTheme === 'light' ? 'Modo Claro' : 'Dispositivo'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 8: Padrões de Formatação */}
+            <div
+              onClick={() => setActiveTab('formatting')}
+              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+                  <Highlighter className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
+                  Padrões de Formatação
+                </h3>
+                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                  Crie modelos de texto para roteiros e tarefas com cores, marca-texto, títulos e notas.
+                </p>
+              </div>
+              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-amber-600">
+                <span>Configurar padrões &rarr;</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold">
+                  {formattingPresets.length} modelos
+                </span>
+              </div>
+            </div>
+
             {/* Card 6: Instalar Aplicativo */}
             <div
               onClick={handleInstallClick}
@@ -946,7 +1091,7 @@ function SettingsContent() {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               )}
             >
-              <Users className="w-3.5 h-3.5" /> Usuários & Cargos ({users.length})
+              <Users className="w-3.5 h-3.5" /> Usuários ({users.length})
             </button>
 
             <button
@@ -982,7 +1127,31 @@ function SettingsContent() {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               )}
             >
-              <Bot className="w-3.5 h-3.5" /> Assistente de IA
+              <Bot className="w-3.5 h-3.5" /> IA
+            </button>
+
+            <button
+              onClick={() => setActiveTab('appearance')}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
+                activeTab === 'appearance'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              )}
+            >
+              <Moon className="w-3.5 h-3.5" /> Tema
+            </button>
+
+            <button
+              onClick={() => setActiveTab('formatting')}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
+                activeTab === 'formatting'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              )}
+            >
+              <Highlighter className="w-3.5 h-3.5" /> Padrões de Roteiro ({formattingPresets.length})
             </button>
           </div>
         </div>
@@ -1725,6 +1894,429 @@ function SettingsContent() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 6: APARÊNCIA & TEMA DO APP                            */}
+      {/* ======================================================== */}
+      {activeTab === 'appearance' && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6 max-w-2xl">
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Moon className="w-5 h-5 text-purple-600" />
+              Tema do Aplicativo
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Escolha o estilo visual da plataforma para o seu navegador e celular.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Opção 1: Tema Claro */}
+            <div
+              onClick={() => changeTheme('light')}
+              className={cn(
+                'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
+                appTheme === 'light'
+                  ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              )}
+            >
+              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shadow-xs">
+                <Sun className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-gray-900">Tema Claro</h4>
+                <p className="text-[11px] text-gray-500 mt-1">Fundo branco e alto contraste para ambientes iluminados.</p>
+              </div>
+              {appTheme === 'light' && (
+                <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                  Ativo
+                </span>
+              )}
+            </div>
+
+            {/* Opção 2: Tema Escuro */}
+            <div
+              onClick={() => changeTheme('dark')}
+              className={cn(
+                'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
+                appTheme === 'dark'
+                  ? 'border-blue-600 bg-slate-900 text-white shadow-md'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              )}
+            >
+              <div className="w-12 h-12 rounded-full bg-slate-800 text-purple-400 flex items-center justify-center shadow-xs">
+                <Moon className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-gray-900">Tema Escuro</h4>
+                <p className="text-[11px] text-gray-500 mt-1">Descanso para os olhos com tons escuros e modernos.</p>
+              </div>
+              {appTheme === 'dark' && (
+                <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                  Ativo
+                </span>
+              )}
+            </div>
+
+            {/* Opção 3: Tema do Dispositivo */}
+            <div
+              onClick={() => changeTheme('system')}
+              className={cn(
+                'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
+                appTheme === 'system'
+                  ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              )}
+            >
+              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-xs">
+                <Laptop className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-gray-900">Dispositivo</h4>
+                <p className="text-[11px] text-gray-500 mt-1">Acompanha automaticamente o tema do seu celular ou PC.</p>
+              </div>
+              {appTheme === 'system' && (
+                <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                  Ativo
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 7: PADRÕES DE FORMATAÇÃO (ROTEIRO & DESCRIÇÃO)        */}
+      {/* ======================================================== */}
+      {activeTab === 'formatting' && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Highlighter className="w-5 h-5 text-amber-600" />
+                Padrões de Formatação de Roteiro & Descrição
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Configure estilos pré-definidos que aparecem como botões rápidos na caixa de texto de tarefas.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetPresets}
+                className="px-3 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                title="Restaurar lista de padrões recomendados"
+              >
+                Restaurar Padrões
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingPreset(null);
+                  setPresetForm({
+                    id: '',
+                    name: '',
+                    tag: 'p',
+                    fontSize: 'base',
+                    textColor: '#111827',
+                    highlightColor: '',
+                    bold: false,
+                    italic: false,
+                    underline: false,
+                  });
+                  setShowPresetModal(true);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <Plus size={14} /> Novo Padrão
+              </button>
+            </div>
+          </div>
+
+          {/* Lista dos Padrões Cadastrados */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {formattingPresets.map((preset) => (
+              <div
+                key={preset.id}
+                className="border border-gray-200 rounded-xl p-4 bg-gray-50 flex flex-col justify-between hover:border-blue-300 transition-all gap-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-xs text-gray-900">{preset.name}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 font-semibold uppercase">
+                      {preset.tag === 'note' ? 'Nota / Callout' : preset.tag === 'h2' ? 'Título' : 'Texto Inline'}
+                    </span>
+                  </div>
+
+                  {/* Preview do Texto */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-3 min-h-[44px] flex items-center">
+                    {preset.tag === 'note' ? (
+                      <div
+                        className="w-full text-xs rich-note-callout m-0"
+                        style={{
+                          backgroundColor: preset.highlightColor || '#fef3c7',
+                          color: preset.textColor || '#92400e',
+                          borderLeftColor: preset.textColor || '#f59e0b',
+                        }}
+                      >
+                        Exemplo de nota formatada para a equipe de vídeo e roteiro.
+                      </div>
+                    ) : (
+                      <span
+                        className="text-xs truncate block w-full"
+                        style={{
+                          color: preset.textColor || undefined,
+                          backgroundColor: preset.highlightColor || undefined,
+                          padding: preset.highlightColor ? '2px 6px' : undefined,
+                          borderRadius: '4px',
+                          fontWeight: preset.bold ? 'bold' : 'normal',
+                          fontStyle: preset.italic ? 'italic' : 'normal',
+                          textDecoration: preset.underline ? 'underline' : 'none',
+                          fontSize: preset.fontSize === 'xl' ? '16px' : preset.fontSize === 'lg' ? '15px' : preset.fontSize === 'sm' ? '11px' : '13px',
+                        }}
+                      >
+                        Exemplo de texto com a formatação "{preset.name}"
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-gray-200/60 text-xs">
+                  <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                    {preset.bold && <span>Negrito</span>}
+                    {preset.italic && <span>Itálico</span>}
+                    {preset.highlightColor && <span>Marca-texto</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPreset(preset);
+                        setPresetForm({ ...preset });
+                        setShowPresetModal(true);
+                      }}
+                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"
+                      title="Editar Padrão"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePreset(preset.id)}
+                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-white rounded-lg transition-colors"
+                      title="Excluir Padrão"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CRIAR / EDITAR PADRÃO DE FORMATAÇÃO               */}
+      {/* ======================================================== */}
+      {showPresetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowPresetModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
+            >
+              <X size={20} />
+            </button>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+              <Highlighter className="w-5 h-5 text-amber-600" />
+              {editingPreset ? 'Editar Padrão de Formatação' : 'Novo Padrão de Formatação'}
+            </h2>
+            <p className="text-xs text-gray-500 mb-5">
+              Defina o estilo que será aplicado no texto selecionado dentro da tarefa.
+            </p>
+
+            <form onSubmit={handleSavePreset} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Nome do Padrão *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Fala do Narrador, Corte de Câmera, Nota de Produção..."
+                  value={presetForm.name}
+                  onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Tipo de Bloco
+                  </label>
+                  <select
+                    value={presetForm.tag}
+                    onChange={(e) => setPresetForm({ ...presetForm, tag: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="p">Texto Comum / Inline</option>
+                    <option value="h2">Título de Seção (H2)</option>
+                    <option value="note">Bloco de Nota / Callout</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Tamanho da Fonte
+                  </label>
+                  <select
+                    value={presetForm.fontSize || 'base'}
+                    onChange={(e) => setPresetForm({ ...presetForm, fontSize: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="sm">Pequeno (12px)</option>
+                    <option value="base">Normal (14px)</option>
+                    <option value="lg">Médio (16px)</option>
+                    <option value="xl">Grande (18px)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Opções de Estilo (Negrito, Itálico, Sublinhado) */}
+              <div className="flex items-center gap-5 pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={presetForm.bold}
+                    onChange={(e) => setPresetForm({ ...presetForm, bold: e.target.checked })}
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Negrito (Bold)</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={presetForm.italic}
+                    onChange={(e) => setPresetForm({ ...presetForm, italic: e.target.checked })}
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Itálico</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={presetForm.underline}
+                    onChange={(e) => setPresetForm({ ...presetForm, underline: e.target.checked })}
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Sublinhado</span>
+                </label>
+              </div>
+
+              {/* Cores */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                    Cor do Texto
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={presetForm.textColor || '#111827'}
+                      onChange={(e) => setPresetForm({ ...presetForm, textColor: e.target.value })}
+                      className="w-8 h-8 rounded border border-gray-300 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-gray-600">{presetForm.textColor || '#111827'}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                    Marca-texto (Grifo)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={presetForm.highlightColor || '#fef08a'}
+                      onChange={(e) => setPresetForm({ ...presetForm, highlightColor: e.target.value })}
+                      className="w-8 h-8 rounded border border-gray-300 cursor-pointer p-0.5"
+                    />
+                    {presetForm.highlightColor ? (
+                      <button
+                        type="button"
+                        onClick={() => setPresetForm({ ...presetForm, highlightColor: '' })}
+                        className="text-[11px] text-red-600 hover:underline"
+                      >
+                        Sem grifo
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">Nenhum</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview em tempo real */}
+              <div className="pt-2">
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                  Visualização em Tempo Real:
+                </label>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 min-h-[50px] flex items-center">
+                  {presetForm.tag === 'note' ? (
+                    <div
+                      className="w-full text-xs rich-note-callout m-0"
+                      style={{
+                        backgroundColor: presetForm.highlightColor || '#fef3c7',
+                        color: presetForm.textColor || '#92400e',
+                        borderLeftColor: presetForm.textColor || '#f59e0b',
+                      }}
+                    >
+                      Exemplo de bloco de nota formatado com este padrão.
+                    </div>
+                  ) : (
+                    <span
+                      style={{
+                        color: presetForm.textColor || undefined,
+                        backgroundColor: presetForm.highlightColor || undefined,
+                        padding: presetForm.highlightColor ? '2px 6px' : undefined,
+                        borderRadius: '4px',
+                        fontWeight: presetForm.bold ? 'bold' : 'normal',
+                        fontStyle: presetForm.italic ? 'italic' : 'normal',
+                        textDecoration: presetForm.underline ? 'underline' : 'none',
+                        fontSize: presetForm.fontSize === 'xl' ? '17px' : presetForm.fontSize === 'lg' ? '15px' : presetForm.fontSize === 'sm' ? '11px' : '13px',
+                      }}
+                    >
+                      {presetForm.name || 'Texto de Demonstração'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowPresetModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm"
+                >
+                  Salvar Padrão
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

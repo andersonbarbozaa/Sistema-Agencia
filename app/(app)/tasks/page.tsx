@@ -34,6 +34,7 @@ import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
 import TaskTimeTracker from '@/components/TaskTimeTracker';
+import RichTextEditor from '@/components/RichTextEditor';
 
 const STATUS_COLUMNS: TaskStatus[] = [
   'Não iniciada',
@@ -422,12 +423,13 @@ export default function TasksPage() {
 
   // Filter tasks
   const filteredTasks = tasks.filter((t) => {
+    const s = (t.status || '').toLowerCase();
     if (filterParam === 'abertas') {
-      if (t.status === 'Concluída' || t.status === 'Aprovada') return false;
+      if (s.includes('conclu') || s.includes('aprovad')) return false;
     } else if (filterParam === 'aprovacao') {
-      if (t.status !== 'Em aprovação') return false;
+      if (!s.includes('aprova') || s.includes('altera')) return false;
     } else if (filterParam === 'atrasadas') {
-      if (t.status === 'Concluída' || t.status === 'Aprovada' || !t.delivery_date || t.delivery_date >= todayStr) return false;
+      if (s.includes('conclu') || s.includes('aprovad') || !t.delivery_date || t.delivery_date >= todayStr) return false;
     }
 
     if (statusFilter && t.status !== statusFilter) return false;
@@ -1051,10 +1053,11 @@ export default function TasksPage() {
               {/* Description */}
               {selectedTask.description && (
                 <div>
-                  <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Descrição / Briefing</h4>
-                  <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {selectedTask.description}
-                  </div>
+                  <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">Descrição / Briefing / Roteiro</h4>
+                  <div
+                    className="p-4 bg-gray-50 dark:bg-gray-800/80 rounded-xl text-xs text-gray-800 dark:text-gray-100 leading-relaxed border border-gray-100 dark:border-gray-700/60 break-words"
+                    dangerouslySetInnerHTML={{ __html: selectedTask.description }}
+                  />
                 </div>
               )}
 
@@ -1459,12 +1462,10 @@ export default function TasksPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
-                <textarea
-                  rows={3}
-                  placeholder="Instruções de edição, formato, requisitos..."
-                  value={newTask.description}
-                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                  className="w-full p-2.5 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                <RichTextEditor
+                  value={newTask.description || ''}
+                  onChange={(val) => setNewTask({ ...newTask, description: val })}
+                  placeholder="Instruções de edição, formato, requisitos, roteiro..."
                 />
               </div>
 
@@ -1658,11 +1659,10 @@ export default function TasksPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
-                <textarea
-                  rows={3}
-                  value={editTaskForm.description}
-                  onChange={(e) => setEditTaskForm({ ...editTaskForm, description: e.target.value })}
-                  className="w-full p-2.5 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                <RichTextEditor
+                  value={editTaskForm.description || ''}
+                  onChange={(val) => setEditTaskForm({ ...editTaskForm, description: val })}
+                  placeholder="Instruções de edição, formato, requisitos, roteiro..."
                 />
               </div>
 
