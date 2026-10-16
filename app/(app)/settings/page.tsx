@@ -238,6 +238,8 @@ function SettingsContent() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('#3b82f6');
   const [newCategoryType, setNewCategoryType] = useState('both');
+  const [newFinCategoryName, setNewFinCategoryName] = useState('');
+  const [newFinCategoryType, setNewFinCategoryType] = useState('Saída');
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editCatForm, setEditCatForm] = useState({
     target: 'tasks',
@@ -690,6 +692,35 @@ function SettingsContent() {
       } else {
         const err = await res.json();
         alert(err.error || 'Erro ao cadastrar categoria.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateFinCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFinCategoryName.trim()) return;
+
+    try {
+      setIsSubmitting(true);
+      const res = await fetch('/api/categories?target=finance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newFinCategoryName.trim(),
+          type: newFinCategoryType,
+        }),
+      });
+
+      if (res.ok) {
+        setNewFinCategoryName('');
+        await fetchData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao cadastrar categoria financeira.');
       }
     } catch (err) {
       console.error(err);
@@ -1632,6 +1663,72 @@ function SettingsContent() {
               </div>
             ))}
           </div>
+
+          {/* Seção 2: Categorias Financeiras no Tab de Categorias */}
+          <div className="pt-6 border-t border-gray-100 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-blue-600" />
+                Categorias Financeiras (Plano de Contas)
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Classificação para receitas e despesas da agência.
+              </p>
+            </div>
+
+            {/* Form Nova Categoria Financeira */}
+            <form onSubmit={handleCreateFinCategory} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <input
+                type="text"
+                required
+                placeholder="Nome da categoria financeira (ex: Softwares, Marketing, Serviços, Impostos)..."
+                value={newFinCategoryName}
+                onChange={(e) => setNewFinCategoryName(e.target.value)}
+                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Tipo:</span>
+                <select
+                  value={newFinCategoryType}
+                  onChange={(e) => setNewFinCategoryType(e.target.value)}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Saída">Saída (Despesa)</option>
+                  <option value="Entrada">Entrada (Receita)</option>
+                  <option value="both">Ambas (Entrada & Saída)</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl transition-colors shadow-sm whitespace-nowrap"
+              >
+                + Adicionar Categoria Financeira
+              </button>
+            </form>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {financialCategories.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => openEditCategory(c, 'finance')}
+                  className="bg-gray-50 border border-gray-200 hover:border-blue-400 p-3.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      c.type?.toLowerCase() === 'entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {c.type}
+                    </span>
+                    <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
+                      {c.name}
+                    </span>
+                  </div>
+                  <Edit2 size={13} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1796,6 +1893,37 @@ function SettingsContent() {
                 Classificação para receitas e despesas da agência.
               </p>
             </div>
+
+            {/* Form Nova Categoria Financeira */}
+            <form onSubmit={handleCreateFinCategory} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+              <input
+                type="text"
+                required
+                placeholder="Nome da categoria financeira (ex: Softwares, Marketing, Serviços, Impostos)..."
+                value={newFinCategoryName}
+                onChange={(e) => setNewFinCategoryName(e.target.value)}
+                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Tipo:</span>
+                <select
+                  value={newFinCategoryType}
+                  onChange={(e) => setNewFinCategoryType(e.target.value)}
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Saída">Saída (Despesa)</option>
+                  <option value="Entrada">Entrada (Receita)</option>
+                  <option value="both">Ambas (Entrada & Saída)</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl transition-colors shadow-sm whitespace-nowrap"
+              >
+                + Adicionar Categoria
+              </button>
+            </form>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {financialCategories.map((c) => (

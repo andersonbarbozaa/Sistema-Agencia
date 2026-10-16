@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { description, amount, type, due_date, status, client_id, bank_account_id, category_id, notes, partner_id } = body;
+    const { description, amount, type, due_date, status, client_id, bank_account_id, category_id, notes, partner_id, paid_at } = body;
 
     if (!description || amount == null || !type || !due_date) {
       return NextResponse.json(
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
     const id = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
     const txStatus = status ?? 'Pendente';
+    const finalPaidAt = txStatus === 'Pago' ? (paid_at || now) : null;
 
     const wsId = user.workspace_id || 'ws_default';
     const db = getDb();
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
           (id, description, amount, type, status, due_date, client_id, bank_account_id, category_id, partner_id, notes, created_by, workspace_id, paid_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(id, description, amount, type, txStatus, due_date, client_id || null, bank_account_id || null, category_id || null, partner_id || null, notes ?? null, user.id, wsId, txStatus === 'Pago' ? now : null, now, now)
+      .bind(id, description, amount, type, txStatus, due_date, client_id || null, bank_account_id || null, category_id || null, partner_id || null, notes ?? null, user.id, wsId, finalPaidAt, now, now)
       .run();
 
     await logAudit({

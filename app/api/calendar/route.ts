@@ -19,10 +19,11 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('date_to');
 
     const db = getDb();
+    const wsId = user.workspace_id || 'ws_default';
     
-    let where = 'WHERE 1=1';
-    let taskWhere = 'WHERE t.status != "Concluída"';
-    const params: any[] = [];
+    let where = 'WHERE (e.workspace_id = ? OR (e.workspace_id IS NULL AND ? = "ws_default"))';
+    let taskWhere = 'WHERE t.status != "Concluída" AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = "ws_default"))';
+    const params: any[] = [wsId, wsId];
 
     if (user.role === 'CLIENTE') {
       if (!user.client_id) return NextResponse.json({ data: [] });
@@ -102,13 +103,14 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     const id = 'evt_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
+    const wsId = user.workspace_id || 'ws_default';
 
     try {
       await db
         .prepare(
           `INSERT INTO calendar_events
-            (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -121,6 +123,7 @@ export async function POST(request: NextRequest) {
           project_id || null,
           location ?? null,
           user.id,
+          wsId,
           now,
           now
         )
@@ -130,12 +133,13 @@ export async function POST(request: NextRequest) {
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN location TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN workspace_id TEXT').run(); } catch(e){}
         
         await db
           .prepare(
             `INSERT INTO calendar_events
-              (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .bind(
             id,
@@ -148,6 +152,7 @@ export async function POST(request: NextRequest) {
             project_id || null,
             location ?? null,
             user.id,
+            wsId,
             now,
             now
           )

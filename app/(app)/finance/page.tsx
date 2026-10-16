@@ -84,6 +84,9 @@ export default function FinancePage() {
     notes: '',
   });
 
+  const [newTransCategoryInput, setNewTransCategoryInput] = useState('');
+  const [editTransCategoryInput, setEditTransCategoryInput] = useState('');
+  const [creatingCat, setCreatingCat] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
@@ -94,7 +97,7 @@ export default function FinancePage() {
         fetch('/api/finance'),
         fetch('/api/bank-accounts'),
         fetch('/api/finance/summary'),
-        fetch('/api/categories'),
+        fetch('/api/categories?type=finance'),
         fetch('/api/clients'),
         fetch('/api/users'),
         fetch(`/api/reports?year=${reportYear}`),
@@ -114,7 +117,7 @@ export default function FinancePage() {
       }
       if (catRes.ok) {
         const d = await catRes.json();
-        setCategories(d.data || d.categories || []);
+        setCategories(d.financial_categories || d.data || d.categories || []);
       }
       if (clientRes.ok) {
         const d = await clientRes.json();
@@ -122,7 +125,12 @@ export default function FinancePage() {
       }
       if (usersRes.ok) {
         const d = await usersRes.json();
-        setPartners(d.users || d.data || []);
+        const loadedUsers = d.users || d.data || [];
+        setPartners(loadedUsers);
+        setNewTrans((prev) => ({
+          ...prev,
+          partner_id: prev.partner_id || loadedUsers[0]?.id || '',
+        }));
       }
       if (repRes.ok) {
         const d = await repRes.json();
@@ -140,13 +148,84 @@ export default function FinancePage() {
   }, [reportYear]);
 
   useEffect(() => {
-    const handleOpenCreate = () => setShowTransModal(true);
+    const handleOpenCreate = () => {
+      setShowTransModal(true);
+      if (partners.length > 0) {
+        setNewTrans((prev) => ({
+          ...prev,
+          partner_id: prev.partner_id || partners[0]?.id || '',
+        }));
+      }
+    };
     window.addEventListener('open-create-transaction', handleOpenCreate);
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === 'true') {
       setShowTransModal(true);
+      if (partners.length > 0) {
+        setNewTrans((prev) => ({
+          ...prev,
+          partner_id: prev.partner_id || partners[0]?.id || '',
+        }));
+      }
     }
     return () => window.removeEventListener('open-create-transaction', handleOpenCreate);
-  }, []);
+  }, [partners]);
+
+  // Quick create category on the fly
+  const handleQuickCreateCategory = async (catName: string, isEdit = false): Promise<string | null> => {
+    const cleanName = catName.trim();
+    if (!cleanName) return null;
+
+    const existing = categories.find((c) => c.name.toLowerCase() === cleanName.toLowerCase());
+    if (existing) {
+      if (isEdit) {
+        setEditTransForm((prev) => ({ ...prev, category_id: existing.id }));
+        setEditTransCategoryInput(existing.name);
+      } else {
+        setNewTrans((prev) => ({ ...prev, category_id: existing.id }));
+        setNewTransCategoryInput(existing.name);
+      }
+      return existing.id;
+    }
+
+    try {
+      setCreatingCat(true);
+      const res = await fetch('/api/categories?target=finance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cleanName,
+          type: isEdit ? editTransForm.type : newTrans.type,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const newCat = {
+          id: data.id,
+          name: cleanName,
+          type: isEdit ? editTransForm.type : newTrans.type,
+          is_active: 1,
+        };
+        setCategories((prev) => [...prev, newCat as any]);
+        if (isEdit) {
+          setEditTransForm((prev) => ({ ...prev, category_id: data.id }));
+          setEditTransCategoryInput(cleanName);
+        } else {
+          setNewTrans((prev) => ({ ...prev, category_id: data.id }));
+          setNewTransCategoryInput(cleanName);
+        }
+        return data.id;
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao criar categoria.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCreatingCat(false);
+    }
+    return null;
+  };
 
   // Create Transaction
   const handleCreateTransaction = async (e: React.FormEvent) => {
@@ -155,13 +234,21 @@ export default function FinancePage() {
 
     try {
       setIsSubmitting(true);
+
+      let finalCatId = newTrans.category_id;
+      if (newTransCategoryInput.trim() && !finalCatId) {
+        finalCatId = (await handleQuickCreateCategory(newTransCategoryInput, false)) || '';
+      }
+
       const res = await fetch('/api/finance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newTrans,
+          category_id: finalCatId || null,
+          partner_id: newTrans.partner_id || (partners[0]?.id || null),
           amount: parseFloat(newTrans.amount),
-          paid_at: newTrans.status === 'Pago' ? (newTrans.paid_at || newTrans.due_date) : null,
+          paid_at: newTrans.status === 'Pago' ? (newTrans.paid_at || new Date().toISOString().split('T')[0]) : null,
         }),
       });
 
@@ -174,12 +261,13 @@ export default function FinancePage() {
           category_id: '',
           bank_account_id: '',
           client_id: '',
-          partner_id: '',
+          partner_id: partners[0]?.id || '',
           due_date: new Date().toISOString().split('T')[0],
           paid_at: '',
           status: 'Pendente',
           notes: '',
         });
+        setNewTransCategoryInput('');
         await fetchData();
       } else {
         const err = await res.json();
@@ -195,6 +283,8 @@ export default function FinancePage() {
   // Open Edit Transaction
   const openEditTransaction = (tx: FinancialTransaction) => {
     setEditingTrans(tx);
+    const existingCat = categories.find((c) => c.id === tx.category_id);
+    setEditTransCategoryInput(existingCat ? existingCat.name : '');
     setEditTransForm({
       description: tx.description || '',
       amount: String(tx.amount || ''),
@@ -202,9 +292,9 @@ export default function FinancePage() {
       category_id: tx.category_id || '',
       bank_account_id: tx.bank_account_id || '',
       client_id: tx.client_id || '',
-      partner_id: tx.partner_id || '',
+      partner_id: tx.partner_id || partners[0]?.id || '',
       due_date: tx.due_date || '',
-      paid_at: tx.paid_at || '',
+      paid_at: tx.paid_at ? tx.paid_at.split('T')[0] : (tx.status === 'Pago' ? (tx.due_date || new Date().toISOString().split('T')[0]) : ''),
       status: tx.status || 'Pendente',
       notes: tx.notes || '',
     });
@@ -217,13 +307,21 @@ export default function FinancePage() {
 
     try {
       setIsSubmitting(true);
+
+      let finalCatId = editTransForm.category_id;
+      if (editTransCategoryInput.trim() && !finalCatId) {
+        finalCatId = (await handleQuickCreateCategory(editTransCategoryInput, true)) || '';
+      }
+
       const res = await fetch(`/api/finance/${editingTrans.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...editTransForm,
+          category_id: finalCatId || null,
+          partner_id: editTransForm.partner_id || (partners[0]?.id || null),
           amount: parseFloat(editTransForm.amount),
-          paid_at: editTransForm.status === 'Pago' ? (editTransForm.paid_at || editTransForm.due_date) : null,
+          paid_at: editTransForm.status === 'Pago' ? (editTransForm.paid_at || new Date().toISOString().split('T')[0]) : null,
         }),
       });
 
@@ -436,7 +534,7 @@ export default function FinancePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Saldo Geral Consolidado</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Saldo</span>
                 <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                   <Wallet className="w-4 h-4" />
                 </div>
@@ -446,8 +544,8 @@ export default function FinancePage() {
                   {formatCurrency(totalBalance)}
                 </span>
               </div>
-              <div className="mt-1 text-[11px] text-gray-400">
-                Soma convertida na moeda padrão
+              <div className="mt-1 text-[11px] text-gray-500">
+                Disponível pós-pagar: {formatCurrency(totalBalance - (summary?.total_pending_pay || 0))}
               </div>
             </div>
 
@@ -485,28 +583,27 @@ export default function FinancePage() {
               </div>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Resultado Líquido</span>
-                <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                    monthNet >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                  }`}
-                >
-                  {monthNet >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gastos por Parceiro</span>
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Users className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span
-                  className={`text-2xl font-bold tracking-tight ${
-                    monthNet >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                  }`}
-                >
-                  {formatCurrency(monthNet)}
-                </span>
+              <div className="mt-2.5 space-y-1.5 max-h-16 overflow-y-auto pr-1">
+                {reportsData?.by_partner && reportsData.by_partner.length > 0 ? (
+                  reportsData.by_partner.map((p: any) => (
+                    <div key={p.id} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-700 font-medium truncate max-w-[120px]">{p.name}:</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(p.total_expenses || 0)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-gray-400">Nenhum gasto atribuído a parceiros.</div>
+                )}
               </div>
-              <div className="mt-1 text-[11px] text-gray-400">
-                {monthNet >= 0 ? 'Superávit operacional no mês' : 'Déficit no mês'}
+              <div className="mt-2 text-[10px] text-gray-400 border-t border-gray-100 pt-1">
+                Comparativo analítico do exercício
               </div>
             </div>
           </div>
@@ -768,8 +865,13 @@ export default function FinancePage() {
                         </div>
                         <div className="flex justify-between items-end">
                           <div className="text-[11px] text-gray-500">
-                            {tx.status === 'Pago' ? 'Pago em: ' : 'Vencimento: '}
-                            {formatDate(tx.due_date)}
+                            {tx.status === 'Pago' ? (
+                              <span className="text-emerald-700 font-medium">
+                                Pago em: {formatDate(tx.paid_at || tx.due_date)}
+                              </span>
+                            ) : (
+                              <span>Vencimento: {formatDate(tx.due_date)}</span>
+                            )}
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); openEditTransaction(tx); }}
@@ -830,7 +932,18 @@ export default function FinancePage() {
                         )}
                       </td>
                       <td className="hidden md:table-cell py-3 px-3 text-gray-600">
-                        {formatDate(tx.due_date)}
+                        {tx.status === 'Pago' ? (
+                          <div className="flex flex-col">
+                            <span className="text-emerald-700 font-medium">
+                              Pago: {formatDate(tx.paid_at || tx.due_date)}
+                            </span>
+                            {tx.paid_at && tx.due_date && (
+                              <span className="text-[10px] text-gray-400">Venc: {formatDate(tx.due_date)}</span>
+                            )}
+                          </div>
+                        ) : (
+                          formatDate(tx.due_date)
+                        )}
                       </td>
                       <td className="hidden md:table-cell py-3 px-3 text-right">
                         <span
@@ -1144,7 +1257,14 @@ export default function FinancePage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Status *</label>
                   <select
                     value={newTrans.status}
-                    onChange={(e) => setNewTrans({ ...newTrans, status: e.target.value })}
+                    onChange={(e) => {
+                      const nextStatus = e.target.value;
+                      setNewTrans({
+                        ...newTrans,
+                        status: nextStatus,
+                        paid_at: nextStatus === 'Pago' ? (newTrans.paid_at || new Date().toISOString().split('T')[0]) : '',
+                      });
+                    }}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="Pendente">Pendente</option>
@@ -1163,21 +1283,67 @@ export default function FinancePage() {
                 </div>
               </div>
 
+              {newTrans.status === 'Pago' && (
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-700 mb-1">Data do Pagamento *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newTrans.paid_at || new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setNewTrans({ ...newTrans, paid_at: e.target.value })}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-                  <select
-                    value={newTrans.category_id}
-                    onChange={(e) => setNewTrans({ ...newTrans, category_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Nenhuma Categoria</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">Categoria</label>
+                    <span className="text-[10px] text-gray-400">Enter para criar</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      list="finance-new-categories-datalist"
+                      placeholder="Selecione ou digite nova categoria..."
+                      value={newTransCategoryInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewTransCategoryInput(val);
+                        const match = categories.find((c) => c.name.toLowerCase() === val.trim().toLowerCase());
+                        if (match) {
+                          setNewTrans({ ...newTrans, category_id: match.id });
+                        } else {
+                          setNewTrans({ ...newTrans, category_id: '' });
+                        }
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          await handleQuickCreateCategory(newTransCategoryInput, false);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <datalist id="finance-new-categories-datalist">
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.type ? `(${c.type})` : ''}
+                        </option>
+                      ))}
+                    </datalist>
+                    {newTransCategoryInput.trim() &&
+                      !categories.some((c) => c.name.toLowerCase() === newTransCategoryInput.trim().toLowerCase()) && (
+                        <button
+                          type="button"
+                          onClick={() => handleQuickCreateCategory(newTransCategoryInput, false)}
+                          className="mt-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Criar categoria &quot;{newTransCategoryInput.trim()}&quot;
+                        </button>
+                      )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Conta Bancária</label>
@@ -1214,14 +1380,15 @@ export default function FinancePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Sócio / Parceiro Responsável
+                    Responsável *
                   </label>
                   <select
+                    required
                     value={newTrans.partner_id}
                     onChange={(e) => setNewTrans({ ...newTrans, partner_id: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Nenhum Sócio</option>
+                    {partners.length === 0 && <option value="">Nenhum usuário cadastrado</option>}
                     {partners.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -1324,7 +1491,14 @@ export default function FinancePage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Status *</label>
                   <select
                     value={editTransForm.status}
-                    onChange={(e) => setEditTransForm({ ...editTransForm, status: e.target.value })}
+                    onChange={(e) => {
+                      const nextStatus = e.target.value;
+                      setEditTransForm({
+                        ...editTransForm,
+                        status: nextStatus,
+                        paid_at: nextStatus === 'Pago' ? (editTransForm.paid_at || new Date().toISOString().split('T')[0]) : '',
+                      });
+                    }}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="Pendente">Pendente</option>
@@ -1343,21 +1517,67 @@ export default function FinancePage() {
                 </div>
               </div>
 
+              {editTransForm.status === 'Pago' && (
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-700 mb-1">Data do Pagamento *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editTransForm.paid_at ? editTransForm.paid_at.split('T')[0] : new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setEditTransForm({ ...editTransForm, paid_at: e.target.value })}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-                  <select
-                    value={editTransForm.category_id}
-                    onChange={(e) => setEditTransForm({ ...editTransForm, category_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Nenhuma Categoria</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">Categoria</label>
+                    <span className="text-[10px] text-gray-400">Enter para criar</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      list="finance-edit-categories-datalist"
+                      placeholder="Selecione ou digite nova categoria..."
+                      value={editTransCategoryInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditTransCategoryInput(val);
+                        const match = categories.find((c) => c.name.toLowerCase() === val.trim().toLowerCase());
+                        if (match) {
+                          setEditTransForm({ ...editTransForm, category_id: match.id });
+                        } else {
+                          setEditTransForm({ ...editTransForm, category_id: '' });
+                        }
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          await handleQuickCreateCategory(editTransCategoryInput, true);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <datalist id="finance-edit-categories-datalist">
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.type ? `(${c.type})` : ''}
+                        </option>
+                      ))}
+                    </datalist>
+                    {editTransCategoryInput.trim() &&
+                      !categories.some((c) => c.name.toLowerCase() === editTransCategoryInput.trim().toLowerCase()) && (
+                        <button
+                          type="button"
+                          onClick={() => handleQuickCreateCategory(editTransCategoryInput, true)}
+                          className="mt-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Criar categoria &quot;{editTransCategoryInput.trim()}&quot;
+                        </button>
+                      )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Conta Bancária</label>
@@ -1394,14 +1614,15 @@ export default function FinancePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Sócio / Parceiro Responsável
+                    Responsável *
                   </label>
                   <select
+                    required
                     value={editTransForm.partner_id}
                     onChange={(e) => setEditTransForm({ ...editTransForm, partner_id: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Nenhum Sócio</option>
+                    {partners.length === 0 && <option value="">Nenhum usuário cadastrado</option>}
                     {partners.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}

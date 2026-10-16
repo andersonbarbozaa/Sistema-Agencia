@@ -25,6 +25,10 @@ export async function GET(request: Request) {
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
+    const wsId = user.workspace_id || 'ws_default';
+    conditions.push('(p.workspace_id = ? OR (p.workspace_id IS NULL AND ? = "ws_default"))');
+    params.push(wsId, wsId);
+
     // CLIENTE can only see their own projects
     if (user.role === 'CLIENTE') {
       if (!user.client_id) {
@@ -162,13 +166,14 @@ export async function POST(request: Request) {
       Date.now().toString(36);
 
     const now = new Date().toISOString();
+    const wsId = user.workspace_id || 'ws_default';
 
     await db
       .prepare(
         `INSERT INTO projects (
            id, name, description, status, client_id,
-           start_date, deadline, value, notes, created_by, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           start_date, deadline, value, notes, created_by, workspace_id, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -181,6 +186,7 @@ export async function POST(request: Request) {
         value,
         notes,
         user.id,
+        wsId,
         now,
         now
       )
