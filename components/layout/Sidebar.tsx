@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -10,15 +10,17 @@ import {
   TrendingUp,
   DollarSign,
   Calendar,
-  Bell,
   Settings,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   User as UserIcon,
+  Building2,
   FolderTree,
   Coins,
   Bot,
+  Sun,
+  Type,
   X,
   LogOut,
 } from 'lucide-react';
@@ -32,6 +34,13 @@ interface NavItem {
   roles?: string[];
 }
 
+interface SubMenuItem {
+  tab: string;
+  href: string;
+  label: string;
+  icon: React.ElementType;
+}
+
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/tasks', label: 'Tarefas', icon: CheckSquare },
@@ -42,15 +51,36 @@ const navItems: NavItem[] = [
   { href: '/settings', label: 'Configurações', icon: Settings, roles: ['ADMINISTRADOR'] },
 ];
 
+const settingsSubItems: SubMenuItem[] = [
+  { tab: 'profile', href: '/settings?tab=profile', label: 'Meu Perfil', icon: UserIcon },
+  { tab: 'company', href: '/settings?tab=company', label: 'Perfil da Empresa', icon: Building2 },
+  { tab: 'users', href: '/settings?tab=users', label: 'Usuários', icon: Users },
+  { tab: 'categories', href: '/settings?tab=categories', label: 'Categorias do Sistema', icon: FolderTree },
+  { tab: 'finance', href: '/settings?tab=finance', label: 'Categoria Financeiro', icon: Coins },
+  { tab: 'ai', href: '/settings?tab=ai', label: 'IA', icon: Bot },
+  { tab: 'appearance', href: '/settings?tab=appearance', label: 'Tema', icon: Sun },
+  { tab: 'formatting', href: '/settings?tab=formatting', label: 'Padrões de Roteiro', icon: Type },
+];
+
 interface SidebarProps {
   user: User;
 }
 
-export default function Sidebar({ user }: SidebarProps) {
+function SidebarInner({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'overview';
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(pathname.startsWith('/settings'));
+
+  useEffect(() => {
+    if (pathname.startsWith('/settings')) {
+      setSettingsOpen(true);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const handleToggle = () => setMobileOpen((prev) => !prev);
@@ -65,7 +95,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
   useEffect(() => {
     setMobileOpen(false);
-  }, [pathname]);
+  }, [pathname, currentTab]);
 
   const visibleItems = navItems.filter(
     (item) => !item.roles || item.roles.includes(user.role)
@@ -82,6 +112,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
   const companyName = user.workspace_name || 'PixelCraft Studio';
   const companyDescription = user.workspace_description;
+  const companyLogo = user.workspace_logo;
 
   const formatUserName = (fullName: string) => {
     if (!fullName) return { first: '', rest: '' };
@@ -115,10 +146,14 @@ export default function Sidebar({ user }: SidebarProps) {
         {/* Mobile Header: Área 1 - Dados da Empresa */}
         <div className="flex items-center justify-between h-16 border-b border-gray-800/80 px-4">
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30">
-              <span className="text-white font-extrabold text-base tracking-wider">
-                {companyName.charAt(0).toUpperCase()}
-              </span>
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden">
+              {companyLogo ? (
+                <img src={companyLogo} alt={companyName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-extrabold text-base tracking-wider">
+                  {companyName.charAt(0).toUpperCase()}
+                </span>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-white font-bold text-sm tracking-tight truncate">{companyName}</p>
@@ -140,7 +175,79 @@ export default function Sidebar({ user }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5">
           {visibleItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isSettings = item.href === '/settings';
+            const isActive = isSettings ? pathname.startsWith('/settings') && currentTab === 'overview' : pathname === item.href;
+            const isSectionActive = isSettings && pathname.startsWith('/settings');
+
+            if (isSettings) {
+              return (
+                <div key={item.href} className="space-y-1">
+                  <div className="flex items-center">
+                    <Link
+                      href="/settings?tab=overview"
+                      onClick={() => {
+                        setSettingsOpen(true);
+                        setMobileOpen(false);
+                      }}
+                      className={cn(
+                        'flex-1 flex items-center gap-3 px-3.5 py-3 rounded-l-xl text-xs font-semibold transition-all duration-150',
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : isSectionActive
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                      )}
+                    >
+                      <Icon size={18} className="flex-shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsOpen((prev) => !prev)}
+                      className={cn(
+                        'px-3 py-3 rounded-r-xl text-xs font-semibold transition-all duration-150',
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : isSectionActive
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                      )}
+                      title="Expandir submenus de Configurações"
+                    >
+                      <ChevronDown
+                        size={15}
+                        className={cn('transition-transform duration-200', settingsOpen ? 'rotate-180' : '')}
+                      />
+                    </button>
+                  </div>
+
+                  {settingsOpen && (
+                    <div className="ml-5 pl-2.5 border-l border-gray-800 space-y-1 py-1">
+                      {settingsSubItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = pathname.startsWith('/settings') && currentTab === sub.tab;
+                        return (
+                          <Link
+                            key={sub.tab}
+                            href={sub.href}
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-all duration-150',
+                              isSubActive
+                                ? 'bg-blue-600/20 text-blue-400 font-semibold'
+                                : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                            )}
+                          >
+                            <SubIcon size={14} className="flex-shrink-0" />
+                            <span className="truncate">{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
               <Link
@@ -169,7 +276,7 @@ export default function Sidebar({ user }: SidebarProps) {
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-900 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
                 ) : (
@@ -212,10 +319,14 @@ export default function Sidebar({ user }: SidebarProps) {
       >
         {/* Brand / Logo: Área 1 - Dados da Empresa */}
         <div className={cn('flex items-center h-16 border-b border-gray-800/80 px-4', collapsed ? 'justify-center' : 'gap-3')}>
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30">
-            <span className="text-white font-extrabold text-base tracking-wider">
-              {companyName.charAt(0).toUpperCase()}
-            </span>
+          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden">
+            {companyLogo ? (
+              <img src={companyLogo} alt={companyName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-white font-extrabold text-base tracking-wider">
+                {companyName.charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
           {!collapsed && (
             <div className="min-w-0">
@@ -231,7 +342,79 @@ export default function Sidebar({ user }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-1 scrollbar-thin scrollbar-thumb-gray-800">
           {visibleItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isSettings = item.href === '/settings';
+            const isActive = isSettings ? pathname.startsWith('/settings') && currentTab === 'overview' : pathname === item.href;
+            const isSectionActive = isSettings && pathname.startsWith('/settings');
+
+            if (isSettings) {
+              return (
+                <div key={item.href} className="space-y-1">
+                  <div className="flex items-center">
+                    <Link
+                      href="/settings?tab=overview"
+                      onClick={() => setSettingsOpen(true)}
+                      title={collapsed ? item.label : undefined}
+                      className={cn(
+                        'flex-1 flex items-center gap-3 px-3 py-2 text-xs font-semibold transition-all duration-150 group',
+                        collapsed ? 'justify-center px-2 rounded-xl' : 'rounded-l-xl',
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : isSectionActive
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                      )}
+                    >
+                      <Icon size={18} className="flex-shrink-0" />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </Link>
+                    {!collapsed && (
+                      <button
+                        type="button"
+                        onClick={() => setSettingsOpen((prev) => !prev)}
+                        className={cn(
+                          'px-2.5 py-2 rounded-r-xl text-xs font-semibold transition-all duration-150',
+                          isActive
+                            ? 'bg-blue-600 text-white'
+                            : isSectionActive
+                            ? 'bg-gray-900 text-white'
+                            : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                        )}
+                        title="Expandir submenus de Configurações"
+                      >
+                        <ChevronDown
+                          size={15}
+                          className={cn('transition-transform duration-200', settingsOpen ? 'rotate-180' : '')}
+                        />
+                      </button>
+                    )}
+                  </div>
+
+                  {!collapsed && settingsOpen && (
+                    <div className="ml-4 pl-2.5 border-l border-gray-800 space-y-0.5 py-1">
+                      {settingsSubItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = pathname.startsWith('/settings') && currentTab === sub.tab;
+                        return (
+                          <Link
+                            key={sub.tab}
+                            href={sub.href}
+                            className={cn(
+                              'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150',
+                              isSubActive
+                                ? 'bg-blue-600/20 text-blue-400 font-semibold'
+                                : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                            )}
+                          >
+                            <SubIcon size={14} className="flex-shrink-0" />
+                            <span className="truncate">{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
               <Link
@@ -259,7 +442,7 @@ export default function Sidebar({ user }: SidebarProps) {
             <div className="flex flex-col items-center gap-2">
               <div
                 title={`${user.name} (${userRoleDisplay})`}
-                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold"
+                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold overflow-hidden"
               >
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
@@ -282,7 +465,7 @@ export default function Sidebar({ user }: SidebarProps) {
                 className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-900 transition-colors group"
                 title="Configurar meu perfil"
               >
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
                   {user.avatar_url ? (
                     <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
                   ) : (
@@ -327,3 +510,12 @@ export default function Sidebar({ user }: SidebarProps) {
     </>
   );
 }
+
+export default function Sidebar(props: SidebarProps) {
+  return (
+    <Suspense fallback={null}>
+      <SidebarInner {...props} />
+    </Suspense>
+  );
+}
+

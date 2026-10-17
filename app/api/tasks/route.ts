@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     const params: any[] = [];
 
     const wsId = user.workspace_id || 'ws_default';
-    conditions.push('(t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = "ws_default"))');
+    conditions.push("(t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))");
     params.push(wsId, wsId);
 
     // Role-based visibility

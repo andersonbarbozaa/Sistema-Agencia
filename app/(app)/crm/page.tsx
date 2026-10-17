@@ -372,13 +372,13 @@ export default function CRMPage() {
             return (
               <div
                 key={status}
-                className="w-[280px] min-w-[280px] flex-shrink-0 bg-gray-100/80 rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-xs"
+                className="w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-sm"
               >
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="font-bold text-xs text-gray-700 uppercase tracking-wider">
                     {status}
                   </h3>
-                  <span className="text-xs bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-full">
                     {statusLeads.length}
                   </span>
                 </div>
@@ -391,8 +391,8 @@ export default function CRMPage() {
                         onClick={() => openLeadDetails(lead)}
                         className={cn(
                           'p-3.5 rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer group bg-white',
-                          lead.status === 'Finalizado positivo' ? 'border-emerald-300 bg-emerald-50/20' :
-                          lead.status === 'Finalizado negativo' ? 'border-gray-300 bg-gray-50/50 opacity-75' :
+                          lead.status === 'Finalizado positivo' ? 'border-emerald-300' :
+                          lead.status === 'Finalizado negativo' ? 'border-gray-300 opacity-75' :
                           'border-gray-200'
                         )}
                       >

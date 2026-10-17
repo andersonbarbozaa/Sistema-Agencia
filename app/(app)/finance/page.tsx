@@ -246,6 +246,7 @@ export default function FinancePage() {
         body: JSON.stringify({
           ...newTrans,
           category_id: finalCatId || null,
+          category_name: newTransCategoryInput.trim() || null,
           partner_id: newTrans.partner_id || (partners[0]?.id || null),
           amount: parseFloat(newTrans.amount),
           paid_at: newTrans.status === 'Pago' ? (newTrans.paid_at || new Date().toISOString().split('T')[0]) : null,
@@ -1383,12 +1384,12 @@ export default function FinancePage() {
                     Responsável *
                   </label>
                   <select
-                    required
+                    required={partners.length > 0}
                     value={newTrans.partner_id}
                     onChange={(e) => setNewTrans({ ...newTrans, partner_id: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {partners.length === 0 && <option value="">Nenhum usuário cadastrado</option>}
+                    {partners.length === 0 && <option value="">Usuário Atual</option>}
                     {partners.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}

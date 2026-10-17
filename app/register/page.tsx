@@ -9,22 +9,27 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteParam = searchParams.get('invite') || '';
+  const emailParam = searchParams.get('email') || '';
+  const roleParam = searchParams.get('role') || '';
+  const positionIdParam = searchParams.get('position_id') || '';
+  const jobTitleParam = searchParams.get('job_title') || '';
 
   const [inviteWorkspace, setInviteWorkspace] = useState<{ id: string; name: string; description: string | null } | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
 
-  // Form Fields
+  // Form Fields (Nome *, E-mail *, Telefone opcional, Senha *)
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [companyName, setCompanyName] = useState('PixelCraft Studio');
-  const [companyDescription, setCompanyDescription] = useState('Agência Audiovisual & Criativa');
-  const [jobTitle, setJobTitle] = useState('Administrador');
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (emailParam) setEmail(emailParam);
+  }, [emailParam]);
 
   // If invite link is provided, load workspace info
   useEffect(() => {
@@ -36,7 +41,6 @@ function RegisterForm() {
         if (res.ok) {
           const data = await res.json();
           setInviteWorkspace(data.workspace);
-          setJobTitle('Colaborador');
         } else {
           setError('Link de convite inválido ou expirado.');
         }
@@ -60,14 +64,13 @@ function RegisterForm() {
         email,
         password,
         phone,
-        job_title: jobTitle,
+        job_title: jobTitleParam || (inviteParam ? 'Colaborador' : 'Administrador'),
       };
 
       if (inviteParam) {
         payload.invite = inviteParam;
-      } else {
-        payload.company_name = companyName;
-        payload.company_description = companyDescription;
+        if (roleParam) payload.role = roleParam;
+        if (positionIdParam) payload.position_id = positionIdParam;
       }
 
       const res = await fetch('/api/auth/register', {
@@ -93,181 +96,110 @@ function RegisterForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 py-8">
-      <div className="w-full max-w-lg">
+    <div className="h-screen w-full overflow-y-auto bg-gray-950 flex flex-col items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md my-auto py-4">
         {/* Header Branding */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-3 shadow-lg shadow-blue-600/30">
-            <span className="text-2xl font-black text-white">P</span>
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-2xl mb-2 shadow-lg shadow-blue-600/30">
+            <span className="text-xl font-black text-white">P</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            {inviteWorkspace ? inviteWorkspace.name : 'PixelCraft Studio'}
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+            {inviteWorkspace ? inviteWorkspace.name : 'Criar Conta'}
           </h1>
-          <p className="text-gray-400 text-xs mt-1">
-            {inviteWorkspace ? (inviteWorkspace.description || 'Convite para Área de Trabalho') : 'Sistema de Gestão de Agência Criativa'}
+          <p className="text-gray-400 text-xs mt-0.5">
+            {inviteWorkspace
+              ? (inviteWorkspace.description || 'Convite para Área de Trabalho')
+              : 'Cadastre-se como Administrador do seu painel'}
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-gray-900 rounded-2xl p-6 sm:p-8 border border-gray-800 shadow-2xl">
+        <div className="bg-gray-900 rounded-2xl p-5 sm:p-6 border border-gray-800 shadow-2xl">
           {/* Invite Banner */}
           {inviteWorkspace && (
-            <div className="mb-6 p-4 bg-blue-950/60 border border-blue-800/80 rounded-xl flex items-start gap-3">
-              <Building2 className="text-blue-400 flex-shrink-0 mt-0.5" size={20} />
+            <div className="mb-4 p-3 bg-blue-950/60 border border-blue-800/80 rounded-xl flex items-start gap-2.5">
+              <Building2 className="text-blue-400 flex-shrink-0 mt-0.5" size={18} />
               <div>
                 <p className="text-xs font-bold text-blue-200">
                   Você foi convidado para a equipe de <span className="text-white underline">{inviteWorkspace.name}</span>
                 </p>
-                <p className="text-[11px] text-blue-300/80 mt-0.5">
-                  Preencha seus dados abaixo para se juntar automaticamente a esta Área de Trabalho.
-                </p>
+                {jobTitleParam && (
+                  <p className="text-[11px] text-blue-300 font-semibold mt-0.5">
+                    Cargo atribuído: {jobTitleParam}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          {!inviteWorkspace && (
-            <div className="mb-6 pb-4 border-b border-gray-800">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Sparkles size={16} className="text-blue-400" />
-                Criar Nova Conta Principal & Área de Trabalho
-              </h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Você será o Administrador e Dono desta nova agência isolada.
-              </p>
+          <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+            <div>
+              <label className="block text-gray-300 font-semibold mb-1">
+                Nome *
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Seu nome completo"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-            {/* Owner Company Info */}
-            {!inviteWorkspace && (
-              <div className="space-y-3 p-4 bg-gray-800/40 rounded-xl border border-gray-800">
-                <p className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 size={13} />
-                  Dados da Empresa (Área 1)
-                </p>
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">
-                    Nome da Empresa *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Ex: PixelCraft Studio, Agência Alfa..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-[10px] text-gray-500 mt-0.5 block">Exibido a negrito no topo da barra lateral.</span>
-                </div>
+            <div>
+              <label className="block text-gray-300 font-semibold mb-1">
+                E-mail *
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">
-                    Ramo de Atuação (Descrição Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={companyDescription}
-                    onChange={(e) => setCompanyDescription(e.target.value)}
-                    placeholder="Ex: Agência Audiovisual & Criativa"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-[10px] text-gray-500 mt-0.5 block">Exibido logo abaixo do nome da empresa.</span>
-                </div>
-              </div>
-            )}
+            <div>
+              <label className="block text-gray-300 font-semibold mb-1">
+                Telefone (Opcional)
+              </label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(00) 00000-0000"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-            {/* User Personal Info */}
-            <div className="space-y-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                Dados do Seu Perfil (Área 2)
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">
-                    Nome Completo *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Anderson Silva"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">
-                    Seu Cargo *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                    placeholder="Ex: Administrador, Diretor Criativo..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-300 font-semibold mb-1">
-                  E-mail *
-                </label>
+            <div>
+              <label className="block text-gray-300 font-semibold mb-1">
+                Senha *
+              </label>
+              <div className="relative">
                 <input
-                  type="email"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mínimo de 6 caracteres"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 pr-9 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">
-                    Telefone / WhatsApp (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(18) 99999-9999"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">
-                    Senha (mínimo 6 caracteres) *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 pr-9 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                    >
-                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
               </div>
             </div>
 
             {error && (
-              <div className="bg-red-900/40 border border-red-700/60 rounded-xl p-3 text-red-300 text-xs">
+              <div className="bg-red-900/40 border border-red-700/60 rounded-xl p-2.5 text-red-300 text-xs">
                 {error}
               </div>
             )}
@@ -275,18 +207,18 @@ function RegisterForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+              className="w-full mt-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <UserPlus size={16} />
               )}
-              {loading ? 'Criando Conta...' : (inviteWorkspace ? 'Entrar na Equipe' : 'Criar Agência & Acessar')}
+              {loading ? 'Criando Conta...' : (inviteWorkspace ? 'Entrar na Equipe' : 'Criar Conta')}
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-gray-800 text-center">
+          <div className="mt-4 pt-4 border-t border-gray-800 text-center">
             <p className="text-gray-400 text-xs">
               Já possui uma conta?{' '}
               <Link href="/login" className="text-blue-400 hover:text-blue-300 font-semibold inline-flex items-center gap-1">

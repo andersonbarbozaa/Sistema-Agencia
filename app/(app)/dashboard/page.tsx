@@ -457,7 +457,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Meta de Receita (Barra de porcentagem, quanto falta, e valor que já entrou em negrito) */}
+          {/* Meta de Receita (Mesmo padrão visual de Saldo em Contas) */}
           {(() => {
             const goal = financial.monthly_revenue_goal || 50000;
             const entries = financial.current_month?.entries || 0;
@@ -465,38 +465,30 @@ export default function DashboardPage() {
             const remaining = Math.max(0, goal - entries);
 
             return (
-              <div className="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-purple-50/40 rounded-2xl border border-blue-100 mb-5">
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
                   <div>
-                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Meta de Receita Mensal</span>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      Já arrecadado:{' '}
-                      <strong className="text-sm font-extrabold text-gray-900">
-                        {formatCurrency(entries)}
-                      </strong>
+                    <span className="text-xs text-gray-500 font-medium">Meta de Receita Mensal</span>
+                    <p className="text-xl font-bold text-gray-900 mt-1">
+                      {formatCurrency(entries)}{' '}
+                      <span className="text-xs font-normal text-gray-500">de {formatCurrency(goal)}</span>
                     </p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <span className="text-xs font-semibold text-gray-600">
+                    <span className="text-xs text-gray-500 font-medium">
                       Falta para a meta:{' '}
-                      <span className="font-bold text-blue-700">{formatCurrency(remaining)}</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(remaining)}</span>
                     </span>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Meta Total: {formatCurrency(goal)}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Progresso: {pct}% atingido</p>
                   </div>
                 </div>
 
                 {/* Barra de porcentagem */}
-                <div className="w-full bg-gray-200/80 h-3.5 rounded-full overflow-hidden p-0.5">
+                <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
                   <div
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-1 text-[9px] font-bold text-white leading-none shadow-sm"
-                    style={{ width: `${Math.max(5, pct)}%` }}
-                  >
-                    {pct > 12 && `${pct}%`}
-                  </div>
-                </div>
-                <div className="flex justify-between items-center text-[10px] text-gray-500 mt-2 font-medium">
-                  <span>Progresso: {pct}% atingido</span>
-                  <span>{remaining === 0 ? '🎉 Parabéns, meta batida!' : `Restam ${formatCurrency(remaining)}`}</span>
+                    className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(4, pct)}%` }}
+                  />
                 </div>
               </div>
             );
@@ -516,39 +508,42 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-emerald-800 font-medium">Entradas do Mês</span>
+                <span className="text-xs text-gray-500 font-medium">Entradas do Mês</span>
                 <TrendingUp size={16} className="text-emerald-600" />
               </div>
-              <p className="text-xl font-bold text-emerald-700 mt-1">{formatCurrency(financial.current_month?.entries)}</p>
-              <p className="text-[11px] text-emerald-600/80 mt-1">
-                A receber: <span className="font-semibold">{formatCurrency(financial.to_receive)}</span>
-              </p>
+              <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(financial.current_month?.entries)}</p>
+              <div className="mt-2 text-[11px] text-gray-500 flex justify-between">
+                <span>A receber:</span>
+                <span className="font-medium text-gray-700">{formatCurrency(financial.to_receive)}</span>
+              </div>
             </div>
 
-            <div className="p-4 bg-red-50/50 rounded-xl border border-red-100">
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-red-800 font-medium">Saídas do Mês</span>
+                <span className="text-xs text-gray-500 font-medium">Saídas do Mês</span>
                 <TrendingDown size={16} className="text-red-600" />
               </div>
-              <p className="text-xl font-bold text-red-700 mt-1">{formatCurrency(financial.current_month?.exits)}</p>
-              <p className="text-[11px] text-red-600/80 mt-1">
-                A pagar: <span className="font-semibold">{formatCurrency(financial.to_pay)}</span>
-              </p>
+              <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(financial.current_month?.exits)}</p>
+              <div className="mt-2 text-[11px] text-gray-500 flex justify-between">
+                <span>A pagar:</span>
+                <span className="font-medium text-gray-700">{formatCurrency(financial.to_pay)}</span>
+              </div>
             </div>
 
-            <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-blue-800 font-medium">Resultado Líquido</span>
+                <span className="text-xs text-gray-500 font-medium">Resultado Líquido</span>
                 <DollarSign size={16} className="text-blue-600" />
               </div>
-              <p className={`text-xl font-bold mt-1 ${financial.current_month?.result >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+              <p className="text-xl font-bold text-gray-900 mt-1">
                 {formatCurrency(financial.current_month?.result)}
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Mês anterior: {formatCurrency(financial.previous_month?.result)}
-              </p>
+              <div className="mt-2 text-[11px] text-gray-500 flex justify-between">
+                <span>Mês anterior:</span>
+                <span className="font-medium text-gray-700">{formatCurrency(financial.previous_month?.result)}</span>
+              </div>
             </div>
           </div>
 

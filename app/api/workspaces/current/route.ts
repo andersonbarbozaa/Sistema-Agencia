@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, logo_url } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'O Nome da Empresa é obrigatório.' }, { status: 400 });
@@ -47,6 +47,13 @@ export async function PATCH(request: NextRequest) {
 
     const db = getDb();
     const workspaceId = user.workspace_id || 'ws_default';
+
+    // Ensure logo_url column exists on workspaces
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN logo_url TEXT').run();
+    } catch {
+      // Column already exists
+    }
 
     const existing = await db
       .prepare('SELECT * FROM workspaces WHERE id = ?')
@@ -59,14 +66,15 @@ export async function PATCH(request: NextRequest) {
 
     const newName = name.trim();
     const newDesc = description !== undefined ? (description ? description.trim() : null) : existing.description;
+    const newLogo = logo_url !== undefined ? (logo_url || null) : (existing.logo_url ?? null);
 
     await db
       .prepare(
         `UPDATE workspaces
-         SET name = ?, description = ?, updated_at = datetime('now')
+         SET name = ?, description = ?, logo_url = ?, updated_at = datetime('now')
          WHERE id = ?`
       )
-      .bind(newName, newDesc, workspaceId)
+      .bind(newName, newDesc, newLogo, workspaceId)
       .run();
 
     const updated = await db

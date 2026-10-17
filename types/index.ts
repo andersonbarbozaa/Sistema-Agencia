@@ -8,6 +8,7 @@ export interface Workspace {
   id: string;
   name: string;
   description?: string | null;
+  logo_url?: string | null;
   owner_id?: string | null;
   invite_code: string;
   created_at: string;
@@ -31,6 +32,7 @@ export interface User {
   workspace_id?: string;
   workspace_name?: string;
   workspace_description?: string | null;
+  workspace_logo?: string | null;
   workspace_invite_code?: string;
   job_title?: string | null;
   created_at: string;

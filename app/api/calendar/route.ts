@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     const db = getDb();
     const wsId = user.workspace_id || 'ws_default';
     
-    let where = 'WHERE (e.workspace_id = ? OR (e.workspace_id IS NULL AND ? = "ws_default"))';
-    let taskWhere = 'WHERE t.status != "Concluída" AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = "ws_default"))';
+    let where = "WHERE (e.workspace_id = ? OR (e.workspace_id IS NULL AND ? = 'ws_default'))";
+    let taskWhere = "WHERE t.status != 'Concluída' AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))";
     const params: any[] = [wsId, wsId];
 
     if (user.role === 'CLIENTE') {

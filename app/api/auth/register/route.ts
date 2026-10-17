@@ -70,14 +70,15 @@ export async function POST(request: NextRequest) {
 
       targetWorkspaceId = workspace.id;
       targetWorkspaceName = workspace.name;
-      userRole = role === 'CLIENTE' ? 'CLIENTE' : 'COLABORADOR';
-      userJobTitle = userJobTitle || (userRole === 'CLIENTE' ? 'Cliente' : 'Colaborador');
+      userRole = role === 'ADMINISTRADOR' ? 'ADMINISTRADOR' : role === 'CLIENTE' ? 'CLIENTE' : 'COLABORADOR';
+      userJobTitle = userJobTitle || (userRole === 'ADMINISTRADOR' ? 'Administrador' : userRole === 'CLIENTE' ? 'Cliente' : 'Colaborador');
+      const positionId = body.position_id || null;
 
       const inviteUserResult = await db
         .prepare(`
           INSERT INTO users (
-            id, name, email, password_hash, phone, role, job_title, workspace_id, status, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
+            id, name, email, password_hash, phone, role, position_id, job_title, workspace_id, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
         `)
         .bind(
           userId,
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
           hashedPassword,
           phone ? phone.trim() : null,
           userRole,
+          positionId,
           userJobTitle,
           targetWorkspaceId
         )

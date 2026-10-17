@@ -54,11 +54,16 @@ export async function getSessionUser(): Promise<User | null> {
     if (!payload?.userId) return null;
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN logo_url TEXT').run();
+    } catch {
+      // Ignore if column already exists
+    }
     const user = await db
       .prepare(`
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
-               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
+               w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
                p.name as position_name, c.name as client_name
         FROM users u
         LEFT JOIN workspaces w ON u.workspace_id = w.id
@@ -98,11 +103,16 @@ export async function getApiUser(request: Request): Promise<User | null> {
     if (!payload?.userId) return null;
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN logo_url TEXT').run();
+    } catch {
+      // Ignore if column already exists
+    }
     const user = await db
       .prepare(`
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
-               w.name as workspace_name, w.description as workspace_description, w.invite_code as workspace_invite_code,
+               w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
                p.name as position_name, c.name as client_name
         FROM users u
         LEFT JOIN workspaces w ON u.workspace_id = w.id

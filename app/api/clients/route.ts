@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const params: (string | number)[] = [];
 
     const wsId = user.workspace_id || 'ws_default';
-    conditions.push('(c.workspace_id = ? OR (c.workspace_id IS NULL AND ? = "ws_default"))');
+    conditions.push("(c.workspace_id = ? OR (c.workspace_id IS NULL AND ? = 'ws_default'))");
     params.push(wsId, wsId);
 
     if (search) {

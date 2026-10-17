@@ -22,19 +22,29 @@ export async function GET(request: Request) {
     let financialCategories: any[] = [];
 
     if (type === 'all' || type === 'tasks') {
-      const res = await db
-        .prepare('SELECT * FROM task_categories WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = "ws_default")) ORDER BY name ASC')
-        .bind(wsId, wsId)
-        .all();
-      taskCategories = res.results || [];
+      try {
+        const res = await db
+          .prepare("SELECT * FROM task_categories WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default')) ORDER BY name ASC")
+          .bind(wsId, wsId)
+          .all();
+        taskCategories = res.results || [];
+      } catch {
+        const res = await db.prepare('SELECT * FROM task_categories ORDER BY name ASC').all();
+        taskCategories = res.results || [];
+      }
     }
 
     if ((type === 'all' || type === 'finance') && user.role !== 'CLIENTE') {
-      const res = await db
-        .prepare('SELECT * FROM financial_categories WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = "ws_default")) ORDER BY name ASC')
-        .bind(wsId, wsId)
-        .all();
-      financialCategories = res.results || [];
+      try {
+        const res = await db
+          .prepare("SELECT * FROM financial_categories WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default')) ORDER BY name ASC")
+          .bind(wsId, wsId)
+          .all();
+        financialCategories = res.results || [];
+      } catch {
+        const res = await db.prepare('SELECT * FROM financial_categories ORDER BY name ASC').all();
+        financialCategories = res.results || [];
+      }
     }
 
     return NextResponse.json({
@@ -67,35 +77,73 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 });
     }
 
+    const cleanName = name.trim();
+
     if (target === 'tasks') {
+      const existing = await db
+        .prepare('SELECT id FROM task_categories WHERE LOWER(name) = LOWER(?)')
+        .bind(cleanName)
+        .first<{ id: string }>();
+
+      if (existing) {
+        await db.prepare('UPDATE task_categories SET is_active = 1, color = COALESCE(?, color) WHERE id = ?').bind(color || null, existing.id).run();
+        return NextResponse.json({ success: true, id: existing.id });
+      }
+
       const id = generateId('tcat');
-      await db
-        .prepare(`INSERT INTO task_categories (id, name, color, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-        .bind(id, name.trim(), color || '#3b82f6', is_active, wsId)
-        .run();
+      try {
+        const r = await db
+          .prepare(`INSERT INTO task_categories (id, name, color, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, color || '#3b82f6', is_active, wsId)
+          .run();
+        if (r && r.success === false) throw new Error(r.error);
+      } catch {
+        await db
+          .prepare(`INSERT INTO task_categories (id, name, color, is_active, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, color || '#3b82f6', is_active)
+          .run();
+      }
 
       await logAudit({
         userId: user.id,
         action: 'CREATE',
         module: 'SETTINGS',
         recordId: id,
-        afterData: { target: 'task_category', name, color },
+        afterData: { target: 'task_category', name: cleanName, color },
       });
 
       return NextResponse.json({ success: true, id });
     } else if (target === 'finance') {
+      const existing = await db
+        .prepare('SELECT id FROM financial_categories WHERE LOWER(name) = LOWER(?)')
+        .bind(cleanName)
+        .first<{ id: string }>();
+
+      if (existing) {
+        await db.prepare('UPDATE financial_categories SET is_active = 1, type = COALESCE(?, type) WHERE id = ?').bind(type || null, existing.id).run();
+        return NextResponse.json({ success: true, id: existing.id });
+      }
+
       const id = generateId('fcat');
-      await db
-        .prepare(`INSERT INTO financial_categories (id, name, type, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-        .bind(id, name.trim(), type, is_active, wsId)
-        .run();
+      try {
+        const r = await db
+          .prepare(`INSERT INTO financial_categories (id, name, type, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, type, is_active, wsId)
+          .run();
+        if (r && r.success === false) throw new Error(r.error);
+      } catch {
+        await db
+          .prepare(`INSERT INTO financial_categories (id, name, type, is_active, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, type, is_active)
+          .run();
+      }
 
       await logAudit({
         userId: user.id,
         action: 'CREATE',
         module: 'SETTINGS',
         recordId: id,
-        afterData: { target: 'financial_category', name, type },
+        afterData: { target: 'financial_category', name: cleanName, type },
       });
 
       return NextResponse.json({ success: true, id });
@@ -103,6 +151,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: 'Alvo de categoria inválido.' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: 'Erro ao salvar categoria.' }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Erro ao salvar categoria.' }, { status: 500 });
   }
 }

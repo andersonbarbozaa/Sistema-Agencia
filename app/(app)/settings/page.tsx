@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
 import {
   Settings,
@@ -37,22 +37,67 @@ import {
   Laptop,
   Highlighter,
   Type,
+  Camera,
+  Mail,
+  Send,
 } from 'lucide-react';
 import { Position, TaskCategory, FinancialCategory, BankAccount } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { TextFormatPreset, DEFAULT_TEXT_PRESETS } from '@/components/RichTextEditor';
 
+const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting'] as const;
+type SettingsTab = (typeof VALID_SETTINGS_TABS)[number];
+
+async function compressImageFile(file: File, maxSize = 256): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(ev.target?.result as string);
+          return;
+        }
+        // Center crop square
+        const minSide = Math.min(img.width, img.height);
+        const sx = (img.width - minSide) / 2;
+        const sy = (img.height - minSide) / 2;
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = reject;
+      img.src = ev.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function SettingsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const initialTab = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'users' | 'categories' | 'finance' | 'ai' | 'appearance' | 'formatting'>(
-    initialTab && ['profile', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting'].includes(initialTab)
-      ? (initialTab as any)
+  const [activeTab, setActiveTabState] = useState<SettingsTab>(
+    initialTab && VALID_SETTINGS_TABS.includes(initialTab as any)
+      ? (initialTab as SettingsTab)
       : 'overview'
   );
+
+  const setActiveTab = (tab: SettingsTab) => {
+    setActiveTabState(tab);
+    router.push(`/settings?tab=${tab}`, { scroll: false });
+  };
+
   const [loading, setLoading] = useState(true);
+
+  const profileFileInputRef = useRef<HTMLInputElement>(null);
+  const companyFileInputRef = useRef<HTMLInputElement>(null);
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -184,7 +229,7 @@ function SettingsContent() {
   const [clients, setClients] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
 
-  // MY PROFILE FORM
+  // MY PROFILE & COMPANY FORM
   const [profileForm, setProfileForm] = useState({
     name: '',
     email: '',
@@ -193,12 +238,25 @@ function SettingsContent() {
     avatar_url: '',
     company_name: 'PixelCraft Studio',
     company_description: '',
+    company_logo: '',
     new_password: '',
     confirm_password: '',
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companySuccess, setCompanySuccess] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+
+  // INVITE MODAL STATE
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    role: 'COLABORADOR',
+    position_id: '',
+  });
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ message: string; invite_url: string; email_sent: boolean } | null>(null);
 
   // USER MODALS
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -283,10 +341,10 @@ function SettingsContent() {
 
   // Sync tab with URL
   useEffect(() => {
-    if (initialTab && ['profile', 'users', 'categories', 'finance', 'ai'].includes(initialTab)) {
-      setActiveTab(initialTab as any);
+    if (initialTab && VALID_SETTINGS_TABS.includes(initialTab as any)) {
+      setActiveTabState(initialTab as SettingsTab);
     } else if (!initialTab) {
-      setActiveTab('overview');
+      setActiveTabState('overview');
     }
   }, [initialTab]);
 
@@ -315,6 +373,7 @@ function SettingsContent() {
           avatar_url: me.avatar_url || '',
           company_name: me.workspace_name || 'PixelCraft Studio',
           company_description: me.workspace_description || '',
+          company_logo: me.workspace_logo || '',
           new_password: '',
           confirm_password: '',
         });
@@ -368,7 +427,58 @@ function SettingsContent() {
     fetchData();
   }, []);
 
-  // Update My Profile & Company Data
+  const handleProfileAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImageFile(file, 256);
+      setProfileForm((prev) => ({ ...prev, avatar_url: dataUrl }));
+      if (currentUser?.id) {
+        await fetch(`/api/users/${currentUser.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: profileForm.name || currentUser.name,
+            phone: profileForm.phone,
+            job_title: profileForm.job_title,
+            avatar_url: dataUrl,
+          }),
+        });
+        setProfileSuccess(true);
+        setTimeout(() => setProfileSuccess(false), 3000);
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Erro ao processar imagem de perfil:', err);
+    }
+  };
+
+  const handleCompanyLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImageFile(file, 256);
+      setProfileForm((prev) => ({ ...prev, company_logo: dataUrl }));
+      if (currentUser?.role === 'ADMINISTRADOR') {
+        await fetch('/api/workspaces/current', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: profileForm.company_name?.trim() || currentUser.workspace_name || 'Empresa',
+            description: profileForm.company_description ? profileForm.company_description.trim() : null,
+            logo_url: dataUrl,
+          }),
+        });
+        setCompanySuccess(true);
+        setTimeout(() => setCompanySuccess(false), 3000);
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Erro ao processar logo da empresa:', err);
+    }
+  };
+
+  // Update My Personal Profile
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
@@ -402,29 +512,6 @@ function SettingsContent() {
         return;
       }
 
-      // If user is Admin, also update company details (workspace)
-      if (currentUser.role === 'ADMINISTRADOR') {
-        if (!profileForm.company_name?.trim()) {
-          alert('O Nome da Empresa é obrigatório.');
-          return;
-        }
-
-        const wsRes = await fetch('/api/workspaces/current', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: profileForm.company_name.trim(),
-            description: profileForm.company_description ? profileForm.company_description.trim() : null,
-          }),
-        });
-
-        if (!wsRes.ok) {
-          const err = await wsRes.json();
-          alert(err.error || 'Erro ao atualizar dados da empresa.');
-          return;
-        }
-      }
-
       setProfileSuccess(true);
       setTimeout(() => setProfileSuccess(false), 3000);
       await fetchData();
@@ -432,6 +519,89 @@ function SettingsContent() {
       console.error(err);
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  // Update Company Profile (Workspace)
+  const handleUpdateCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || currentUser.role !== 'ADMINISTRADOR') return;
+
+    if (!profileForm.company_name?.trim()) {
+      alert('O Nome da Empresa é obrigatório.');
+      return;
+    }
+
+    try {
+      setCompanySaving(true);
+      const wsRes = await fetch('/api/workspaces/current', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profileForm.company_name.trim(),
+          description: profileForm.company_description ? profileForm.company_description.trim() : null,
+          logo_url: profileForm.company_logo || null,
+        }),
+      });
+
+      if (!wsRes.ok) {
+        const err = await wsRes.json();
+        alert(err.error || 'Erro ao atualizar dados da empresa.');
+        return;
+      }
+
+      setCompanySuccess(true);
+      setTimeout(() => setCompanySuccess(false), 3000);
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
+  // Send Invitation Email
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteForm.email.trim()) return;
+
+    try {
+      setInviteSending(true);
+      setInviteResult(null);
+      const selectedPos = positions.find((p) => p.id === inviteForm.position_id);
+      const res = await fetch('/api/users/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteForm.email.trim(),
+          role: inviteForm.role,
+          position_id: inviteForm.position_id || null,
+          job_title: selectedPos?.name || (inviteForm.role === 'ADMINISTRADOR' ? 'Administrador' : inviteForm.role === 'CLIENTE' ? 'Cliente' : 'Colaborador'),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Erro ao enviar convite.');
+        return;
+      }
+
+      if (data.invite_url && typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(data.invite_url);
+        } catch {}
+      }
+
+      setInviteResult({
+        message: data.message,
+        invite_url: data.invite_url,
+        email_sent: data.email_sent,
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao enviar convite.');
+    } finally {
+      setInviteSending(false);
     }
   };
 
@@ -912,12 +1082,34 @@ function SettingsContent() {
                   Meu Perfil
                 </h3>
                 <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Altere seus dados pessoais, telefone, avatar de exibição e alteração de senha de acesso.
+                  Altere seus dados pessoais, telefone, foto de perfil e senha de acesso.
                 </p>
               </div>
               <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
                 <span>Configurar perfil &rarr;</span>
                 <span className="text-[11px] text-gray-400 font-normal truncate max-w-[140px]">{currentUser?.email}</span>
+              </div>
+            </div>
+
+            {/* Card 1B: Perfil da Empresa */}
+            <div
+              onClick={() => setActiveTab('company')}
+              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                  Perfil da Empresa
+                </h3>
+                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                  Configure o nome da empresa, ramo de atuação, logotipo e convites para a equipe.
+                </p>
+              </div>
+              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+                <span>Dados da empresa &rarr;</span>
+                <span className="text-[11px] text-gray-400 font-normal truncate max-w-[140px]">{profileForm.company_name}</span>
               </div>
             </div>
 
@@ -934,7 +1126,7 @@ function SettingsContent() {
                   Usuários & Cargos
                 </h3>
                 <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Cadastre membros da equipe, defina níveis de permissão e configure a estrutura de cargos da agência.
+                  Convide membros por e-mail, defina níveis de permissão e configure os cargos da agência.
                 </p>
               </div>
               <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-emerald-600">
@@ -979,16 +1171,16 @@ function SettingsContent() {
                   <CreditCard className="w-6 h-6" />
                 </div>
                 <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                  Configurações Financeiras
+                  Categoria Financeiro & Contas
                 </h3>
                 <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Defina a meta de receita mensal, moeda padrão, cotações de moedas e cadastre contas bancárias.
+                  Gerencie categorias financeiras, meta de receita mensal, cotações e contas bancárias.
                 </p>
               </div>
               <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-amber-600">
                 <span>Ajustar finanças &rarr;</span>
                 <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold">
-                  {bankAccounts.length} contas
+                  {financialCategories.length} categorias
                 </span>
               </div>
             </div>
@@ -1051,7 +1243,7 @@ function SettingsContent() {
                   <Highlighter className="w-6 h-6" />
                 </div>
                 <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                  Padrões de Formatação
+                  Padrões de Roteiro
                 </h3>
                 <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
                   Crie modelos de texto para roteiros e tarefas com cores, marca-texto, títulos e notas.
@@ -1090,215 +1282,74 @@ function SettingsContent() {
         </div>
       )}
 
-      {/* Navigation Tabs (Exibidas quando dentro de um submenu) */}
-      {activeTab !== 'overview' && (
-        <div className="bg-white p-2 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className="px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:text-gray-900 hover:bg-gray-100 flex items-center gap-1.5 transition-colors border border-gray-200 bg-gray-50"
-            >
-              &larr; Voltar aos Submenus
-            </button>
-
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'profile'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <User className="w-3.5 h-3.5" /> Meu Perfil
-            </button>
-
-            <button
-              onClick={() => setActiveTab('users')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'users'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <Users className="w-3.5 h-3.5" /> Usuários ({users.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('categories')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'categories'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <Layers className="w-3.5 h-3.5" /> Categorias ({taskCategories.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('finance')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'finance'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <CreditCard className="w-3.5 h-3.5" /> Financeiro ({bankAccounts.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'ai'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <Bot className="w-3.5 h-3.5" /> IA
-            </button>
-
-            <button
-              onClick={() => setActiveTab('appearance')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'appearance'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <Moon className="w-3.5 h-3.5" /> Tema
-            </button>
-
-            <button
-              onClick={() => setActiveTab('formatting')}
-              className={cn(
-                'px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all',
-                activeTab === 'formatting'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              )}
-            >
-              <Highlighter className="w-3.5 h-3.5" /> Padrões de Roteiro ({formattingPresets.length})
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ======================================================== */}
-      {/* TAB 1: MEU PERFIL & DADOS DA EMPRESA                       */}
+      {/* TAB 1: MEU PERFIL (PESSOAL)                                */}
       {/* ======================================================== */}
       {activeTab === 'profile' && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm max-w-3xl space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
-              {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Configuração do Meu Perfil</h3>
-              <p className="text-xs text-gray-500">Atualize suas informações pessoais, cargo e dados da empresa</p>
+          <input
+            ref={profileFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleProfileAvatarFileChange}
+            className="hidden"
+          />
+
+          <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
+            <button
+              type="button"
+              onClick={() => profileFileInputRef.current?.click()}
+              title="Clique para enviar uma foto do seu computador"
+              className="relative w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl overflow-hidden group ring-4 ring-blue-50 hover:ring-blue-100 transition-all flex-shrink-0 cursor-pointer"
+            >
+              {profileForm.avatar_url ? (
+                <img
+                  src={profileForm.avatar_url}
+                  alt={profileForm.name || 'Perfil'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{currentUser?.name?.charAt(0).toUpperCase() || 'U'}</span>
+              )}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold">
+                <Camera size={16} />
+                <span>Editar</span>
+              </div>
+            </button>
+
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-bold text-gray-900">Meu Perfil Pessoal</h3>
+              <p className="text-xs text-gray-500">
+                Clique na foto ao lado para enviar uma imagem do seu computador ou atualize seus dados pessoais abaixo.
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => profileFileInputRef.current?.click()}
+                  className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold rounded-lg text-[11px] flex items-center gap-1.5 transition-colors"
+                >
+                  <Camera size={12} /> Escolher foto do computador
+                </button>
+                {profileForm.avatar_url && (
+                  <button
+                    type="button"
+                    onClick={() => setProfileForm({ ...profileForm, avatar_url: '' })}
+                    className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[11px] font-medium transition-colors"
+                  >
+                    Remover foto
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {profileSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
-              <CheckCircle2 size={16} /> Configurações atualizadas com sucesso!
+              <CheckCircle2 size={16} /> Dados do seu perfil atualizados com sucesso!
             </div>
           )}
 
           <form onSubmit={handleUpdateProfile} className="space-y-6">
-            {/* Seção 1: Dados da Empresa (Área 1 da Barra Lateral - apenas para Administrador) */}
-            {currentUser?.role === 'ADMINISTRADOR' && (
-              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-gray-200/80">
-                  <Building2 size={16} className="text-blue-600" />
-                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-                    Dados da Empresa (Workspace)
-                  </h4>
-                </div>
-                <p className="text-[11px] text-gray-500">
-                  Estas informações são exibidas no topo da barra lateral e definem a identidade da sua área de trabalho.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Nome da Empresa *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: PixelCraft Studio"
-                      value={profileForm.company_name}
-                      onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Ramo de Atuação (Descrição Opcional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Audiovisual & Criativo"
-                      value={profileForm.company_description}
-                      onChange={(e) => setProfileForm({ ...profileForm, company_description: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Link de Convite para Colaboradores */}
-                <div className="pt-3 border-t border-gray-200/80">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Link de Convite para Membros & Colaboradores
-                  </label>
-                  <p className="text-[11px] text-gray-500 mb-2">
-                    Envie este link para que novos membros se cadastrem diretamente nesta empresa.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-600 font-mono select-all truncate">
-                      {typeof window !== 'undefined'
-                        ? `${window.location.origin}/registo?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`
-                        : `/registo?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (typeof window !== 'undefined') {
-                          const url = `${window.location.origin}/registo?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`;
-                          navigator.clipboard.writeText(url);
-                          setCopiedInvite(true);
-                          setTimeout(() => setCopiedInvite(false), 2500);
-                        }
-                      }}
-                      className={cn(
-                        'px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs flex-shrink-0',
-                        copiedInvite
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-blue-600 hover:bg-blue-500 text-white'
-                      )}
-                    >
-                      {copiedInvite ? (
-                        <>
-                          <Check size={14} /> Copiado!
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={14} /> Copiar Link
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Seção 2: Dados Pessoais do Utilizador */}
             <div className="space-y-4">
               <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
                 <User size={15} className="text-blue-600" /> Dados Pessoais & Cargo
@@ -1314,9 +1365,6 @@ function SettingsContent() {
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Na barra lateral, o primeiro nome é exibido a negrito e o sobrenome em texto simples.
-                  </p>
                 </div>
 
                 <div>
@@ -1328,36 +1376,6 @@ function SettingsContent() {
                     value={profileForm.job_title}
                     onChange={(e) => setProfileForm({ ...profileForm, job_title: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Exibido abaixo do seu nome na barra lateral.
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Foto de Perfil (URL da Imagem)</label>
-                <div className="flex items-center gap-3">
-                  {profileForm.avatar_url ? (
-                    <img
-                      src={profileForm.avatar_url}
-                      alt="Prévia"
-                      className="w-10 h-10 rounded-xl object-cover border border-gray-200 shadow-xs flex-shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs font-bold flex-shrink-0">
-                      Foto
-                    </div>
-                  )}
-                  <input
-                    type="url"
-                    placeholder="https://exemplo.com/sua-foto.jpg"
-                    value={profileForm.avatar_url}
-                    onChange={(e) => setProfileForm({ ...profileForm, avatar_url: e.target.value })}
-                    className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1386,7 +1404,7 @@ function SettingsContent() {
               </div>
             </div>
 
-            {/* Seção 3: Alterar Senha */}
+            {/* Alterar Senha */}
             <div className="pt-4 border-t border-gray-100">
               <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Lock size={14} className="text-blue-600" /> Alterar Senha (Opcional)
@@ -1424,7 +1442,177 @@ function SettingsContent() {
                 className="px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
               >
                 <Save size={14} />
-                {profileSaving ? 'Salvando...' : 'Salvar Alterações'}
+                {profileSaving ? 'Salvando...' : 'Salvar Meu Perfil'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 1B: PERFIL DA EMPRESA (WORKSPACE)                      */}
+      {/* ======================================================== */}
+      {activeTab === 'company' && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm max-w-3xl space-y-6">
+          <input
+            ref={companyFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleCompanyLogoFileChange}
+            className="hidden"
+          />
+
+          <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
+            <button
+              type="button"
+              onClick={() => companyFileInputRef.current?.click()}
+              title="Clique para enviar o logotipo da empresa"
+              className="relative w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl overflow-hidden group ring-4 ring-blue-50 hover:ring-blue-100 transition-all flex-shrink-0 cursor-pointer"
+            >
+              {profileForm.company_logo ? (
+                <img
+                  src={profileForm.company_logo}
+                  alt={profileForm.company_name || 'Empresa'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{profileForm.company_name?.charAt(0).toUpperCase() || 'E'}</span>
+              )}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold">
+                <Camera size={16} />
+                <span>Editar</span>
+              </div>
+            </button>
+
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-bold text-gray-900">Perfil da Empresa</h3>
+              <p className="text-xs text-gray-500">
+                Clique no ícone circular ao lado para enviar a imagem/logotipo da empresa e configure a identidade da sua agência.
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => companyFileInputRef.current?.click()}
+                  className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold rounded-lg text-[11px] flex items-center gap-1.5 transition-colors"
+                >
+                  <Camera size={12} /> Escolher imagem da empresa
+                </button>
+                {profileForm.company_logo && (
+                  <button
+                    type="button"
+                    onClick={() => setProfileForm({ ...profileForm, company_logo: '' })}
+                    className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[11px] font-medium transition-colors"
+                  >
+                    Remover logo
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {companySuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
+              <CheckCircle2 size={16} /> Dados da empresa atualizados com sucesso!
+            </div>
+          )}
+
+          <form onSubmit={handleUpdateCompany} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Nome da Empresa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: PixelCraft Studio"
+                  value={profileForm.company_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Ramo de Atuação / Descrição
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Audiovisual & Criativo"
+                  value={profileForm.company_description}
+                  onChange={(e) => setProfileForm({ ...profileForm, company_description: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Convite de Membros */}
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-gray-900">
+                    Convidar Novos Usuários para a Empresa
+                  </label>
+                  <p className="text-[11px] text-gray-500">
+                    Envie um convite por e-mail já com o cargo selecionado ou copie o link de convite.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInviteResult(null);
+                    setShowInviteModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs flex-shrink-0"
+                >
+                  <Mail size={14} /> Convidar por E-mail
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-200/80">
+                <div className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-600 font-mono select-all truncate">
+                  {typeof window !== 'undefined'
+                    ? `${window.location.origin}/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`
+                    : `/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      const url = `${window.location.origin}/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`;
+                      navigator.clipboard.writeText(url);
+                      setCopiedInvite(true);
+                      setTimeout(() => setCopiedInvite(false), 2500);
+                    }
+                  }}
+                  className={cn(
+                    'px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs flex-shrink-0',
+                    copiedInvite
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                  )}
+                >
+                  {copiedInvite ? (
+                    <>
+                      <Check size={14} /> Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} /> Copiar Link
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-4 flex justify-end">
+              <button
+                type="submit"
+                disabled={companySaving}
+                className="px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+              >
+                <Save size={14} />
+                {companySaving ? 'Salvando...' : 'Salvar Dados da Empresa'}
               </button>
             </div>
           </form>
@@ -1449,13 +1637,26 @@ function SettingsContent() {
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowCreateUserModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-              >
-                <Plus size={14} />
-                Novo Usuário
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInviteResult(null);
+                    setShowInviteModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                >
+                  <Mail size={14} />
+                  Convidar
+                </button>
+                <button
+                  onClick={() => setShowCreateUserModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                >
+                  <Plus size={14} />
+                  Novo Usuário
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -1493,7 +1694,7 @@ function SettingsContent() {
                         </div>
                       </td>
                       <td className="py-3 px-3 text-gray-600 font-medium">
-                        {u.position_name || 'Sem cargo atribuído'}
+                        {u.position_name || u.job_title || 'Sem cargo atribuído'}
                       </td>
                       <td className="py-3 px-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -1601,7 +1802,7 @@ function SettingsContent() {
       )}
 
       {/* ======================================================== */}
-      {/* TAB 3: CATEGORIAS DO SISTEMA (Exceto financeiras)         */}
+      {/* TAB 3: CATEGORIAS DO SISTEMA (Apenas Tarefas/Sistema)      */}
       {/* ======================================================== */}
       {activeTab === 'categories' && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
@@ -1662,72 +1863,6 @@ function SettingsContent() {
                 <Edit2 size={13} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
               </div>
             ))}
-          </div>
-
-          {/* Seção 2: Categorias Financeiras no Tab de Categorias */}
-          <div className="pt-6 border-t border-gray-100 space-y-4">
-            <div>
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-blue-600" />
-                Categorias Financeiras (Plano de Contas)
-              </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Classificação para receitas e despesas da agência.
-              </p>
-            </div>
-
-            {/* Form Nova Categoria Financeira */}
-            <form onSubmit={handleCreateFinCategory} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <input
-                type="text"
-                required
-                placeholder="Nome da categoria financeira (ex: Softwares, Marketing, Serviços, Impostos)..."
-                value={newFinCategoryName}
-                onChange={(e) => setNewFinCategoryName(e.target.value)}
-                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Tipo:</span>
-                <select
-                  value={newFinCategoryType}
-                  onChange={(e) => setNewFinCategoryType(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Saída">Saída (Despesa)</option>
-                  <option value="Entrada">Entrada (Receita)</option>
-                  <option value="both">Ambas (Entrada & Saída)</option>
-                </select>
-              </div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl transition-colors shadow-sm whitespace-nowrap"
-              >
-                + Adicionar Categoria Financeira
-              </button>
-            </form>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {financialCategories.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => openEditCategory(c, 'finance')}
-                  className="bg-gray-50 border border-gray-200 hover:border-blue-400 p-3.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      c.type?.toLowerCase() === 'entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      {c.type}
-                    </span>
-                    <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
-                      {c.name}
-                    </span>
-                  </div>
-                  <Edit2 size={13} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}
@@ -2444,6 +2579,146 @@ function SettingsContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CONVIDAR USUÁRIO POR E-MAIL                        */}
+      {/* ======================================================== */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowInviteModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
+            >
+              <X size={20} />
+            </button>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+              <Mail className="w-5 h-5 text-blue-600" />
+              Convidar Novo Usuário
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Informe o e-mail e selecione o cargo. A pessoa receberá o link para se cadastrar na sua equipe.
+            </p>
+
+            {inviteResult ? (
+              <div className="space-y-4">
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-2">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+                    <span>{inviteResult.message}</span>
+                  </div>
+                  <div className="p-2 bg-white border border-emerald-200 rounded-lg font-mono text-[11px] text-gray-700 break-all select-all">
+                    {inviteResult.invite_url}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                  <a
+                    href={`mailto:${encodeURIComponent(inviteForm.email)}?subject=${encodeURIComponent(`Convite para ${profileForm.company_name}`)}&body=${encodeURIComponent(`Olá! Você foi convidado para fazer parte da equipe de ${profileForm.company_name}.\n\nAcesse o link abaixo para criar sua conta:\n${inviteResult.invite_url}`)}`}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Mail size={14} /> Abrir no E-mail
+                  </a>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteResult.invite_url);
+                        setCopiedInvite(true);
+                        setTimeout(() => setCopiedInvite(false), 2500);
+                      }}
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
+                    >
+                      {copiedInvite ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedInvite ? 'Copiado!' : 'Copiar Link'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInviteResult(null);
+                        setInviteForm({ email: '', role: 'COLABORADOR', position_id: '' });
+                        setShowInviteModal(false);
+                      }}
+                      className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSendInvite} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    E-mail do Convidado *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="pessoa@email.com"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Nível de Acesso *
+                  </label>
+                  <select
+                    value={inviteForm.role}
+                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="COLABORADOR">Colaborador</option>
+                    <option value="ADMINISTRADOR">Administrador</option>
+                    <option value="CLIENTE">Cliente</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Cargo / Especialidade
+                  </label>
+                  <select
+                    value={inviteForm.position_id}
+                    onChange={(e) => setInviteForm({ ...inviteForm, position_id: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Cargo padrão ({inviteForm.role === 'ADMINISTRADOR' ? 'Administrador' : inviteForm.role === 'CLIENTE' ? 'Cliente' : 'Colaborador'})</option>
+                    {positions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteModal(false)}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={inviteSending}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Send size={14} />
+                    {inviteSending ? 'Enviando...' : 'Enviar'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

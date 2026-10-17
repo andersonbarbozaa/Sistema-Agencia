@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const params: (string | number)[] = [];
 
     const wsId = user.workspace_id || 'ws_default';
-    conditions.push('(p.workspace_id = ? OR (p.workspace_id IS NULL AND ? = "ws_default"))');
+    conditions.push("(p.workspace_id = ? OR (p.workspace_id IS NULL AND ? = 'ws_default'))");
     params.push(wsId, wsId);
 
     // CLIENTE can only see their own projects

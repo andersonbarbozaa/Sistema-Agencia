@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const params: unknown[] = [];
 
     const wsId = user.workspace_id || 'ws_default';
-    conditions.push('(l.workspace_id = ? OR (l.workspace_id IS NULL AND ? = "ws_default"))');
+    conditions.push("(l.workspace_id = ? OR (l.workspace_id IS NULL AND ? = 'ws_default'))");
     params.push(wsId, wsId);
 
     if (status) {

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const db = getDb();
     const wsId = user.workspace_id || 'ws_default';
     const conditions: string[] = [
-      '(u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = "ws_default"))'
+      "(u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))"
     ];
     const params: unknown[] = [wsId, wsId];
 
