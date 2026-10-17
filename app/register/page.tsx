@@ -96,17 +96,17 @@ function RegisterForm() {
   };
 
   return (
-    <div className="h-screen w-full overflow-y-auto bg-gray-950 flex flex-col items-center justify-center p-4 sm:p-6">
+    <div className="h-screen w-full overflow-y-auto bg-gray-50 flex flex-col items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md my-auto py-4">
         {/* Header Branding */}
         <div className="text-center mb-4">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-2xl mb-2 shadow-lg shadow-blue-600/30">
             <span className="text-xl font-black text-white">P</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
             {inviteWorkspace ? inviteWorkspace.name : 'Criar Conta'}
           </h1>
-          <p className="text-gray-400 text-xs mt-0.5">
+          <p className="text-gray-500 text-xs mt-0.5">
             {inviteWorkspace
               ? (inviteWorkspace.description || 'Convite para Área de Trabalho')
               : 'Cadastre-se como Administrador do seu painel'}
@@ -114,17 +114,17 @@ function RegisterForm() {
         </div>
 
         {/* Card */}
-        <div className="bg-gray-900 rounded-2xl p-5 sm:p-6 border border-gray-800 shadow-2xl">
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xl">
           {/* Invite Banner */}
           {inviteWorkspace && (
-            <div className="mb-4 p-3 bg-blue-950/60 border border-blue-800/80 rounded-xl flex items-start gap-2.5">
-              <Building2 className="text-blue-400 flex-shrink-0 mt-0.5" size={18} />
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2.5">
+              <Building2 className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
               <div>
-                <p className="text-xs font-bold text-blue-200">
-                  Você foi convidado para a equipe de <span className="text-white underline">{inviteWorkspace.name}</span>
+                <p className="text-xs font-bold text-blue-900">
+                  Você foi convidado para a equipe de <span className="underline">{inviteWorkspace.name}</span>
                 </p>
                 {jobTitleParam && (
-                  <p className="text-[11px] text-blue-300 font-semibold mt-0.5">
+                  <p className="text-[11px] text-blue-700 font-semibold mt-0.5">
                     Cargo atribuído: {jobTitleParam}
                   </p>
                 )}
@@ -134,7 +134,7 @@ function RegisterForm() {
 
           <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">
+              <label className="block text-gray-700 font-semibold mb-1">
                 Nome *
               </label>
               <input
@@ -143,12 +143,12 @@ function RegisterForm() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Seu nome completo"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">
+              <label className="block text-gray-700 font-semibold mb-1">
                 E-mail *
               </label>
               <input
@@ -157,12 +157,12 @@ function RegisterForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">
+              <label className="block text-gray-700 font-semibold mb-1">
                 Telefone (Opcional)
               </label>
               <input
@@ -170,12 +170,12 @@ function RegisterForm() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="(00) 00000-0000"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">
+              <label className="block text-gray-700 font-semibold mb-1">
                 Senha *
               </label>
               <div className="relative">
@@ -186,12 +186,12 @@ function RegisterForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo de 6 caracteres"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 pr-9 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 pr-9 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
@@ -199,7 +199,7 @@ function RegisterForm() {
             </div>
 
             {error && (
-              <div className="bg-red-900/40 border border-red-700/60 rounded-xl p-2.5 text-red-300 text-xs">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-red-700 text-xs">
                 {error}
               </div>
             )}
@@ -218,10 +218,10 @@ function RegisterForm() {
             </button>
           </form>
 
-          <div className="mt-4 pt-4 border-t border-gray-800 text-center">
-            <p className="text-gray-400 text-xs">
+          <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+            <p className="text-gray-500 text-xs">
               Já possui uma conta?{' '}
-              <Link href="/login" className="text-blue-400 hover:text-blue-300 font-semibold inline-flex items-center gap-1">
+              <Link href="/login" className="text-blue-600 hover:text-blue-500 font-semibold inline-flex items-center gap-1">
                 Fazer Login <ArrowRight size={12} />
               </Link>
             </p>
@@ -234,7 +234,7 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Carregando...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-900">Carregando...</div>}>
       <RegisterForm />
     </Suspense>
   );

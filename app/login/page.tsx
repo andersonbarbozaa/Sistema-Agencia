@@ -41,24 +41,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/20">
             <span className="text-2xl font-bold text-white">P</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">PixelCraft Studio</h1>
-          <p className="text-gray-400 text-sm mt-1">Sistema de Gestão Criativa</p>
+          <h1 className="text-2xl font-bold text-gray-900">PixelCraft Studio</h1>
+          <p className="text-gray-500 text-sm mt-1">Sistema de Gestão Criativa</p>
         </div>
 
         {/* Form */}
-        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-          <h2 className="text-lg font-semibold text-white mb-6">Entrar na sua conta</h2>
+        <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-lg">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Entrar na sua conta</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 E-mail
               </label>
               <input
@@ -67,12 +67,12 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
                 required
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Senha
               </label>
               <div className="relative">
@@ -82,12 +82,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2.5 pr-10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 pr-10 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -95,7 +95,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="bg-red-900/30 border border-red-700/50 rounded-lg px-3.5 py-2.5 text-red-400 text-sm">
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5 text-red-700 text-sm">
                 {error}
               </div>
             )}
@@ -114,10 +114,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-gray-800 text-center">
-            <p className="text-gray-400 text-xs">
+          <div className="mt-6 pt-5 border-t border-gray-200 text-center">
+            <p className="text-gray-500 text-xs">
               Ainda não tem conta?{' '}
-              <a href="/register" className="text-blue-400 hover:text-blue-300 font-semibold inline-flex items-center gap-1">
+              <a href="/register" className="text-blue-600 hover:text-blue-500 font-semibold inline-flex items-center gap-1">
                 Criar agência ou entrar com convite &rarr;
               </a>
             </p>

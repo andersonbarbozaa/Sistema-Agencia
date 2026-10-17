@@ -165,12 +165,12 @@ function SidebarInner({ user }: SidebarProps) {
       {/* Mobile Drawer */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 bg-gray-950 flex flex-col border-r border-gray-800 transition-transform duration-300 md:hidden shadow-2xl select-none',
+          'fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 md:hidden shadow-2xl select-none',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Mobile Header: Área 1 - Dados da Empresa */}
-        <div className="flex items-center justify-between h-16 border-b border-gray-800/80 px-4">
+        <div className="flex items-center justify-between h-16 border-b border-gray-200 px-4">
           <div className="flex items-center gap-3 min-w-0 pr-2">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden ring-2 ring-blue-500/20">
               {companyLogo ? (
@@ -182,15 +182,15 @@ function SidebarInner({ user }: SidebarProps) {
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-white font-bold text-sm tracking-tight truncate">{companyName}</p>
+              <p className="text-gray-900 font-bold text-sm tracking-tight truncate">{companyName}</p>
               {companyDescription && (
-                <p className="text-gray-400 text-[11px] truncate">{companyDescription}</p>
+                <p className="text-gray-500 text-[11px] truncate">{companyDescription}</p>
               )}
             </div>
           </div>
           <button
             onClick={() => setMobileOpen(false)}
-            className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-900 transition-colors flex-shrink-0"
+            className="p-2 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
             title="Fechar menu"
           >
             <X size={20} />
@@ -216,8 +216,8 @@ function SidebarInner({ user }: SidebarProps) {
                       isActive
                         ? 'bg-blue-600 text-white shadow-sm'
                         : isSectionActive
-                        ? 'bg-gray-900 text-white'
-                        : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     )}
                   >
                     <Icon size={18} className="flex-shrink-0" />
@@ -225,7 +225,7 @@ function SidebarInner({ user }: SidebarProps) {
                   </Link>
 
                   {isSectionActive && (
-                    <div className="ml-5 pl-2.5 border-l border-gray-800 space-y-1 py-1">
+                    <div className="ml-5 pl-2.5 border-l border-gray-200 space-y-1 py-1">
                       {settingsSubItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = pathname.startsWith('/settings') && currentTab === sub.tab;
@@ -237,8 +237,8 @@ function SidebarInner({ user }: SidebarProps) {
                             className={cn(
                               'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-all duration-150',
                               isSubActive
-                                ? 'bg-blue-600/20 text-blue-400 font-semibold'
-                                : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                                ? 'bg-blue-50 text-blue-600 font-semibold'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                             )}
                           >
                             <SubIcon size={14} className="flex-shrink-0" />
@@ -261,7 +261,7 @@ function SidebarInner({ user }: SidebarProps) {
                   'flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold transition-all duration-150',
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 )}
               >
                 <Icon size={18} className="flex-shrink-0" />
@@ -272,12 +272,12 @@ function SidebarInner({ user }: SidebarProps) {
         </nav>
 
         {/* Mobile User Profile: Área 2 - Dados do Utilizador */}
-        <div className="border-t border-gray-800/80 p-3.5 pb-8 bg-gray-950/60">
+        <div className="border-t border-gray-200 p-3.5 pb-8 bg-gray-50">
           <div className="flex items-center justify-between gap-2">
             <Link
               href="/settings?tab=profile"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-900 transition-colors"
+              className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-100 transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
                 {liveUser.avatar_url ? (
@@ -287,14 +287,14 @@ function SidebarInner({ user }: SidebarProps) {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-white text-xs truncate">
+                <p className="text-gray-900 text-xs truncate">
                   <strong className="font-bold">{userFirstName}</strong>
                   {userRestName ? ` ${userRestName}` : ''}
                 </p>
-                <p className="text-gray-400 text-[10px] truncate flex items-center gap-1">
+                <p className="text-gray-500 text-[10px] truncate flex items-center gap-1">
                   <span>{userRoleDisplay}</span>
                   {liveUser.is_partner === 1 && (
-                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-medium">
+                    <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.2 rounded font-semibold">
                       Sócio
                     </span>
                   )}
@@ -305,7 +305,7 @@ function SidebarInner({ user }: SidebarProps) {
             <button
               onClick={handleLogout}
               title="Sair do sistema"
-              className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-900 rounded-xl transition-colors flex-shrink-0"
+              className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0"
             >
               <LogOut size={16} />
             </button>
@@ -316,12 +316,12 @@ function SidebarInner({ user }: SidebarProps) {
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden md:flex relative flex-shrink-0 bg-gray-950 flex-col transition-all duration-300 border-r border-gray-800 select-none z-30',
+          'hidden md:flex relative flex-shrink-0 bg-white flex-col transition-all duration-300 border-r border-gray-200 select-none z-30',
           collapsed ? 'w-16' : 'w-64'
         )}
       >
         {/* Brand / Logo: Área 1 - Dados da Empresa */}
-        <div className={cn('flex items-center h-16 border-b border-gray-800/80 px-4', collapsed ? 'justify-center' : 'gap-3')}>
+        <div className={cn('flex items-center h-16 border-b border-gray-200 px-4', collapsed ? 'justify-center' : 'gap-3')}>
           <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden ring-2 ring-blue-500/20">
             {companyLogo ? (
               <img src={companyLogo} alt={companyName} className="w-full h-full object-cover" />
@@ -333,16 +333,16 @@ function SidebarInner({ user }: SidebarProps) {
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-white font-bold text-sm tracking-tight truncate">{companyName}</p>
+              <p className="text-gray-900 font-bold text-sm tracking-tight truncate">{companyName}</p>
               {companyDescription && (
-                <p className="text-gray-400 text-[11px] truncate">{companyDescription}</p>
+                <p className="text-gray-500 text-[11px] truncate">{companyDescription}</p>
               )}
             </div>
           )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-1 scrollbar-thin scrollbar-thumb-gray-800">
+        <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-1 scrollbar-thin">
           {visibleItems.map((item) => {
             const Icon = item.icon;
             const isSettings = item.href === '/settings';
@@ -361,8 +361,8 @@ function SidebarInner({ user }: SidebarProps) {
                       isActive
                         ? 'bg-blue-600 text-white shadow-sm'
                         : isSectionActive
-                        ? 'bg-gray-900 text-white'
-                        : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     )}
                   >
                     <Icon size={18} className="flex-shrink-0" />
@@ -370,7 +370,7 @@ function SidebarInner({ user }: SidebarProps) {
                   </Link>
 
                   {!collapsed && isSectionActive && (
-                    <div className="ml-4 pl-2.5 border-l border-gray-800 space-y-0.5 py-1">
+                    <div className="ml-4 pl-2.5 border-l border-gray-200 space-y-0.5 py-1">
                       {settingsSubItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = pathname.startsWith('/settings') && currentTab === sub.tab;
@@ -381,8 +381,8 @@ function SidebarInner({ user }: SidebarProps) {
                             className={cn(
                               'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150',
                               isSubActive
-                                ? 'bg-blue-600/20 text-blue-400 font-semibold'
-                                : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                                ? 'bg-blue-50 text-blue-600 font-semibold'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                             )}
                           >
                             <SubIcon size={14} className="flex-shrink-0" />
@@ -405,7 +405,7 @@ function SidebarInner({ user }: SidebarProps) {
                   'flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group',
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-400 hover:bg-gray-900 hover:text-white',
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
                   collapsed ? 'justify-center px-2' : ''
                 )}
               >
@@ -417,7 +417,7 @@ function SidebarInner({ user }: SidebarProps) {
         </nav>
 
         {/* User profile at bottom-left: Área 2 - Dados do Utilizador */}
-        <div className="border-t border-gray-800/80 p-3 bg-gray-950/60">
+        <div className="border-t border-gray-200 p-3 bg-gray-50">
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <div
@@ -433,7 +433,7 @@ function SidebarInner({ user }: SidebarProps) {
               <button
                 onClick={handleLogout}
                 title="Sair do sistema"
-                className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-gray-900 transition-colors"
+                className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <LogOut size={14} />
               </button>
@@ -442,7 +442,7 @@ function SidebarInner({ user }: SidebarProps) {
             <div className="flex items-center justify-between gap-2">
               <Link
                 href="/settings?tab=profile"
-                className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-900 transition-colors group"
+                className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-100 transition-colors group"
                 title="Configurar meu perfil"
               >
                 <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
@@ -453,14 +453,14 @@ function SidebarInner({ user }: SidebarProps) {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-white text-xs truncate group-hover:text-blue-400 transition-colors">
+                  <p className="text-gray-900 text-xs truncate group-hover:text-blue-600 transition-colors">
                     <strong className="font-bold">{userFirstName}</strong>
                     {userRestName ? ` ${userRestName}` : ''}
                   </p>
-                  <p className="text-gray-400 text-[10px] truncate flex items-center gap-1">
+                  <p className="text-gray-500 text-[10px] truncate flex items-center gap-1">
                     <span>{userRoleDisplay}</span>
                     {liveUser.is_partner === 1 && (
-                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-medium">
+                      <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.2 rounded font-semibold">
                         Sócio
                       </span>
                     )}
@@ -471,7 +471,7 @@ function SidebarInner({ user }: SidebarProps) {
               <button
                 onClick={handleLogout}
                 title="Sair do sistema"
-                className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-900 rounded-xl transition-colors flex-shrink-0"
+                className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0"
               >
                 <LogOut size={16} />
               </button>
@@ -482,7 +482,7 @@ function SidebarInner({ user }: SidebarProps) {
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-20 w-6 h-6 bg-gray-900 border border-gray-700 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 transition-colors z-20 shadow-md"
+          className="absolute -right-3 top-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors z-20 shadow-md"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>

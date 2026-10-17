@@ -710,13 +710,13 @@ export default function TasksPage() {
                     handleUpdateStatus(taskId, colStatus);
                   }
                 }}
-                className="w-[280px] min-w-[280px] flex-shrink-0 bg-gray-100/80 rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-xs"
+                className="w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-sm"
               >
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="font-bold text-xs text-gray-700 uppercase tracking-wider">
                     {colStatus}
                   </h3>
-                  <span className="text-xs bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-full">
                     {columnTasks.length}
                   </span>
                 </div>
