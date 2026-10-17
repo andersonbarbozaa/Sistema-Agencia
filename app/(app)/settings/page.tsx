@@ -1616,7 +1616,77 @@ function SettingsContent() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Versão Mobile: Lista em Cards Clicáveis */}
+            <div className="md:hidden space-y-3">
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  onClick={() => openEditUser(u)}
+                  className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/70 hover:border-blue-300 active:scale-[0.99] transition-all cursor-pointer flex flex-col gap-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {u.avatar_url ? (
+                        <img
+                          src={u.avatar_url}
+                          alt={u.name}
+                          className="w-11 h-11 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-gray-900 truncate">{u.name}</p>
+                        <p className="text-xs text-gray-600 font-medium truncate mt-0.5">
+                          {u.position_name || u.job_title || 'Sem cargo atribuído'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 capitalize ${
+                        u.status === 'inativo'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`}
+                    >
+                      {u.status || 'Ativo'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2.5 border-t border-gray-200/70 gap-2">
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      <span className="text-[10px] text-gray-400 font-semibold uppercase">Nível:</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.role === 'ADMINISTRADOR'
+                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                            : u.role === 'CLIENTE'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
+                      >
+                        {u.role}
+                      </span>
+                      {u.is_partner ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Sócio
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <span className="text-[11px] font-semibold text-blue-600 flex items-center gap-1 flex-shrink-0">
+                      <Edit2 size={12} /> Editar
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Versão Desktop: Tabela Completa */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-gray-200 text-gray-500 bg-gray-50 font-semibold text-[11px] uppercase tracking-wider">
@@ -1630,7 +1700,11 @@ function SettingsContent() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={u.id}
+                      onClick={() => openEditUser(u)}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5">
                           {u.avatar_url ? (
@@ -1684,7 +1758,10 @@ function SettingsContent() {
                       </td>
                       <td className="py-3 px-3 text-right">
                         <button
-                          onClick={() => openEditUser(u)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditUser(u);
+                          }}
                           className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-xs transition-colors"
                         >
                           Editar
