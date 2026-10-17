@@ -146,11 +146,17 @@ function SettingsContent() {
       const isDark =
         newTheme === 'dark' ||
         (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const root = document.documentElement;
       if (isDark) {
-        document.documentElement.classList.add('dark');
+        root.classList.add('dark');
+        root.classList.remove('light');
+        root.style.colorScheme = 'dark';
       } else {
-        document.documentElement.classList.remove('dark');
+        root.classList.remove('dark');
+        root.classList.add('light');
+        root.style.colorScheme = 'light';
       }
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: newTheme } }));
     } catch (e) {}
   };
 
@@ -1622,7 +1628,7 @@ function SettingsContent() {
                 <div
                   key={u.id}
                   onClick={() => openEditUser(u)}
-                  className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/70 hover:border-blue-300 active:scale-[0.99] transition-all cursor-pointer flex flex-col gap-3"
+                  className="p-3.5 rounded-xl border border-gray-200 bg-gray-50 hover:border-blue-400 active:scale-[0.99] transition-all cursor-pointer flex flex-col gap-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
@@ -1656,7 +1662,7 @@ function SettingsContent() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2.5 border-t border-gray-200/70 gap-2">
+                  <div className="flex items-center justify-between pt-2.5 border-t border-gray-200 gap-2">
                     <div className="flex items-center flex-wrap gap-1.5">
                       <span className="text-[10px] text-gray-400 font-semibold uppercase">Nível:</span>
                       <span
@@ -2225,7 +2231,7 @@ function SettingsContent() {
               </div>
               <div>
                 <h4 className="font-bold text-sm text-gray-900">Tema Claro</h4>
-                <p className="text-[11px] text-gray-500 mt-1">Fundo branco e alto contraste para ambientes iluminados.</p>
+                <p className="text-[11px] text-gray-500 mt-1">Fundo claro e alto contraste para ambientes iluminados.</p>
               </div>
               {appTheme === 'light' && (
                 <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
@@ -2240,11 +2246,11 @@ function SettingsContent() {
               className={cn(
                 'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
                 appTheme === 'dark'
-                  ? 'border-blue-600 bg-slate-900 text-white shadow-md'
+                  ? 'border-blue-600 bg-blue-50/50 shadow-sm'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               )}
             >
-              <div className="w-12 h-12 rounded-full bg-slate-800 text-purple-400 flex items-center justify-center shadow-xs">
+              <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shadow-xs">
                 <Moon className="w-6 h-6" />
               </div>
               <div>
@@ -2258,7 +2264,7 @@ function SettingsContent() {
               )}
             </div>
 
-            {/* Opção 3: Tema do Dispositivo */}
+            {/* Opção 3: Padrão do Sistema */}
             <div
               onClick={() => changeTheme('system')}
               className={cn(
@@ -2272,8 +2278,8 @@ function SettingsContent() {
                 <Laptop className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="font-bold text-sm text-gray-900">Dispositivo</h4>
-                <p className="text-[11px] text-gray-500 mt-1">Acompanha automaticamente o tema do seu celular ou PC.</p>
+                <h4 className="font-bold text-sm text-gray-900">Padrão do Sistema</h4>
+                <p className="text-[11px] text-gray-500 mt-1">Identifica e mantém automaticamente o tema do seu dispositivo.</p>
               </div>
               {appTheme === 'system' && (
                 <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
