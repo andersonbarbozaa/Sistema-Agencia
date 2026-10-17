@@ -44,17 +44,21 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         .prepare(`
           UPDATE task_categories
           SET name = COALESCE(?, name),
-              color = COALESCE(?, color),
-              is_active = COALESCE(?, is_active)
+              color = COALESCE(?, color)
           WHERE id = ?
         `)
         .bind(
           name ? name.trim() : null,
           color ?? null,
-          is_active !== undefined ? Number(is_active) : null,
           id
         )
         .run();
+
+      if (is_active !== undefined) {
+        try {
+          await db.prepare('UPDATE task_categories SET is_active = ? WHERE id = ?').bind(Number(is_active), id).run();
+        } catch {}
+      }
 
       await logAudit({
         userId: user.id,
@@ -76,17 +80,21 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         .prepare(`
           UPDATE financial_categories
           SET name = COALESCE(?, name),
-              type = COALESCE(?, type),
-              is_active = COALESCE(?, is_active)
+              type = COALESCE(?, type)
           WHERE id = ?
         `)
         .bind(
           name ? name.trim() : null,
           type ?? null,
-          is_active !== undefined ? Number(is_active) : null,
           id
         )
         .run();
+
+      if (is_active !== undefined) {
+        try {
+          await db.prepare('UPDATE financial_categories SET is_active = ? WHERE id = ?').bind(Number(is_active), id).run();
+        } catch {}
+      }
 
       await logAudit({
         userId: user.id,
@@ -100,7 +108,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ success: true, message: 'Categoria financeira atualizada com sucesso.' });
     }
   } catch (err: any) {
-    return NextResponse.json({ error: 'Erro ao atualizar categoria.' }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Erro ao atualizar categoria.' }, { status: 500 });
   }
 }
 
@@ -133,20 +141,9 @@ export async function DELETE(request: Request, { params }: RouteParams) {
         return NextResponse.json({ error: 'Categoria não encontrada.' }, { status: 404 });
       }
 
-      // Check if tasks use this category
-      const tasksCount = await db
-        .prepare('SELECT COUNT(*) as count FROM tasks WHERE category_id = ?')
-        .bind(id)
-        .first<any>();
-
-      if (tasksCount && tasksCount.count > 0) {
-        // Disassociate or set is_active = 0
-        await db.prepare('UPDATE task_categories SET is_active = 0 WHERE id = ?').bind(id).run();
-        return NextResponse.json({
-          success: true,
-          message: 'Categoria desativada (possui tarefas associadas).',
-        });
-      }
+      try {
+        await db.prepare('UPDATE tasks SET category_id = NULL WHERE category_id = ?').bind(id).run();
+      } catch {}
 
       await db.prepare('DELETE FROM task_categories WHERE id = ?').bind(id).run();
       return NextResponse.json({ success: true, message: 'Categoria excluída com sucesso.' });
@@ -156,24 +153,14 @@ export async function DELETE(request: Request, { params }: RouteParams) {
         return NextResponse.json({ error: 'Categoria financeira não encontrada.' }, { status: 404 });
       }
 
-      // Check if transactions use this category
-      const txCount = await db
-        .prepare('SELECT COUNT(*) as count FROM financial_transactions WHERE category_id = ?')
-        .bind(id)
-        .first<any>();
-
-      if (txCount && txCount.count > 0) {
-        await db.prepare('UPDATE financial_categories SET is_active = 0 WHERE id = ?').bind(id).run();
-        return NextResponse.json({
-          success: true,
-          message: 'Categoria desativada (possui transações associadas).',
-        });
-      }
+      try {
+        await db.prepare('UPDATE financial_transactions SET category_id = NULL WHERE category_id = ?').bind(id).run();
+      } catch {}
 
       await db.prepare('DELETE FROM financial_categories WHERE id = ?').bind(id).run();
       return NextResponse.json({ success: true, message: 'Categoria financeira excluída com sucesso.' });
     }
   } catch (err: any) {
-    return NextResponse.json({ error: 'Erro ao excluir categoria.' }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Erro ao excluir categoria.' }, { status: 500 });
   }
 }

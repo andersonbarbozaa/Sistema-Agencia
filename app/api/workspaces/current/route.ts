@@ -13,13 +13,29 @@ export async function GET(request: NextRequest) {
     const db = getDb();
     const workspaceId = user.workspace_id || 'ws_default';
 
-    const workspace = await db
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN logo_url TEXT').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN description TEXT').run();
+    } catch {}
+
+    let workspace = await db
       .prepare('SELECT * FROM workspaces WHERE id = ?')
       .bind(workspaceId)
       .first<any>();
 
     if (!workspace) {
-      return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 });
+      const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
+      await db
+        .prepare(
+          `INSERT INTO workspaces (id, name, description, logo_url, owner_id, invite_code, created_at, updated_at)
+           VALUES (?, 'PixelCraft Studio', 'Audiovisual & Criativo', NULL, ?, ?, datetime('now'), datetime('now'))`
+        )
+        .bind(workspaceId, user.id, inviteCode)
+        .run()
+        .catch(() => {});
+      workspace = await db.prepare('SELECT * FROM workspaces WHERE id = ?').bind(workspaceId).first<any>();
     }
 
     return NextResponse.json({ workspace });
@@ -29,7 +45,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH /api/workspaces/current — Update workspace name and description
+// PATCH /api/workspaces/current — Update workspace name, description and logo
 export async function PATCH(request: NextRequest) {
   try {
     const user = await getApiUser(request);
@@ -48,11 +64,18 @@ export async function PATCH(request: NextRequest) {
     const db = getDb();
     const workspaceId = user.workspace_id || 'ws_default';
 
-    // Ensure logo_url column exists on workspaces
+    // Ensure columns exist on workspaces
     try {
       await db.prepare('ALTER TABLE workspaces ADD COLUMN logo_url TEXT').run();
-    } catch {
-      // Column already exists
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN description TEXT').run();
+    } catch {}
+
+    if (!user.workspace_id) {
+      try {
+        await db.prepare('UPDATE users SET workspace_id = ? WHERE id = ?').bind(workspaceId, user.id).run();
+      } catch {}
     }
 
     const existing = await db
@@ -60,22 +83,29 @@ export async function PATCH(request: NextRequest) {
       .bind(workspaceId)
       .first<any>();
 
-    if (!existing) {
-      return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 });
-    }
-
     const newName = name.trim();
-    const newDesc = description !== undefined ? (description ? description.trim() : null) : existing.description;
-    const newLogo = logo_url !== undefined ? (logo_url || null) : (existing.logo_url ?? null);
+    const newDesc = description !== undefined ? (description ? description.trim() : null) : existing?.description ?? null;
+    const newLogo = logo_url !== undefined ? (logo_url || null) : (existing?.logo_url ?? null);
 
-    await db
-      .prepare(
-        `UPDATE workspaces
-         SET name = ?, description = ?, logo_url = ?, updated_at = datetime('now')
-         WHERE id = ?`
-      )
-      .bind(newName, newDesc, newLogo, workspaceId)
-      .run();
+    if (!existing) {
+      const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
+      await db
+        .prepare(
+          `INSERT INTO workspaces (id, name, description, logo_url, owner_id, invite_code, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+        )
+        .bind(workspaceId, newName, newDesc, newLogo, user.id, inviteCode)
+        .run();
+    } else {
+      await db
+        .prepare(
+          `UPDATE workspaces
+           SET name = ?, description = ?, logo_url = ?, updated_at = datetime('now')
+           WHERE id = ?`
+        )
+        .bind(newName, newDesc, newLogo, workspaceId)
+        .run();
+    }
 
     const updated = await db
       .prepare('SELECT * FROM workspaces WHERE id = ?')

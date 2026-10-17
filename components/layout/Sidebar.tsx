@@ -74,13 +74,39 @@ function SidebarInner({ user }: SidebarProps) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(pathname.startsWith('/settings'));
+  const [liveUser, setLiveUser] = useState<User>(user);
 
   useEffect(() => {
-    if (pathname.startsWith('/settings')) {
-      setSettingsOpen(true);
-    }
-  }, [pathname]);
+    setLiveUser(user);
+  }, [user]);
+
+  useEffect(() => {
+    const refreshUser = async (e?: Event) => {
+      const customEvt = e as CustomEvent;
+      if (customEvt?.detail) {
+        setLiveUser((prev) => ({
+          ...prev,
+          ...customEvt.detail,
+        }));
+      }
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setLiveUser(data.user);
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('workspace-updated', refreshUser);
+    window.addEventListener('user-updated', refreshUser);
+    return () => {
+      window.removeEventListener('workspace-updated', refreshUser);
+      window.removeEventListener('user-updated', refreshUser);
+    };
+  }, []);
 
   useEffect(() => {
     const handleToggle = () => setMobileOpen((prev) => !prev);
@@ -98,7 +124,7 @@ function SidebarInner({ user }: SidebarProps) {
   }, [pathname, currentTab]);
 
   const visibleItems = navItems.filter(
-    (item) => !item.roles || item.roles.includes(user.role)
+    (item) => !item.roles || item.roles.includes(liveUser.role)
   );
 
   const handleLogout = async () => {
@@ -110,9 +136,9 @@ function SidebarInner({ user }: SidebarProps) {
     }
   };
 
-  const companyName = user.workspace_name || 'PixelCraft Studio';
-  const companyDescription = user.workspace_description;
-  const companyLogo = user.workspace_logo;
+  const companyName = liveUser.workspace_name || 'PixelCraft Studio';
+  const companyDescription = liveUser.workspace_description;
+  const companyLogo = liveUser.workspace_logo;
 
   const formatUserName = (fullName: string) => {
     if (!fullName) return { first: '', rest: '' };
@@ -123,8 +149,8 @@ function SidebarInner({ user }: SidebarProps) {
     };
   };
 
-  const { first: userFirstName, rest: userRestName } = formatUserName(user.name);
-  const userRoleDisplay = user.job_title || user.position_name || 'Administrador';
+  const { first: userFirstName, rest: userRestName } = formatUserName(liveUser.name);
+  const userRoleDisplay = liveUser.job_title || liveUser.position_name || 'Administrador';
 
   return (
     <>
@@ -146,7 +172,7 @@ function SidebarInner({ user }: SidebarProps) {
         {/* Mobile Header: Área 1 - Dados da Empresa */}
         <div className="flex items-center justify-between h-16 border-b border-gray-800/80 px-4">
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden ring-2 ring-blue-500/20">
               {companyLogo ? (
                 <img src={companyLogo} alt={companyName} className="w-full h-full object-cover" />
               ) : (
@@ -182,46 +208,23 @@ function SidebarInner({ user }: SidebarProps) {
             if (isSettings) {
               return (
                 <div key={item.href} className="space-y-1">
-                  <div className="flex items-center">
-                    <Link
-                      href="/settings?tab=overview"
-                      onClick={() => {
-                        setSettingsOpen(true);
-                        setMobileOpen(false);
-                      }}
-                      className={cn(
-                        'flex-1 flex items-center gap-3 px-3.5 py-3 rounded-l-xl text-xs font-semibold transition-all duration-150',
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : isSectionActive
-                          ? 'bg-gray-900 text-white'
-                          : 'text-gray-400 hover:bg-gray-900 hover:text-white'
-                      )}
-                    >
-                      <Icon size={18} className="flex-shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => setSettingsOpen((prev) => !prev)}
-                      className={cn(
-                        'px-3 py-3 rounded-r-xl text-xs font-semibold transition-all duration-150',
-                        isActive
-                          ? 'bg-blue-600 text-white'
-                          : isSectionActive
-                          ? 'bg-gray-900 text-white'
-                          : 'text-gray-400 hover:bg-gray-900 hover:text-white'
-                      )}
-                      title="Expandir submenus de Configurações"
-                    >
-                      <ChevronDown
-                        size={15}
-                        className={cn('transition-transform duration-200', settingsOpen ? 'rotate-180' : '')}
-                      />
-                    </button>
-                  </div>
+                  <Link
+                    href="/settings?tab=overview"
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold transition-all duration-150',
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : isSectionActive
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+                    )}
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
 
-                  {settingsOpen && (
+                  {isSectionActive && (
                     <div className="ml-5 pl-2.5 border-l border-gray-800 space-y-1 py-1">
                       {settingsSubItems.map((sub) => {
                         const SubIcon = sub.icon;
@@ -277,10 +280,10 @@ function SidebarInner({ user }: SidebarProps) {
               className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-900 transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
-                {user.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
+                {liveUser.avatar_url ? (
+                  <img src={liveUser.avatar_url} alt={liveUser.name} className="w-8 h-8 rounded-full object-cover" />
                 ) : (
-                  user.name.charAt(0).toUpperCase()
+                  liveUser.name.charAt(0).toUpperCase()
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -290,7 +293,7 @@ function SidebarInner({ user }: SidebarProps) {
                 </p>
                 <p className="text-gray-400 text-[10px] truncate flex items-center gap-1">
                   <span>{userRoleDisplay}</span>
-                  {user.is_partner === 1 && (
+                  {liveUser.is_partner === 1 && (
                     <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-medium">
                       Sócio
                     </span>
@@ -319,7 +322,7 @@ function SidebarInner({ user }: SidebarProps) {
       >
         {/* Brand / Logo: Área 1 - Dados da Empresa */}
         <div className={cn('flex items-center h-16 border-b border-gray-800/80 px-4', collapsed ? 'justify-center' : 'gap-3')}>
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden">
+          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30 overflow-hidden ring-2 ring-blue-500/20">
             {companyLogo ? (
               <img src={companyLogo} alt={companyName} className="w-full h-full object-cover" />
             ) : (
@@ -349,47 +352,24 @@ function SidebarInner({ user }: SidebarProps) {
             if (isSettings) {
               return (
                 <div key={item.href} className="space-y-1">
-                  <div className="flex items-center">
-                    <Link
-                      href="/settings?tab=overview"
-                      onClick={() => setSettingsOpen(true)}
-                      title={collapsed ? item.label : undefined}
-                      className={cn(
-                        'flex-1 flex items-center gap-3 px-3 py-2 text-xs font-semibold transition-all duration-150 group',
-                        collapsed ? 'justify-center px-2 rounded-xl' : 'rounded-l-xl',
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : isSectionActive
-                          ? 'bg-gray-900 text-white'
-                          : 'text-gray-400 hover:bg-gray-900 hover:text-white'
-                      )}
-                    >
-                      <Icon size={18} className="flex-shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </Link>
-                    {!collapsed && (
-                      <button
-                        type="button"
-                        onClick={() => setSettingsOpen((prev) => !prev)}
-                        className={cn(
-                          'px-2.5 py-2 rounded-r-xl text-xs font-semibold transition-all duration-150',
-                          isActive
-                            ? 'bg-blue-600 text-white'
-                            : isSectionActive
-                            ? 'bg-gray-900 text-white'
-                            : 'text-gray-400 hover:bg-gray-900 hover:text-white'
-                        )}
-                        title="Expandir submenus de Configurações"
-                      >
-                        <ChevronDown
-                          size={15}
-                          className={cn('transition-transform duration-200', settingsOpen ? 'rotate-180' : '')}
-                        />
-                      </button>
+                  <Link
+                    href="/settings?tab=overview"
+                    title={collapsed ? item.label : undefined}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group',
+                      collapsed ? 'justify-center px-2' : '',
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : isSectionActive
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-400 hover:bg-gray-900 hover:text-white'
                     )}
-                  </div>
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
 
-                  {!collapsed && settingsOpen && (
+                  {!collapsed && isSectionActive && (
                     <div className="ml-4 pl-2.5 border-l border-gray-800 space-y-0.5 py-1">
                       {settingsSubItems.map((sub) => {
                         const SubIcon = sub.icon;
@@ -441,13 +421,13 @@ function SidebarInner({ user }: SidebarProps) {
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <div
-                title={`${user.name} (${userRoleDisplay})`}
+                title={`${liveUser.name} (${userRoleDisplay})`}
                 className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold overflow-hidden"
               >
-                {user.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
+                {liveUser.avatar_url ? (
+                  <img src={liveUser.avatar_url} alt={liveUser.name} className="w-8 h-8 rounded-full object-cover" />
                 ) : (
-                  user.name.charAt(0).toUpperCase()
+                  liveUser.name.charAt(0).toUpperCase()
                 )}
               </div>
               <button
@@ -466,10 +446,10 @@ function SidebarInner({ user }: SidebarProps) {
                 title="Configurar meu perfil"
               >
                 <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
+                  {liveUser.avatar_url ? (
+                    <img src={liveUser.avatar_url} alt={liveUser.name} className="w-8 h-8 rounded-full object-cover" />
                   ) : (
-                    user.name.charAt(0).toUpperCase()
+                    liveUser.name.charAt(0).toUpperCase()
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -479,7 +459,7 @@ function SidebarInner({ user }: SidebarProps) {
                   </p>
                   <p className="text-gray-400 text-[10px] truncate flex items-center gap-1">
                     <span>{userRoleDisplay}</span>
-                    {user.is_partner === 1 && (
+                    {liveUser.is_partner === 1 && (
                       <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-medium">
                         Sócio
                       </span>

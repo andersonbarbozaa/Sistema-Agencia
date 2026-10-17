@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   X,
   Trash2,
+  Settings,
 } from 'lucide-react';
 import { User, Notification } from '@/types';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,16 @@ interface HeaderProps {
   user: User;
 }
 
+const DEFAULT_DASHBOARD_LAYOUT = {
+  showFinanceiro: true,
+  showProximasEntregas: true,
+  showStatusProjetos: true,
+  showLembretes: true,
+  showDesempenhoVendas: true,
+  showProximosCompromissos: true,
+  showAtividadesRecentes: true,
+};
+
 export default function Header({ user }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -34,9 +45,12 @@ export default function Header({ user }: HeaderProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
+  const [showLayoutDropdown, setShowLayoutDropdown] = useState(false);
+  const [layoutPrefs, setLayoutPrefs] = useState(DEFAULT_DASHBOARD_LAYOUT);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const createRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
 
   // Dynamic Route Metadata (Title, Subtitle, Action Label, Action Event)
   const getRouteConfig = () => {
@@ -146,6 +160,36 @@ export default function Header({ user }: HeaderProps) {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    try {
+      const saved =
+        localStorage.getItem(`dashboard_layout_${user.id}`) ||
+        localStorage.getItem('dashboard_layout_default');
+      if (saved) {
+        setLayoutPrefs(JSON.parse(saved));
+      }
+    } catch {}
+  }, [user.id]);
+
+  const toggleLayout = (key: keyof typeof DEFAULT_DASHBOARD_LAYOUT) => {
+    const newPrefs = { ...layoutPrefs, [key]: !layoutPrefs[key] };
+    setLayoutPrefs(newPrefs);
+    try {
+      localStorage.setItem(`dashboard_layout_${user.id}`, JSON.stringify(newPrefs));
+      localStorage.setItem('dashboard_layout_default', JSON.stringify(newPrefs));
+    } catch {}
+    window.dispatchEvent(new CustomEvent('dashboard-layout-changed', { detail: newPrefs }));
+  };
+
+  const restoreLayout = () => {
+    setLayoutPrefs(DEFAULT_DASHBOARD_LAYOUT);
+    try {
+      localStorage.removeItem(`dashboard_layout_${user.id}`);
+      localStorage.removeItem('dashboard_layout_default');
+    } catch {}
+    window.dispatchEvent(new CustomEvent('dashboard-layout-changed', { detail: DEFAULT_DASHBOARD_LAYOUT }));
+  };
+
   // Close menus on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -154,6 +198,9 @@ export default function Header({ user }: HeaderProps) {
       }
       if (createRef.current && !createRef.current.contains(event.target as Node)) {
         setShowCreateDropdown(false);
+      }
+      if (layoutRef.current && !layoutRef.current.contains(event.target as Node)) {
+        setShowLayoutDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -253,6 +300,7 @@ export default function Header({ user }: HeaderProps) {
   const handlePrimaryButtonClick = () => {
     if (routeConfig.actionType === 'dropdown') {
       setShowCreateDropdown(!showCreateDropdown);
+      setShowLayoutDropdown(false);
     } else if (routeConfig.actionEvent) {
       window.dispatchEvent(new CustomEvent(routeConfig.actionEvent));
       if (routeConfig.fallbackPath && pathname !== routeConfig.fallbackPath) {
@@ -285,8 +333,66 @@ export default function Header({ user }: HeaderProps) {
         </div>
       </div>
 
-      {/* Right actions: Contextual Action Button + Notifications */}
+      {/* Right actions: Layout Button (Dashboard) + Contextual Action Button + Notifications */}
       <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {user.role !== 'CLIENTE' && routeConfig.actionType === 'dropdown' && (
+          <div className="relative" ref={layoutRef}>
+            <button
+              onClick={() => {
+                setShowLayoutDropdown(!showLayoutDropdown);
+                setShowCreateDropdown(false);
+                setShowNotifications(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 rounded-xl shadow-xs transition-all"
+              title="Configurar Widgets do Dashboard"
+            >
+              <Settings size={15} className="text-gray-500" />
+              <span>Layout</span>
+            </button>
+
+            {showLayoutDropdown && (
+              <div className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-auto sm:mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-bold text-sm text-gray-900">Widgets do Dashboard</h4>
+                  <button
+                    onClick={() => setShowLayoutDropdown(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {Object.entries({
+                    showFinanceiro: 'Financeiro',
+                    showProximasEntregas: 'Próximas Entregas',
+                    showStatusProjetos: 'Status dos Projetos',
+                    showLembretes: 'Lembretes & Alertas',
+                    showDesempenhoVendas: 'Desempenho de Vendas',
+                    showProximosCompromissos: 'Próximos Compromissos',
+                    showAtividadesRecentes: 'Atividades Recentes',
+                  }).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={layoutPrefs[key as keyof typeof DEFAULT_DASHBOARD_LAYOUT]}
+                        onChange={() => toggleLayout(key as keyof typeof DEFAULT_DASHBOARD_LAYOUT)}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-gray-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  onClick={restoreLayout}
+                  className="mt-4 w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors"
+                >
+                  Restaurar padrão
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {user.role !== 'CLIENTE' && routeConfig.actionLabel && (
           <div className="relative" ref={createRef}>
             <button

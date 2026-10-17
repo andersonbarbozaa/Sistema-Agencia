@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
+import ProfileAvatarUpload from '@/components/ProfileAvatarUpload';
 import {
   Settings,
   Smartphone,
@@ -427,13 +428,10 @@ function SettingsContent() {
     fetchData();
   }, []);
 
-  const handleProfileAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await compressImageFile(file, 256);
-      setProfileForm((prev) => ({ ...prev, avatar_url: dataUrl }));
-      if (currentUser?.id) {
+  const handleProfileAvatarChange = async (dataUrl: string) => {
+    setProfileForm((prev) => ({ ...prev, avatar_url: dataUrl }));
+    if (currentUser?.id) {
+      try {
         await fetch(`/api/users/${currentUser.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -444,37 +442,50 @@ function SettingsContent() {
             avatar_url: dataUrl,
           }),
         });
+        window.dispatchEvent(
+          new CustomEvent('user-updated', {
+            detail: { avatar_url: dataUrl },
+          })
+        );
         setProfileSuccess(true);
         setTimeout(() => setProfileSuccess(false), 3000);
         await fetchData();
+      } catch (err) {
+        console.error('Erro ao salvar imagem de perfil:', err);
       }
-    } catch (err) {
-      console.error('Erro ao processar imagem de perfil:', err);
     }
   };
 
-  const handleCompanyLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await compressImageFile(file, 256);
-      setProfileForm((prev) => ({ ...prev, company_logo: dataUrl }));
-      if (currentUser?.role === 'ADMINISTRADOR') {
+  const handleCompanyLogoChange = async (dataUrl: string) => {
+    setProfileForm((prev) => ({ ...prev, company_logo: dataUrl }));
+    if (currentUser?.role === 'ADMINISTRADOR') {
+      try {
+        const companyName = profileForm.company_name?.trim() || currentUser.workspace_name || 'Empresa';
+        const companyDesc = profileForm.company_description ? profileForm.company_description.trim() : null;
         await fetch('/api/workspaces/current', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: profileForm.company_name?.trim() || currentUser.workspace_name || 'Empresa',
-            description: profileForm.company_description ? profileForm.company_description.trim() : null,
+            name: companyName,
+            description: companyDesc,
             logo_url: dataUrl,
           }),
         });
+        window.dispatchEvent(
+          new CustomEvent('workspace-updated', {
+            detail: {
+              workspace_name: companyName,
+              workspace_description: companyDesc,
+              workspace_logo: dataUrl,
+            },
+          })
+        );
         setCompanySuccess(true);
         setTimeout(() => setCompanySuccess(false), 3000);
         await fetchData();
+      } catch (err) {
+        console.error('Erro ao salvar logo da empresa:', err);
       }
-    } catch (err) {
-      console.error('Erro ao processar logo da empresa:', err);
     }
   };
 
@@ -512,6 +523,16 @@ function SettingsContent() {
         return;
       }
 
+      window.dispatchEvent(
+        new CustomEvent('user-updated', {
+          detail: {
+            name: profileForm.name,
+            job_title: profileForm.job_title || 'Administrador',
+            avatar_url: profileForm.avatar_url,
+          },
+        })
+      );
+
       setProfileSuccess(true);
       setTimeout(() => setProfileSuccess(false), 3000);
       await fetchData();
@@ -534,13 +555,17 @@ function SettingsContent() {
 
     try {
       setCompanySaving(true);
+      const cleanName = profileForm.company_name.trim();
+      const cleanDesc = profileForm.company_description ? profileForm.company_description.trim() : null;
+      const cleanLogo = profileForm.company_logo || null;
+
       const wsRes = await fetch('/api/workspaces/current', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: profileForm.company_name.trim(),
-          description: profileForm.company_description ? profileForm.company_description.trim() : null,
-          logo_url: profileForm.company_logo || null,
+          name: cleanName,
+          description: cleanDesc,
+          logo_url: cleanLogo,
         }),
       });
 
@@ -549,6 +574,16 @@ function SettingsContent() {
         alert(err.error || 'Erro ao atualizar dados da empresa.');
         return;
       }
+
+      window.dispatchEvent(
+        new CustomEvent('workspace-updated', {
+          detail: {
+            workspace_name: cleanName,
+            workspace_description: cleanDesc,
+            workspace_logo: cleanLogo,
+          },
+        })
+      );
 
       setCompanySuccess(true);
       setTimeout(() => setCompanySuccess(false), 3000);
@@ -1286,60 +1321,21 @@ function SettingsContent() {
       {/* TAB 1: MEU PERFIL (PESSOAL)                                */}
       {/* ======================================================== */}
       {activeTab === 'profile' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm max-w-3xl space-y-6">
-          <input
-            ref={profileFileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleProfileAvatarFileChange}
-            className="hidden"
-          />
-
-          <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
-            <button
-              type="button"
-              onClick={() => profileFileInputRef.current?.click()}
-              title="Clique para enviar uma foto do seu computador"
-              className="relative w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl overflow-hidden group ring-4 ring-blue-50 hover:ring-blue-100 transition-all flex-shrink-0 cursor-pointer"
-            >
-              {profileForm.avatar_url ? (
-                <img
-                  src={profileForm.avatar_url}
-                  alt={profileForm.name || 'Perfil'}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span>{currentUser?.name?.charAt(0).toUpperCase() || 'U'}</span>
-              )}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold">
-                <Camera size={16} />
-                <span>Editar</span>
-              </div>
-            </button>
+        <div className="w-full space-y-6">
+          <div className="flex items-center gap-4 pb-5 border-b border-gray-200">
+            <ProfileAvatarUpload
+              value={profileForm.avatar_url}
+              fallbackText={currentUser?.name || 'U'}
+              alt={profileForm.name || 'Perfil'}
+              size="lg"
+              onChange={handleProfileAvatarChange}
+            />
 
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold text-gray-900">Meu Perfil Pessoal</h3>
               <p className="text-xs text-gray-500">
-                Clique na foto ao lado para enviar uma imagem do seu computador ou atualize seus dados pessoais abaixo.
+                Atualize suas informações pessoais, cargo, telefone e senha de acesso.
               </p>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => profileFileInputRef.current?.click()}
-                  className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold rounded-lg text-[11px] flex items-center gap-1.5 transition-colors"
-                >
-                  <Camera size={12} /> Escolher foto do computador
-                </button>
-                {profileForm.avatar_url && (
-                  <button
-                    type="button"
-                    onClick={() => setProfileForm({ ...profileForm, avatar_url: '' })}
-                    className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[11px] font-medium transition-colors"
-                  >
-                    Remover foto
-                  </button>
-                )}
-              </div>
             </div>
           </div>
 
@@ -1363,7 +1359,7 @@ function SettingsContent() {
                     required
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -1375,7 +1371,7 @@ function SettingsContent() {
                     placeholder="Ex: Administrador, Diretor Criativo, etc."
                     value={profileForm.job_title}
                     onChange={(e) => setProfileForm({ ...profileForm, job_title: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1398,14 +1394,14 @@ function SettingsContent() {
                     placeholder="(18) 99999-9999"
                     value={profileForm.phone}
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
             </div>
 
             {/* Alterar Senha */}
-            <div className="pt-4 border-t border-gray-100">
+            <div className="pt-4 border-t border-gray-200">
               <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Lock size={14} className="text-blue-600" /> Alterar Senha (Opcional)
               </h4>
@@ -1418,7 +1414,7 @@ function SettingsContent() {
                     placeholder="Mínimo 6 caracteres"
                     value={profileForm.new_password}
                     onChange={(e) => setProfileForm({ ...profileForm, new_password: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -1429,7 +1425,7 @@ function SettingsContent() {
                     placeholder="Repita a nova senha"
                     value={profileForm.confirm_password}
                     onChange={(e) => setProfileForm({ ...profileForm, confirm_password: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1453,60 +1449,21 @@ function SettingsContent() {
       {/* TAB 1B: PERFIL DA EMPRESA (WORKSPACE)                      */}
       {/* ======================================================== */}
       {activeTab === 'company' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm max-w-3xl space-y-6">
-          <input
-            ref={companyFileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleCompanyLogoFileChange}
-            className="hidden"
-          />
-
-          <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
-            <button
-              type="button"
-              onClick={() => companyFileInputRef.current?.click()}
-              title="Clique para enviar o logotipo da empresa"
-              className="relative w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl overflow-hidden group ring-4 ring-blue-50 hover:ring-blue-100 transition-all flex-shrink-0 cursor-pointer"
-            >
-              {profileForm.company_logo ? (
-                <img
-                  src={profileForm.company_logo}
-                  alt={profileForm.company_name || 'Empresa'}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span>{profileForm.company_name?.charAt(0).toUpperCase() || 'E'}</span>
-              )}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold">
-                <Camera size={16} />
-                <span>Editar</span>
-              </div>
-            </button>
+        <div className="w-full space-y-6">
+          <div className="flex items-center gap-4 pb-5 border-b border-gray-200">
+            <ProfileAvatarUpload
+              value={profileForm.company_logo}
+              fallbackText={profileForm.company_name || 'E'}
+              alt={profileForm.company_name || 'Empresa'}
+              size="lg"
+              onChange={handleCompanyLogoChange}
+            />
 
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold text-gray-900">Perfil da Empresa</h3>
               <p className="text-xs text-gray-500">
-                Clique no ícone circular ao lado para enviar a imagem/logotipo da empresa e configure a identidade da sua agência.
+                Configure a foto de perfil da empresa, nome da empresa e ramo de atuação exibidos no sistema.
               </p>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => companyFileInputRef.current?.click()}
-                  className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold rounded-lg text-[11px] flex items-center gap-1.5 transition-colors"
-                >
-                  <Camera size={12} /> Escolher imagem da empresa
-                </button>
-                {profileForm.company_logo && (
-                  <button
-                    type="button"
-                    onClick={() => setProfileForm({ ...profileForm, company_logo: '' })}
-                    className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[11px] font-medium transition-colors"
-                  >
-                    Remover logo
-                  </button>
-                )}
-              </div>
             </div>
           </div>
 
@@ -1528,7 +1485,7 @@ function SettingsContent() {
                   placeholder="Ex: PixelCraft Studio"
                   value={profileForm.company_name}
                   onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
                 />
               </div>
 
@@ -1541,7 +1498,7 @@ function SettingsContent() {
                   placeholder="Ex: Audiovisual & Criativo"
                   value={profileForm.company_description}
                   onChange={(e) => setProfileForm({ ...profileForm, company_description: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>

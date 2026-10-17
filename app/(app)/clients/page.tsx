@@ -24,6 +24,7 @@ import {
 import { Client } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import ConfirmModal from '@/components/ConfirmModal';
+import ProfileAvatarUpload from '@/components/ProfileAvatarUpload';
 
 async function compressClientImage(file: File, maxSize = 256): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -440,16 +441,13 @@ export default function ClientsPage() {
             {/* Header */}
             <div className="p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
               <div className="flex items-center gap-3.5">
-                <input
-                  ref={detailAvatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !selectedClient) return;
+                <ProfileAvatarUpload
+                  value={selectedClient.avatar_url}
+                  fallbackText={selectedClient.name}
+                  alt={selectedClient.name}
+                  size="md"
+                  onChange={async (dataUrl) => {
                     try {
-                      const dataUrl = await compressClientImage(file, 256);
                       const res = await fetch(`/api/clients/${selectedClient.id}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
@@ -460,30 +458,10 @@ export default function ClientsPage() {
                         fetchClients();
                       }
                     } catch (err) {
-                      console.error('Erro ao enviar foto do cliente:', err);
+                      console.error('Erro ao atualizar foto do cliente:', err);
                     }
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => detailAvatarInputRef.current?.click()}
-                  title="Clique para enviar foto/logo do cliente do seu computador"
-                  className="relative w-14 h-14 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg flex-shrink-0 overflow-hidden group ring-2 ring-blue-200 hover:ring-blue-400 transition-all cursor-pointer"
-                >
-                  {selectedClient.avatar_url ? (
-                    <img
-                      src={selectedClient.avatar_url}
-                      alt={selectedClient.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span>{selectedClient.name.charAt(0).toUpperCase()}</span>
-                  )}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-semibold">
-                    <Camera size={14} />
-                    <span>Editar</span>
-                  </div>
-                </button>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-xl font-bold text-gray-900">{selectedClient.name}</h3>
@@ -681,47 +659,15 @@ export default function ClientsPage() {
             <form onSubmit={handleCreateClient} className="space-y-3">
               {/* Foto / Avatar Circular */}
               <div className="flex items-center gap-3 pb-2">
-                <input
-                  ref={createAvatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      const dataUrl = await compressClientImage(file, 256);
-                      setNewClient((prev) => ({ ...prev, avatar_url: dataUrl }));
-                    } catch (err) {
-                      console.error(err);
-                    }
-                  }}
+                <ProfileAvatarUpload
+                  value={newClient.avatar_url}
+                  fallbackText={newClient.name}
+                  alt={newClient.name || 'Cliente'}
+                  size="md"
+                  onChange={(dataUrl) => setNewClient((prev) => ({ ...prev, avatar_url: dataUrl }))}
                 />
-                <button
-                  type="button"
-                  onClick={() => createAvatarInputRef.current?.click()}
-                  title="Clique para enviar imagem do cliente"
-                  className="relative w-14 h-14 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center font-bold text-lg overflow-hidden group flex-shrink-0 cursor-pointer"
-                >
-                  {newClient.avatar_url ? (
-                    <img src={newClient.avatar_url} alt="Prévia" className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{newClient.name ? newClient.name.charAt(0).toUpperCase() : <Camera size={18} />}</span>
-                  )}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-semibold">
-                    <Camera size={14} />
-                    <span>Editar</span>
-                  </div>
-                </button>
                 <div>
                   <p className="text-xs font-semibold text-gray-800">Foto / Logo do Cliente</p>
-                  <button
-                    type="button"
-                    onClick={() => createAvatarInputRef.current?.click()}
-                    className="mt-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1"
-                  >
-                    <Camera size={12} /> Escolher imagem do computador
-                  </button>
                 </div>
               </div>
 
@@ -836,59 +782,15 @@ export default function ClientsPage() {
             <form onSubmit={handleUpdateClient} className="mt-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2 flex items-center gap-4 pb-2 border-b border-gray-100">
-                  <input
-                    ref={editAvatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const dataUrl = await compressClientImage(file, 256);
-                        setEditClient((prev) => ({ ...prev, avatar_url: dataUrl }));
-                      } catch (err) {
-                        console.error(err);
-                      }
-                    }}
+                  <ProfileAvatarUpload
+                    value={editClient.avatar_url}
+                    fallbackText={editClient.name}
+                    alt={editClient.name || 'Cliente'}
+                    size="md"
+                    onChange={(dataUrl) => setEditClient((prev) => ({ ...prev, avatar_url: dataUrl }))}
                   />
-                  <button
-                    type="button"
-                    onClick={() => editAvatarInputRef.current?.click()}
-                    title="Clique para enviar imagem do cliente"
-                    className="relative w-14 h-14 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center font-bold text-lg overflow-hidden group flex-shrink-0 cursor-pointer"
-                  >
-                    {editClient.avatar_url ? (
-                      <img src={editClient.avatar_url} alt="Prévia" className="w-full h-full object-cover" />
-                    ) : (
-                      <span>{editClient.name ? editClient.name.charAt(0).toUpperCase() : <Camera size={18} />}</span>
-                    )}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-semibold">
-                      <Camera size={14} />
-                      <span>Editar</span>
-                    </div>
-                  </button>
                   <div>
                     <p className="text-xs font-semibold text-gray-800">Foto / Logo do Perfil do Cliente</p>
-                    <p className="text-[11px] text-gray-500">Clique na bolinha ou no botão abaixo para enviar um arquivo de imagem do seu computador.</p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editAvatarInputRef.current?.click()}
-                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1"
-                      >
-                        <Camera size={12} /> Escolher imagem do computador
-                      </button>
-                      {editClient.avatar_url && (
-                        <button
-                          type="button"
-                          onClick={() => setEditClient({ ...editClient, avatar_url: '' })}
-                          className="px-2 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-[11px] font-medium"
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </div>
 

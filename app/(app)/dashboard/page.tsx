@@ -44,32 +44,29 @@ export default function DashboardPage() {
     showAtividadesRecentes: true,
   };
   const [layoutPrefs, setLayoutPrefs] = useState(defaultLayoutPrefs);
-  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
 
   useEffect(() => {
-    if (data) {
-      const uid = data?.user?.id || data?.id || 'default';
-      const saved = localStorage.getItem(`dashboard_layout_${uid}`);
-      if (saved) {
-        try {
-          setLayoutPrefs(JSON.parse(saved));
-        } catch(e) {}
-      }
+    const uid = data?.user?.id || data?.id || 'default';
+    const saved =
+      localStorage.getItem(`dashboard_layout_${uid}`) ||
+      localStorage.getItem('dashboard_layout_default');
+    if (saved) {
+      try {
+        setLayoutPrefs(JSON.parse(saved));
+      } catch (e) {}
     }
   }, [data]);
 
-  const toggleLayout = (key: keyof typeof layoutPrefs) => {
-    const newPrefs = { ...layoutPrefs, [key]: !layoutPrefs[key] };
-    setLayoutPrefs(newPrefs);
-    const uid = data?.user?.id || data?.id || 'default';
-    localStorage.setItem(`dashboard_layout_${uid}`, JSON.stringify(newPrefs));
-  };
-
-  const restoreLayout = () => {
-    setLayoutPrefs(defaultLayoutPrefs);
-    const uid = data?.user?.id || data?.id || 'default';
-    localStorage.removeItem(`dashboard_layout_${uid}`);
-  };
+  useEffect(() => {
+    const handleLayoutChange = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      if (customEvt?.detail) {
+        setLayoutPrefs(customEvt.detail);
+      }
+    };
+    window.addEventListener('dashboard-layout-changed', handleLayoutChange);
+    return () => window.removeEventListener('dashboard-layout-changed', handleLayoutChange);
+  }, []);
 
   // Dashboard Lead Modal
   const [selectedDashboardLead, setSelectedDashboardLead] = useState<any | null>(null);
@@ -353,53 +350,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-end relative z-10 mb-2">
-        <button
-          onClick={() => setShowLayoutMenu(!showLayoutMenu)}
-          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 border border-gray-200 bg-white shadow-sm"
-          title="Configurar Widgets"
-        >
-          <Settings size={18} />
-          <span className="text-xs font-semibold">Layout</span>
-        </button>
-
-        {showLayoutMenu && (
-          <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-50">
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-bold text-sm text-gray-900">Widgets do Dashboard</h4>
-              <button onClick={() => setShowLayoutMenu(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-            </div>
-            <div className="space-y-2">
-              {Object.entries({
-                showFinanceiro: 'Financeiro',
-                showProximasEntregas: 'Próximas Entregas',
-                showStatusProjetos: 'Status dos Projetos',
-                showLembretes: 'Lembretes & Alertas',
-                showDesempenhoVendas: 'Desempenho de Vendas',
-                showProximosCompromissos: 'Próximos Compromissos',
-                showAtividadesRecentes: 'Atividades Recentes'
-              }).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={layoutPrefs[key as keyof typeof layoutPrefs]}
-                    onChange={() => toggleLayout(key as keyof typeof layoutPrefs)}
-                    className="rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-700">{label}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              onClick={restoreLayout}
-              className="mt-4 w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors"
-            >
-              Restaurar padrão
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Task Metric Cards - Clickable to filter on /tasks */}
       {layoutPrefs.showStatusProjetos && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

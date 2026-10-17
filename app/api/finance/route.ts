@@ -134,14 +134,14 @@ export async function POST(request: NextRequest) {
         const newCatId = 'fcat_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
         try {
           await db
-            .prepare(`INSERT INTO financial_categories (id, name, type, is_active, workspace_id, created_at) VALUES (?, ?, ?, 1, ?, datetime('now'))`)
+            .prepare(`INSERT INTO financial_categories (id, name, type, workspace_id, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
             .bind(newCatId, cleanCatName, type, wsId)
             .run();
           resolvedCategoryId = newCatId;
         } catch {
           try {
             await db
-              .prepare(`INSERT INTO financial_categories (id, name, type, is_active, created_at) VALUES (?, ?, ?, 1, datetime('now'))`)
+              .prepare(`INSERT INTO financial_categories (id, name, type, created_at) VALUES (?, ?, ?, datetime('now'))`)
               .bind(newCatId, cleanCatName, type)
               .run();
             resolvedCategoryId = newCatId;

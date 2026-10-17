@@ -80,28 +80,52 @@ export async function POST(request: Request) {
     const cleanName = name.trim();
 
     if (target === 'tasks') {
+      try {
+        await db.prepare('ALTER TABLE task_categories ADD COLUMN is_active INTEGER DEFAULT 1').run();
+      } catch {}
+      try {
+        await db.prepare('ALTER TABLE task_categories ADD COLUMN workspace_id TEXT').run();
+      } catch {}
+
       const existing = await db
-        .prepare('SELECT id FROM task_categories WHERE LOWER(name) = LOWER(?)')
-        .bind(cleanName)
-        .first<{ id: string }>();
+        .prepare("SELECT id FROM task_categories WHERE LOWER(name) = LOWER(?) AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))")
+        .bind(cleanName, wsId, wsId)
+        .first<{ id: string }>()
+        .catch(() =>
+          db
+            .prepare('SELECT id FROM task_categories WHERE LOWER(name) = LOWER(?)')
+            .bind(cleanName)
+            .first<{ id: string }>()
+        );
 
       if (existing) {
-        await db.prepare('UPDATE task_categories SET is_active = 1, color = COALESCE(?, color) WHERE id = ?').bind(color || null, existing.id).run();
+        try {
+          await db
+            .prepare('UPDATE task_categories SET is_active = 1, color = COALESCE(?, color) WHERE id = ?')
+            .bind(color || null, existing.id)
+            .run();
+        } catch {
+          await db
+            .prepare('UPDATE task_categories SET color = COALESCE(?, color) WHERE id = ?')
+            .bind(color || null, existing.id)
+            .run();
+        }
         return NextResponse.json({ success: true, id: existing.id });
       }
 
       const id = generateId('tcat');
       try {
         const r = await db
-          .prepare(`INSERT INTO task_categories (id, name, color, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-          .bind(id, cleanName, color || '#3b82f6', is_active, wsId)
+          .prepare(`INSERT INTO task_categories (id, name, color, workspace_id, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, color || '#3b82f6', wsId)
           .run();
         if (r && r.success === false) throw new Error(r.error);
       } catch {
-        await db
-          .prepare(`INSERT INTO task_categories (id, name, color, is_active, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
-          .bind(id, cleanName, color || '#3b82f6', is_active)
+        const r2 = await db
+          .prepare(`INSERT INTO task_categories (id, name, color, created_at) VALUES (?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, color || '#3b82f6')
           .run();
+        if (r2 && r2.success === false) throw new Error(r2.error);
       }
 
       await logAudit({
@@ -114,28 +138,52 @@ export async function POST(request: Request) {
 
       return NextResponse.json({ success: true, id });
     } else if (target === 'finance') {
+      try {
+        await db.prepare('ALTER TABLE financial_categories ADD COLUMN is_active INTEGER DEFAULT 1').run();
+      } catch {}
+      try {
+        await db.prepare('ALTER TABLE financial_categories ADD COLUMN workspace_id TEXT').run();
+      } catch {}
+
       const existing = await db
-        .prepare('SELECT id FROM financial_categories WHERE LOWER(name) = LOWER(?)')
-        .bind(cleanName)
-        .first<{ id: string }>();
+        .prepare("SELECT id FROM financial_categories WHERE LOWER(name) = LOWER(?) AND (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))")
+        .bind(cleanName, wsId, wsId)
+        .first<{ id: string }>()
+        .catch(() =>
+          db
+            .prepare('SELECT id FROM financial_categories WHERE LOWER(name) = LOWER(?)')
+            .bind(cleanName)
+            .first<{ id: string }>()
+        );
 
       if (existing) {
-        await db.prepare('UPDATE financial_categories SET is_active = 1, type = COALESCE(?, type) WHERE id = ?').bind(type || null, existing.id).run();
+        try {
+          await db
+            .prepare('UPDATE financial_categories SET is_active = 1, type = COALESCE(?, type) WHERE id = ?')
+            .bind(type || null, existing.id)
+            .run();
+        } catch {
+          await db
+            .prepare('UPDATE financial_categories SET type = COALESCE(?, type) WHERE id = ?')
+            .bind(type || null, existing.id)
+            .run();
+        }
         return NextResponse.json({ success: true, id: existing.id });
       }
 
       const id = generateId('fcat');
       try {
         const r = await db
-          .prepare(`INSERT INTO financial_categories (id, name, type, is_active, workspace_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-          .bind(id, cleanName, type, is_active, wsId)
+          .prepare(`INSERT INTO financial_categories (id, name, type, workspace_id, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, type, wsId)
           .run();
         if (r && r.success === false) throw new Error(r.error);
       } catch {
-        await db
-          .prepare(`INSERT INTO financial_categories (id, name, type, is_active, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
-          .bind(id, cleanName, type, is_active)
+        const r2 = await db
+          .prepare(`INSERT INTO financial_categories (id, name, type, created_at) VALUES (?, ?, ?, datetime('now'))`)
+          .bind(id, cleanName, type)
           .run();
+        if (r2 && r2.success === false) throw new Error(r2.error);
       }
 
       await logAudit({

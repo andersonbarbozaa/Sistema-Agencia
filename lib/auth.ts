@@ -66,7 +66,7 @@ export async function getSessionUser(): Promise<User | null> {
                w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
                p.name as position_name, c.name as client_name
         FROM users u
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
+        LEFT JOIN workspaces w ON COALESCE(u.workspace_id, 'ws_default') = w.id
         LEFT JOIN positions p ON u.position_id = p.id
         LEFT JOIN clients c ON u.client_id = c.id
         WHERE u.id = ? AND u.status = 'ativo'
@@ -115,7 +115,7 @@ export async function getApiUser(request: Request): Promise<User | null> {
                w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
                p.name as position_name, c.name as client_name
         FROM users u
-        LEFT JOIN workspaces w ON u.workspace_id = w.id
+        LEFT JOIN workspaces w ON COALESCE(u.workspace_id, 'ws_default') = w.id
         LEFT JOIN positions p ON u.position_id = p.id
         LEFT JOIN clients c ON u.client_id = c.id
         WHERE u.id = ? AND u.status = 'ativo'
