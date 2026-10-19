@@ -27,7 +27,9 @@ export async function GET(request: Request, { params }: RouteParams) {
                u.name as created_by_name,
                (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
                (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
-               (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status
+               (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status,
+               (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
+               (SELECT id FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_id
         FROM tasks t
         LEFT JOIN clients c ON t.client_id = c.id
         LEFT JOIN task_categories tc ON t.category_id = tc.id
@@ -261,11 +263,56 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       }
     }
 
+    // Synchronize linked financial transaction if task has a value
+    const finalVal = value !== undefined ? Number(value) : (existing.value ? Number(existing.value) : 0);
+    const finalDeliveryDate = taskDeliveryDate !== undefined ? taskDeliveryDate : existing.delivery_date;
+    const finalTaskName = taskName !== undefined ? (taskName ? taskName.trim() : existing.name) : existing.name;
+    const finalClientId = client_id !== undefined ? client_id : existing.client_id;
+
+    if (finalVal > 0) {
+      const existingTx = await db
+        .prepare("SELECT id FROM financial_transactions WHERE task_id = ? AND type = 'Entrada'")
+        .bind(id)
+        .first<{ id: string }>();
+
+      const clientRow = finalClientId
+        ? await db.prepare('SELECT name FROM clients WHERE id = ?').bind(finalClientId).first<{ name: string }>()
+        : null;
+      const clientNamePrefix = clientRow?.name ? `${clientRow.name} - ` : '';
+      const txDescription = `${clientNamePrefix}${finalTaskName}`;
+      const dueDate = finalDeliveryDate || now.split('T')[0];
+
+      if (existingTx) {
+        await db
+          .prepare(`
+            UPDATE financial_transactions
+            SET description = ?, amount = ?, due_date = ?, client_id = ?, updated_at = ?
+            WHERE id = ?
+          `)
+          .bind(txDescription, finalVal, dueDate, finalClientId || null, now, existingTx.id)
+          .run();
+      } else {
+        const txId = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+        const wsId = existing.workspace_id || user.workspace_id || 'ws_default';
+        await db
+          .prepare(`
+            INSERT INTO financial_transactions (id, type, description, amount, status, due_date,
+                                                client_id, task_id, workspace_id,
+                                                created_by, created_at, updated_at)
+            VALUES (?, 'Entrada', ?, ?, 'Pendente', ?, ?, ?, ?, ?, ?, ?)
+          `)
+          .bind(txId, txDescription, finalVal, dueDate, finalClientId || null, id, wsId, user.id, now, now)
+          .run();
+      }
+    }
+
     const updatedRaw = await db
       .prepare(`
         SELECT t.*, c.name as client_name,
                tc.name as category_name, tc.color as category_color,
-               u.name as created_by_name
+               u.name as created_by_name,
+               (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
+               (SELECT id FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_id
         FROM tasks t
         LEFT JOIN clients c ON t.client_id = c.id
         LEFT JOIN task_categories tc ON t.category_id = tc.id

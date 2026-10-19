@@ -12,7 +12,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const db = await getDb();
+    const db = getDb();
+    const { id: taskId } = await params;
     
     const { results: logs } = await db.prepare(`
       SELECT l.*, u.name as user_name 
@@ -20,9 +21,14 @@ export async function GET(
       LEFT JOIN users u ON l.user_id = u.id
       WHERE l.task_id = ?
       ORDER BY l.start_time DESC
-    `).bind((await params).id).all();
+    `).bind(taskId).all();
 
-    return NextResponse.json(logs);
+    const mappedLogs = (logs || []).map((l: any) => ({
+      ...l,
+      is_current_user: l.user_id === user.id,
+    }));
+
+    return NextResponse.json(mappedLogs);
   } catch (error: any) {
     console.error('Get time logs error:', error);
     return NextResponse.json({ error: error.message || 'Error getting time logs' }, { status: 500 });

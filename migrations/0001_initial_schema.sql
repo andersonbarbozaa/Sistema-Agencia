@@ -153,6 +153,20 @@ CREATE TABLE IF NOT EXISTS task_deletion_requests (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 11b. REGISTROS DE TEMPO / CRONÔMETRO DE TAREFAS
+CREATE TABLE IF NOT EXISTS task_time_logs (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  start_time TEXT NOT NULL,
+  end_time TEXT,
+  duration_seconds INTEGER,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_task_time_logs_task_id ON task_time_logs(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_time_logs_user_id ON task_time_logs(user_id);
+
 -- 12. CONTAS BANCÁRIAS
 CREATE TABLE IF NOT EXISTS bank_accounts (
   id TEXT PRIMARY KEY,

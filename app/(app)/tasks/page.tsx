@@ -421,6 +421,31 @@ export default function TasksPage() {
   const filterParam = searchParams.get('filter'); // 'abertas' | 'aprovacao' | 'atrasadas'
   const todayStr = new Date().toISOString().split('T')[0];
 
+  const isTaskOverdue = (t: any) => {
+    const s = (t.status || '').toLowerCase();
+    const isConcluded = s.includes('conclu') || s.includes('aprovad');
+
+    // Rule: Quando a tarefa é finalizada/concluída e tem valor, se não foi marcado como pago, entra como atrasada
+    if (isConcluded) {
+      if ((t.value && Number(t.value) > 0) || t.financial_id) {
+        if (!t.financial_status || t.financial_status.toLowerCase() !== 'pago') {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Rule: Não concluída e passou 1 dia da data de vencimento
+    if (!t.delivery_date) return false;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const [y, m, d] = t.delivery_date.split('T')[0].split('-').map(Number);
+    if (!y || !m || !d) return false;
+    const delivery = new Date(y, m - 1, d);
+    const diffDays = Math.floor((today.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 1;
+  };
+
   // Filter tasks
   const filteredTasks = tasks.filter((t) => {
     const s = (t.status || '').toLowerCase();
@@ -429,7 +454,7 @@ export default function TasksPage() {
     } else if (filterParam === 'aprovacao') {
       if (!s.includes('aprova') || s.includes('altera')) return false;
     } else if (filterParam === 'atrasadas') {
-      if (s.includes('conclu') || s.includes('aprovad') || !t.delivery_date || t.delivery_date >= todayStr) return false;
+      if (!isTaskOverdue(t)) return false;
     }
 
     if (statusFilter && t.status !== statusFilter) return false;
@@ -599,15 +624,28 @@ export default function TasksPage() {
                         {/* MOBILE VIEW */}
                         <td className="md:hidden flex flex-col gap-1.5 w-full">
                           <div className="flex justify-between items-start">
-                            <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase", 
-                              task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                              task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
-                              task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                              task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
-                              'bg-blue-100 text-blue-800'
-                            )}>
-                              {task.status}
-                            </span>
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase", 
+                                task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
+                                task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
+                                task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
+                                task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
+                                'bg-blue-100 text-blue-800'
+                              )}>
+                                {task.status}
+                              </span>
+                              {isTaskOverdue(task) && (
+                                (task.status === 'Concluída' || task.status === 'Aprovada') ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                    Recebimento Pendente
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">
+                                    Atrasada
+                                  </span>
+                                )
+                              )}
+                            </div>
                             {task.assignees && task.assignees.length > 0 && (
                               <div className="flex -space-x-1.5">
                                 {task.assignees.map((a: any, i: number) => (
@@ -652,15 +690,28 @@ export default function TasksPage() {
                           {task.client_name || '-'}
                         </td>
                         <td className="hidden md:table-cell py-3 px-4">
-                          <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-semibold", 
-                            task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                            task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
-                            task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                            task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
-                            'bg-blue-100 text-blue-800'
-                          )}>
-                            {task.status}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-semibold", 
+                              task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
+                              task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
+                              task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
+                              task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
+                              'bg-blue-100 text-blue-800'
+                            )}>
+                              {task.status}
+                            </span>
+                            {isTaskOverdue(task) && (
+                              (task.status === 'Concluída' || task.status === 'Aprovada') ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                                  Recebimento Pendente
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-800 border border-red-300">
+                                  Atrasada
+                                </span>
+                              )
+                            )}
+                          </div>
                         </td>
                         <td className="hidden md:table-cell py-3 px-4 text-gray-600">
                           {task.category_name || '-'}
@@ -736,7 +787,7 @@ export default function TasksPage() {
                           isDeletionPending ? 'bg-red-50/70 border-red-300 opacity-60' : ''
                         )}
                       >
-                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
                           <span
                             className="text-[10px] font-semibold px-2 py-0.5 rounded-md text-white"
                             style={{ backgroundColor: task.category_color || '#3b82f6' }}
@@ -747,6 +798,20 @@ export default function TasksPage() {
                             {formatDate(task.delivery_date)}
                           </span>
                         </div>
+
+                        {isTaskOverdue(task) && (
+                          <div className="mb-1.5">
+                            {(task.status === 'Concluída' || task.status === 'Aprovada') ? (
+                              <span className="text-[10px] bg-amber-50 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded inline-block">
+                                Recebimento Pendente
+                              </span>
+                            ) : (
+                              <span className="text-[10px] bg-red-50 text-red-800 border border-red-300 font-bold px-1.5 py-0.5 rounded inline-block">
+                                Atrasada
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         <h4 className="font-semibold text-xs text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                           {task.name}
@@ -1035,15 +1100,48 @@ export default function TasksPage() {
 
               {/* Task Details Info */}
               <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <span className="text-gray-500 font-medium">Prazo de Entrega:</span>
-                  <p className="font-bold text-gray-900 mt-1">{formatDate(selectedTask.delivery_date)}</p>
+                <div className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-100 dark:border-gray-700/60">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Prazo de Entrega:</span>
+                  <p className="font-bold text-gray-900 dark:text-gray-100 mt-1">{formatDate(selectedTask.delivery_date)}</p>
                 </div>
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <span className="text-gray-500 font-medium">Valor do Serviço:</span>
-                  <p className="font-bold text-gray-900 mt-1">
-                    {selectedTask.value ? formatCurrency(selectedTask.value) : 'Não informado'}
-                  </p>
+                <div className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-100 dark:border-gray-700/60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">Valor do Serviço:</span>
+                    {selectedTask.value > 0 && (
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                        selectedTask.financial_status === 'Pago'
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300"
+                      )}>
+                        {selectedTask.financial_status === 'Pago' ? 'Recebido' : 'Recebimento Pendente'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="font-bold text-gray-900 dark:text-gray-100">
+                      {selectedTask.value ? formatCurrency(selectedTask.value) : 'Não informado'}
+                    </p>
+                    {selectedTask.value > 0 && selectedTask.financial_status !== 'Pago' && currentUser?.role !== 'CLIENTE' && (
+                      <button
+                        onClick={async () => {
+                          if (selectedTask.financial_id) {
+                            await fetch(`/api/finance/${selectedTask.financial_id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ status: 'Pago' }),
+                            });
+                            setSelectedTask({ ...selectedTask, financial_status: 'Pago' });
+                            fetchInitialData();
+                          }
+                        }}
+                        className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-md transition-colors cursor-pointer shadow-xs"
+                        title="Marcar recebimento como pago"
+                      >
+                        Marcar Pago
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

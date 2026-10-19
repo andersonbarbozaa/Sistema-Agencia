@@ -14,11 +14,12 @@ export async function PATCH(
 
     const { note } = await request.json();
 
-    const db = await getDb();
+    const db = getDb();
+    const { id: taskId, logId } = await params;
     
     const log = await db.prepare(`
       SELECT user_id FROM task_time_logs WHERE id = ? AND task_id = ?
-    `).bind((await params).logId, (await params).id).first() as { user_id: string } | null;
+    `).bind(logId, taskId).first() as { user_id: string } | null;
 
     if (!log) {
       return NextResponse.json({ error: 'Log not found' }, { status: 404 });
@@ -33,7 +34,7 @@ export async function PATCH(
       UPDATE task_time_logs
       SET note = ?
       WHERE id = ?
-    `).bind(note, (await params).logId).run();
+    `).bind(note, logId).run();
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

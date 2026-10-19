@@ -81,13 +81,18 @@ export async function GET(request: Request) {
     const taskStats = await db
       .prepare(`
         SELECT 
-          COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' THEN 1 END) as pending_tasks,
-          COUNT(CASE WHEN LOWER(status) LIKE '%produ%' THEN 1 END) as in_production_tasks,
-          COUNT(CASE WHEN LOWER(status) LIKE '%aprova%' AND LOWER(status) NOT LIKE '%altera%' THEN 1 END) as in_approval_tasks,
-          COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' AND delivery_date IS NOT NULL AND date(delivery_date) <= date('now', '+3 days') AND date(delivery_date) >= date('now') THEN 1 END) as due_soon_tasks,
-          COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' AND delivery_date IS NOT NULL AND date(delivery_date) < date('now', '-1 day') THEN 1 END) as overdue_tasks
-        FROM tasks
-        WHERE (workspace_id = ? OR (workspace_id IS NULL AND ? = 'ws_default'))
+          COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' THEN 1 END) as pending_tasks,
+          COUNT(CASE WHEN LOWER(t.status) LIKE '%produ%' THEN 1 END) as in_production_tasks,
+          COUNT(CASE WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1 END) as in_approval_tasks,
+          COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND t.delivery_date IS NOT NULL AND date(t.delivery_date) <= date('now', '+3 days') AND date(t.delivery_date) >= date('now') THEN 1 END) as due_soon_tasks,
+          COUNT(CASE WHEN 
+            (LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND t.delivery_date IS NOT NULL AND date(t.delivery_date) < date('now', '-1 day'))
+            OR
+            ((LOWER(t.status) LIKE '%conclu%' OR LOWER(t.status) LIKE '%aprovad%') AND (t.value > 0 OR ft.id IS NOT NULL) AND (ft.status IS NULL OR LOWER(ft.status) != 'pago'))
+          THEN 1 END) as overdue_tasks
+        FROM tasks t
+        LEFT JOIN financial_transactions ft ON ft.task_id = t.id AND ft.type = 'Entrada'
+        WHERE (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))
       `)
       .bind(wsId, wsId)
       .first<any>();
@@ -97,7 +102,8 @@ export async function GET(request: Request) {
       .prepare(`
         SELECT t.id, t.name, t.delivery_date, t.status, t.value,
                c.name as client_name, p.name as project_name, tc.name as category_name, tc.color as category_color,
-               (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_count
+               (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_count,
+               (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status
         FROM tasks t
         LEFT JOIN clients c ON t.client_id = c.id
         LEFT JOIN projects p ON t.project_id = p.id

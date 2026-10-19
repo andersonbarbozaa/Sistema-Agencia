@@ -32,7 +32,9 @@ function getLocalDatabase(): D1DatabaseInterface {
     if (getMod) {
       const sqliteMod = getMod('node:sqlite');
       if (sqliteMod?.DatabaseSync) {
-        sqlite = new sqliteMod.DatabaseSync('.data/local.db');
+        const fsMod = getMod('node:fs');
+        const dbPath = (fsMod?.existsSync?.('data/local.sqlite')) ? 'data/local.sqlite' : '.data/local.db';
+        sqlite = new sqliteMod.DatabaseSync(dbPath);
       }
     }
   } catch {}
@@ -71,6 +73,19 @@ function getLocalDatabase(): D1DatabaseInterface {
         );
         INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, workspace_id, job_title)
         VALUES ('usr_anderson', 'Anderson Barboza', 'anderson@agencia.com', '$2b$10$TNXA4RoTuecRRLfUst11TO9DmCBfbTQK1Id/dseBjOqGu3jFGfbI6', 'ADMINISTRADOR', 'ativo', 'ws_default', 'Administrador');
+
+        CREATE TABLE IF NOT EXISTS task_time_logs (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          start_time TEXT NOT NULL,
+          end_time TEXT,
+          duration_seconds INTEGER,
+          note TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_time_logs_task_id ON task_time_logs(task_id);
+        CREATE INDEX IF NOT EXISTS idx_task_time_logs_user_id ON task_time_logs(user_id);
 
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,

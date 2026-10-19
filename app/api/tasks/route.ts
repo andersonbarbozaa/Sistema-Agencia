@@ -32,7 +32,9 @@ export async function GET(request: Request) {
              u.name as created_by_name,
              (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
              (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
-             (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status
+             (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status,
+             (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
+             (SELECT id FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_id
       FROM tasks t
       LEFT JOIN clients c ON t.client_id = c.id
       LEFT JOIN task_categories tc ON t.category_id = tc.id
@@ -221,14 +223,22 @@ export async function POST(request: Request) {
     if (value > 0) {
       const txId = 'fin_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
       const dueDate = delivery_date || now.split('T')[0];
+
+      // Fetch client name to format description: "<Cliente> - <Nome da Tarefa>"
+      const clientRow = client_id
+        ? await db.prepare('SELECT name FROM clients WHERE id = ?').bind(client_id).first<{ name: string }>()
+        : null;
+      const clientPrefix = clientRow?.name ? `${clientRow.name} - ` : '';
+      const txDesc = `${clientPrefix}${taskName}`;
+
       await db
         .prepare(`
           INSERT INTO financial_transactions (id, type, description, amount, status, due_date,
-                                              client_id, task_id,
+                                              client_id, task_id, workspace_id,
                                               created_by, created_at, updated_at)
-          VALUES (?, 'Entrada', ?, ?, 'Pendente', ?, ?, ?, ?, ?, ?)
+          VALUES (?, 'Entrada', ?, ?, 'Pendente', ?, ?, ?, ?, ?, ?, ?)
         `)
-        .bind(txId, `Recebível da tarefa: ${taskName}`, value, dueDate, client_id, id, user.id, now, now)
+        .bind(txId, txDesc, value, dueDate, client_id, id, wsId, user.id, now, now)
         .run();
     }
 
