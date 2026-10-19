@@ -329,6 +329,10 @@ CREATE TABLE IF NOT EXISTS workspaces (
   description TEXT,
   owner_id TEXT,
   invite_code TEXT UNIQUE NOT NULL,
+  logo_url TEXT,
+  plan_type TEXT DEFAULT 'individual',
+  subscription_status TEXT DEFAULT 'trial',
+  trial_ends_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -337,6 +341,10 @@ CREATE INDEX IF NOT EXISTS idx_workspaces_invite_code ON workspaces(invite_code)
 
 INSERT OR IGNORE INTO workspaces (id, name, description, owner_id, invite_code)
 VALUES ('ws_default', 'PixelCraft Studio', 'Agência Audiovisual & Criativa', 'usr_anderson', 'pixelcraft');
+
+ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual';
+ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial';
+ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT;
 
 ALTER TABLE users ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE users ADD COLUMN job_title TEXT DEFAULT 'Administrador';

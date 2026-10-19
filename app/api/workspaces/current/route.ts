@@ -19,6 +19,15 @@ export async function GET(request: NextRequest) {
     try {
       await db.prepare('ALTER TABLE workspaces ADD COLUMN description TEXT').run();
     } catch {}
+    try {
+      await db.prepare("ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual'").run();
+    } catch {}
+    try {
+      await db.prepare("ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial'").run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT').run();
+    } catch {}
 
     let workspace = await db
       .prepare('SELECT * FROM workspaces WHERE id = ?')
@@ -27,15 +36,29 @@ export async function GET(request: NextRequest) {
 
     if (!workspace) {
       const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
+      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       await db
         .prepare(
-          `INSERT INTO workspaces (id, name, description, logo_url, owner_id, invite_code, created_at, updated_at)
-           VALUES (?, 'PixelCraft Studio', 'Audiovisual & Criativo', NULL, ?, ?, datetime('now'), datetime('now'))`
+          `INSERT INTO workspaces (id, name, description, logo_url, plan_type, subscription_status, trial_ends_at, owner_id, invite_code, created_at, updated_at)
+           VALUES (?, 'PixelCraft Studio', 'Audiovisual & Criativo', NULL, 'individual', 'trial', ?, ?, ?, datetime('now'), datetime('now'))`
         )
-        .bind(workspaceId, user.id, inviteCode)
+        .bind(workspaceId, trialEndsAt, user.id, inviteCode)
         .run()
         .catch(() => {});
       workspace = await db.prepare('SELECT * FROM workspaces WHERE id = ?').bind(workspaceId).first<any>();
+    }
+
+    // Set default trial date if missing
+    if (workspace && !workspace.trial_ends_at) {
+      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await db
+        .prepare("UPDATE workspaces SET trial_ends_at = ?, plan_type = COALESCE(plan_type, 'individual'), subscription_status = COALESCE(subscription_status, 'trial') WHERE id = ?")
+        .bind(trialEndsAt, workspaceId)
+        .run()
+        .catch(() => {});
+      workspace.trial_ends_at = trialEndsAt;
+      workspace.plan_type = workspace.plan_type || 'individual';
+      workspace.subscription_status = workspace.subscription_status || 'trial';
     }
 
     return NextResponse.json({ workspace });
@@ -45,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH /api/workspaces/current — Update workspace name, description and logo
+// PATCH /api/workspaces/current — Update workspace name, description, logo and subscription
 export async function PATCH(request: NextRequest) {
   try {
     const user = await getApiUser(request);
@@ -55,11 +78,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, logo_url } = body;
-
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: 'O Nome da Empresa é obrigatório.' }, { status: 400 });
-    }
+    const { name, description, logo_url, plan_type, subscription_status, trial_ends_at } = body;
 
     const db = getDb();
     const workspaceId = user.workspace_id || 'ws_default';
@@ -70,6 +89,15 @@ export async function PATCH(request: NextRequest) {
     } catch {}
     try {
       await db.prepare('ALTER TABLE workspaces ADD COLUMN description TEXT').run();
+    } catch {}
+    try {
+      await db.prepare("ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual'").run();
+    } catch {}
+    try {
+      await db.prepare("ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial'").run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT').run();
     } catch {}
 
     if (!user.workspace_id) {
@@ -83,27 +111,30 @@ export async function PATCH(request: NextRequest) {
       .bind(workspaceId)
       .first<any>();
 
-    const newName = name.trim();
+    const newName = name !== undefined ? name.trim() : (existing?.name || 'PixelCraft Studio');
     const newDesc = description !== undefined ? (description ? description.trim() : null) : existing?.description ?? null;
     const newLogo = logo_url !== undefined ? (logo_url || null) : (existing?.logo_url ?? null);
+    const newPlan = plan_type !== undefined ? plan_type : (existing?.plan_type ?? 'individual');
+    const newSubStatus = subscription_status !== undefined ? subscription_status : (existing?.subscription_status ?? 'trial');
+    const newTrialEnds = trial_ends_at !== undefined ? trial_ends_at : (existing?.trial_ends_at ?? null);
 
     if (!existing) {
       const inviteCode = 'inv_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
       await db
         .prepare(
-          `INSERT INTO workspaces (id, name, description, logo_url, owner_id, invite_code, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+          `INSERT INTO workspaces (id, name, description, logo_url, plan_type, subscription_status, trial_ends_at, owner_id, invite_code, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
         )
-        .bind(workspaceId, newName, newDesc, newLogo, user.id, inviteCode)
+        .bind(workspaceId, newName, newDesc, newLogo, newPlan, newSubStatus, newTrialEnds, user.id, inviteCode)
         .run();
     } else {
       await db
         .prepare(
           `UPDATE workspaces
-           SET name = ?, description = ?, logo_url = ?, updated_at = datetime('now')
+           SET name = ?, description = ?, logo_url = ?, plan_type = ?, subscription_status = ?, trial_ends_at = ?, updated_at = datetime('now')
            WHERE id = ?`
         )
-        .bind(newName, newDesc, newLogo, workspaceId)
+        .bind(newName, newDesc, newLogo, newPlan, newSubStatus, newTrialEnds, workspaceId)
         .run();
     }
 

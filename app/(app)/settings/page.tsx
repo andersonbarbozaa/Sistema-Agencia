@@ -41,13 +41,67 @@ import {
   Camera,
   Mail,
   Send,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Crown,
 } from 'lucide-react';
 import { Position, TaskCategory, FinancialCategory, BankAccount } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { TextFormatPreset, DEFAULT_TEXT_PRESETS } from '@/components/RichTextEditor';
 
-const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting'] as const;
+const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting', 'plans'] as const;
 type SettingsTab = (typeof VALID_SETTINGS_TABS)[number];
+
+const SUBSCRIPTION_PLANS = [
+  {
+    id: 'individual',
+    name: 'Plano Individual',
+    popular: false,
+    price: 'R$ 15,90',
+    period: '/mês',
+    summary: 'Ideal para profissionais independentes',
+    badge: null,
+    benefits: [
+      '1 profissional / uso individual',
+      'Sincronização em tempo real',
+      'Controle financeiro completo e fluxo de caixa',
+      'Agenda inteligente',
+      'CRM de clientes',
+    ],
+  },
+  {
+    id: 'pro',
+    name: 'Equipe Pro',
+    popular: true,
+    price: 'R$ 59,90',
+    period: '/mês',
+    summary: 'Perfeito para pequenos times e estúdios',
+    badge: 'Mais Popular',
+    benefits: [
+      'Até 5 usuários inclusos',
+      'Agendas individuais e visão em grupo',
+      'Financeiro integrado com controle do time',
+      'CRM com histórico compartilhado',
+    ],
+  },
+  {
+    id: 'corporativo',
+    name: 'Corporativo',
+    popular: false,
+    price: 'R$ 119,90',
+    period: '/mês',
+    summary: 'Gestão completa para agências maiores',
+    badge: null,
+    benefits: [
+      'Até 10 usuários inclusos',
+      'Múltiplas agendas e controle simultâneo',
+      'Gestão financeira avançada',
+      'Permissões de acesso por profissional',
+      'CRM ilimitado e Suporte prioritário',
+    ],
+  },
+];
 
 async function compressImageFile(file: File, maxSize = 256): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -236,6 +290,12 @@ function SettingsContent() {
   const [clients, setClients] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
 
+  // Subscription & Plans state
+  const [workspaceData, setWorkspaceData] = useState<any>(null);
+  const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
+  const [subscriptionSuccess, setSubscriptionSuccess] = useState<string | null>(null);
+  const [expandedMobilePlan, setExpandedMobilePlan] = useState<string>('pro');
+
   // MY PROFILE & COMPANY FORM
   const [profileForm, setProfileForm] = useState({
     name: '',
@@ -358,7 +418,7 @@ function SettingsContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [uRes, pRes, cRes, aRes, sRes, cliRes, meRes] = await Promise.all([
+      const [uRes, pRes, cRes, aRes, sRes, cliRes, meRes, wsRes] = await Promise.all([
         fetch('/api/users'),
         fetch('/api/positions'),
         fetch('/api/categories?type=all'),
@@ -366,6 +426,7 @@ function SettingsContent() {
         fetch('/api/settings'),
         fetch('/api/clients'),
         fetch('/api/auth/me'),
+        fetch('/api/workspaces/current'),
       ]);
 
       if (meRes.ok) {
@@ -384,6 +445,11 @@ function SettingsContent() {
           new_password: '',
           confirm_password: '',
         });
+      }
+
+      if (wsRes.ok) {
+        const wsData = await wsRes.json();
+        setWorkspaceData(wsData.workspace || null);
       }
 
       if (uRes.ok) {
@@ -427,6 +493,32 @@ function SettingsContent() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubscribeTrial = async (planType: string) => {
+    try {
+      setSubscribingPlan(planType);
+      const res = await fetch('/api/workspaces/current/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_type: planType }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspaceData(data.workspace);
+        const planName = planType === 'pro' ? 'Equipe Pro' : planType === 'corporativo' ? 'Corporativo' : 'Individual';
+        setSubscriptionSuccess(`Plano ${planName} ativado com sucesso! Você tem 30 dias de teste grátis sem custos.`);
+        setTimeout(() => setSubscriptionSuccess(null), 5000);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao ativar assinatura.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao ativar assinatura.');
+    } finally {
+      setSubscribingPlan(null);
     }
   };
 
@@ -1294,6 +1386,35 @@ function SettingsContent() {
                 <span>Configurar padrões &rarr;</span>
                 <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold">
                   {formattingPresets.length} modelos
+                </span>
+              </div>
+            </div>
+
+            {/* Card 9: Assinaturas & Planos */}
+            <div
+              onClick={() => setActiveTab('plans')}
+              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                    Assinaturas & Planos
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
+                    30 Dias Grátis
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                  Gerencie seu plano de assinatura, conheça os diferenciais e teste novos planos sem cartão de crédito.
+                </p>
+              </div>
+              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+                <span>Ver planos disponíveis &rarr;</span>
+                <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold capitalize">
+                  {workspaceData?.plan_type === 'corporativo' ? 'Corporativo' : workspaceData?.plan_type === 'pro' ? 'Equipe Pro' : 'Individual'}
                 </span>
               </div>
             </div>
@@ -2418,6 +2539,296 @@ function SettingsContent() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 9: ASSINATURAS E PLANOS (Responsivo)                  */}
+      {/* ======================================================== */}
+      {activeTab === 'plans' && (
+        <div className="w-full space-y-6">
+          {/* Header da Seção */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-gray-200">
+            <div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 mb-2 transition-colors"
+              >
+                &larr; Voltar para Configurações
+              </button>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-blue-600" />
+                Assinaturas e Planos
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Escolha o melhor plano para a sua operação. Todos os planos incluem 30 dias de teste grátis sem necessidade de cartão de crédito.
+              </p>
+            </div>
+
+            {/* Status Atual do Workspace */}
+            {workspaceData && (
+              <div className="flex items-center gap-2.5 px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs">
+                <Shield className="w-4 h-4 text-blue-600 shrink-0" />
+                <div>
+                  <span className="text-gray-500 text-[11px] block">Plano Atual:</span>
+                  <span className="font-bold text-gray-900 capitalize">
+                    {workspaceData.plan_type === 'corporativo'
+                      ? 'Corporativo'
+                      : workspaceData.plan_type === 'pro'
+                      ? 'Equipe Pro'
+                      : 'Plano Individual'}
+                  </span>
+                  {workspaceData.trial_ends_at && (
+                    <span className="text-[11px] text-blue-700 font-medium block">
+                      Teste ativo até {new Date(workspaceData.trial_ends_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Feedback de Ativação */}
+          {subscriptionSuccess && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2 animate-in fade-in duration-200">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>{subscriptionSuccess}</span>
+            </div>
+          )}
+
+          {/* Aviso Global: 30 Dias de Teste Grátis */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200/80 rounded-2xl flex items-start gap-3.5 shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                Garantia de 30 Dias de Teste Grátis
+              </h4>
+              <p className="text-xs text-blue-800/90 leading-relaxed">
+                Todos os planos possuem <strong>30 dias de teste grátis</strong> sem necessidade de informar cartão de crédito no momento do cadastro. Experimente todas as funcionalidades da plataforma e potencialize o trabalho da sua equipe com tranquilidade.
+              </p>
+            </div>
+          </div>
+
+          {/* VISUALIZAÇÃO DESKTOP: Cards lado a lado totalmente expandidos */}
+          <div className="hidden md:grid md:grid-cols-3 gap-6 items-stretch pt-2">
+            {SUBSCRIPTION_PLANS.map((plan) => {
+              const isCurrent = workspaceData?.plan_type === plan.id;
+              const isPopular = plan.popular;
+
+              return (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    'bg-white border rounded-2xl p-6 transition-all flex flex-col justify-between relative',
+                    isPopular
+                      ? 'border-2 border-blue-600 shadow-md ring-4 ring-blue-500/10'
+                      : 'border-gray-200 shadow-sm hover:border-blue-300 hover:shadow-md'
+                  )}
+                >
+                  {/* Selo de Mais Popular */}
+                  {isPopular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-600 text-white text-[10px] font-extrabold uppercase tracking-wider rounded-full shadow-sm flex items-center gap-1">
+                      <Sparkles size={11} /> Mais Popular
+                    </div>
+                  )}
+
+                  <div>
+                    {/* Header do Card */}
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-base font-bold text-gray-900">{plan.name}</h3>
+                      {isCurrent && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                          Atual
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-500 min-h-[34px] leading-relaxed">
+                      {plan.summary}
+                    </p>
+
+                    {/* Preço */}
+                    <div className="mt-4 pb-4 border-b border-gray-100">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                          {plan.price}
+                        </span>
+                        <span className="text-xs text-gray-500 font-medium">{plan.period}</span>
+                      </div>
+                      <span className="inline-block mt-1.5 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                        30 dias grátis para testar
+                      </span>
+                    </div>
+
+                    {/* Lista de Benefícios */}
+                    <div className="py-5 space-y-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Benefícios inclusos:
+                      </p>
+                      <ul className="space-y-2.5">
+                        {plan.benefits.map((benefit, idx) => (
+                          <li key={idx} className="flex items-start gap-2.5 text-xs text-gray-700">
+                            <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                            <span className="leading-snug">{benefit}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Botão de Ação Desktop */}
+                  <div className="pt-4 border-t border-gray-100 mt-2">
+                    {isCurrent ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSubscribeTrial(plan.id)}
+                        disabled={subscribingPlan === plan.id}
+                        className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Check size={14} /> Plano Ativo (30 Dias Grátis)
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSubscribeTrial(plan.id)}
+                        disabled={subscribingPlan === plan.id}
+                        className={cn(
+                          'w-full py-3 px-4 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50',
+                          isPopular
+                            ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
+                            : 'bg-gray-900 hover:bg-gray-800 text-white'
+                        )}
+                      >
+                        {subscribingPlan === plan.id ? (
+                          'Ativando teste...'
+                        ) : (
+                          <>
+                            <Zap size={13} /> Testar 30 Dias Grátis
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* VISUALIZAÇÃO MOBILE: Formato Accordion / Dropdown */}
+          <div className="flex flex-col gap-3.5 md:hidden pt-1">
+            {SUBSCRIPTION_PLANS.map((plan) => {
+              const isExpanded = expandedMobilePlan === plan.id;
+              const isCurrent = workspaceData?.plan_type === plan.id;
+              const isPopular = plan.popular;
+
+              return (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    'border rounded-2xl bg-white shadow-sm transition-all overflow-hidden',
+                    isPopular ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-gray-200',
+                    isExpanded ? 'shadow-md' : ''
+                  )}
+                >
+                  {/* Cabeçalho do Card Retraído (Sempre visível no mobile) */}
+                  <div
+                    onClick={() => setExpandedMobilePlan(isExpanded ? '' : plan.id)}
+                    className="p-4 cursor-pointer flex flex-col gap-2.5 active:bg-gray-50/70 select-none"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-gray-900">{plan.name}</h3>
+                        {isPopular && (
+                          <span className="px-2 py-0.5 bg-blue-600 text-white text-[9px] font-extrabold uppercase tracking-wider rounded-full">
+                            Mais Popular
+                          </span>
+                        )}
+                        {isCurrent && (
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded-full">
+                            Atual
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-400">
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </div>
+                    </div>
+
+                    {/* Resumo do Diferencial */}
+                    <p className="text-xs text-gray-500 leading-relaxed">{plan.summary}</p>
+
+                    {/* Preço no estado retraído */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-extrabold text-gray-900">{plan.price}</span>
+                        <span className="text-[11px] text-gray-500 font-medium">{plan.period}</span>
+                      </div>
+                      <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-0.5">
+                        {isExpanded ? 'Ocultar detalhes' : 'Ver benefícios & testar'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Área Expandida (Empurra os outros itens para baixo) */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-100 p-4 pt-3 space-y-4 bg-gray-50/50 animate-in slide-in-from-top-2 duration-150">
+                      {/* Lista de Benefícios */}
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                          Benefícios inclusos no plano:
+                        </p>
+                        <ul className="space-y-2">
+                          {plan.benefits.map((benefit, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-xs text-gray-700">
+                              <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />
+                              <span className="leading-snug">{benefit}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Botão de Ação no Mobile Expandido */}
+                      <div className="pt-2">
+                        {isCurrent ? (
+                          <button
+                            type="button"
+                            onClick={() => handleSubscribeTrial(plan.id)}
+                            disabled={subscribingPlan === plan.id}
+                            className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <Check size={14} /> Plano Ativo (30 Dias Grátis)
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSubscribeTrial(plan.id)}
+                            disabled={subscribingPlan === plan.id}
+                            className={cn(
+                              'w-full py-3 px-4 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50',
+                              isPopular
+                                ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                                : 'bg-gray-900 hover:bg-gray-800 text-white'
+                            )}
+                          >
+                            {subscribingPlan === plan.id ? (
+                              'Ativando teste...'
+                            ) : (
+                              <>
+                                <Zap size={13} /> Testar 30 Dias Grátis
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

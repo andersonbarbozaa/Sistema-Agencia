@@ -48,11 +48,24 @@ function getLocalDatabase(): D1DatabaseInterface {
           description TEXT,
           owner_id TEXT,
           invite_code TEXT UNIQUE NOT NULL,
+          logo_url TEXT,
+          plan_type TEXT DEFAULT 'individual',
+          subscription_status TEXT DEFAULT 'trial',
+          trial_ends_at TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         INSERT OR IGNORE INTO workspaces (id, name, description, owner_id, invite_code)
         VALUES ('ws_default', 'PixelCraft Studio', 'Agência Audiovisual & Criativa', 'usr_anderson', 'pixelcraft');
+
+        ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual';
+        ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial';
+        ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT;
+      `);
+    } catch {}
+
+    try {
+      sqlite.exec(`
 
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,

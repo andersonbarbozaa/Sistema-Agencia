@@ -21,6 +21,7 @@ import {
   Bot,
   Sun,
   Type,
+  CreditCard,
   X,
   LogOut,
 } from 'lucide-react';
@@ -54,6 +55,7 @@ const navItems: NavItem[] = [
 const settingsSubItems: SubMenuItem[] = [
   { tab: 'profile', href: '/settings?tab=profile', label: 'Meu Perfil', icon: UserIcon },
   { tab: 'company', href: '/settings?tab=company', label: 'Perfil da Empresa', icon: Building2 },
+  { tab: 'plans', href: '/settings?tab=plans', label: 'Assinaturas e Planos', icon: CreditCard },
   { tab: 'users', href: '/settings?tab=users', label: 'Usuários', icon: Users },
   { tab: 'categories', href: '/settings?tab=categories', label: 'Categorias do Sistema', icon: FolderTree },
   { tab: 'finance', href: '/settings?tab=finance', label: 'Categoria Financeiro', icon: Coins },
