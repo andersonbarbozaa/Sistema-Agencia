@@ -415,6 +415,24 @@ export default function TasksPage() {
     setCurrentMonthDate(new Date());
   };
 
+  const getTaskStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'Concluída':
+        return 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold';
+      case 'Aprovada':
+        return 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold';
+      case 'Em alteração':
+        return 'bg-orange-100 text-orange-800 border border-orange-200 font-semibold';
+      case 'Em aprovação':
+        return 'bg-amber-100 text-amber-800 border border-amber-200 font-semibold';
+      case 'Em produção':
+        return 'bg-blue-100 text-blue-800 border border-blue-200 font-semibold';
+      case 'Não iniciada':
+      default:
+        return 'bg-slate-100 text-slate-700 border border-slate-200 font-semibold';
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Em produção':
@@ -630,8 +648,12 @@ export default function TasksPage() {
                       <tr
                         key={task.id}
                         className={cn(
-                          'hover:bg-gray-50/80 transition-colors cursor-pointer flex flex-col md:table-row py-3 px-4 md:py-0 md:px-0',
-                          task.status === 'Concluída' ? 'bg-emerald-50/70 hover:bg-emerald-100/70 md:border-l-4 md:border-emerald-500' : isDeletionPending ? 'bg-red-50/60 opacity-60 text-red-900 md:border-l-4 md:border-red-500' : 'hover:bg-gray-50/80'
+                          'transition-colors cursor-pointer flex flex-col md:table-row py-3.5 px-4 md:py-0 md:px-0 border-b border-gray-100',
+                          task.status === 'Concluída'
+                            ? 'bg-emerald-50/90 hover:bg-emerald-100/90 border-l-4 border-emerald-500 text-emerald-950'
+                            : isDeletionPending
+                            ? 'bg-red-50/60 opacity-60 text-red-900 border-l-4 border-red-500 hover:bg-red-100/50'
+                            : 'bg-white hover:bg-gray-50/80'
                         )}
                         onClick={() => openTaskDetail(task.id)}
                       >
@@ -639,13 +661,7 @@ export default function TasksPage() {
                         <td className="md:hidden flex flex-col gap-1.5 w-full">
                           <div className="flex justify-between items-start">
                             <div className="flex flex-wrap gap-1 items-center">
-                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase", 
-                                task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                                task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
-                                task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                                task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
-                                'bg-blue-100 text-blue-800'
-                              )}>
+                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase", getTaskStatusBadgeStyle(task.status))}>
                                 {task.status}
                               </span>
                               {isTaskOverdue(task) && (
@@ -705,13 +721,7 @@ export default function TasksPage() {
                         </td>
                         <td className="hidden md:table-cell py-3 px-4">
                           <div className="flex flex-col gap-1 items-start">
-                            <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-semibold", 
-                              task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                              task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
-                              task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                              task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
-                              'bg-blue-100 text-blue-800'
-                            )}>
+                            <span className={cn("px-2.5 py-1 rounded-full text-[11px]", getTaskStatusBadgeStyle(task.status))}>
                               {task.status}
                             </span>
                             {isTaskOverdue(task) && (
@@ -797,8 +807,12 @@ export default function TasksPage() {
                         onDragStart={(e) => e.dataTransfer.setData('taskId', task.id.toString())}
                         onClick={() => openTaskDetail(task.id)}
                         className={cn(
-                          'bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group',
-                          isDeletionPending ? 'bg-red-50/70 border-red-300 opacity-60' : ''
+                          'p-3.5 rounded-xl border shadow-xs hover:shadow-md transition-all cursor-pointer group',
+                          task.status === 'Concluída'
+                            ? 'bg-emerald-50/90 border-emerald-300'
+                            : isDeletionPending
+                            ? 'bg-red-50/70 border-red-300 opacity-60'
+                            : 'bg-white border-gray-200'
                         )}
                       >
                         <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">

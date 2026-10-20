@@ -42,6 +42,27 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
   ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const trigger = document.getElementById('floating-ai-trigger-btn');
+      if (trigger && trigger.contains(e.target as Node)) {
+        return;
+      }
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen]);
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef("");
 
@@ -241,9 +262,19 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
 
   return (
     <>
+      {/* Mobile Backdrop to close when clicking outside */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-2xs z-40 sm:hidden"
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Floating Action Trigger Button */}
-      <div className="fixed bottom-[40px] sm:bottom-6 right-4 sm:right-6 z-40">
+      <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40">
         <button
+          id="floating-ai-trigger-btn"
           onClick={() => setIsOpen(!isOpen)}
           title="Assistente IA PixelCraft"
           className="relative group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-2xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none ring-4 ring-blue-500/20"
@@ -261,7 +292,9 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
 
       {/* Floating Chat Modal */}
       {isOpen && (
-        <div className="fixed bottom-[96px] sm:bottom-24 right-3 sm:right-6 left-3 sm:left-auto z-40 sm:w-[420px] max-h-[calc(100vh-100px)] sm:max-h-[600px] h-[500px] sm:h-[560px] bg-white rounded-3xl shadow-2xl border border-gray-200/90 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 zoom-in-95 duration-200 select-none">
+        <div
+          ref={modalRef}
+          className="fixed bottom-[88px] sm:bottom-24 right-3 sm:right-6 left-3 sm:left-auto z-40 sm:w-[420px] max-h-[calc(100vh-110px)] sm:max-h-[600px] h-[500px] sm:h-[560px] bg-white rounded-3xl shadow-2xl border border-gray-200/90 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 zoom-in-95 duration-200 select-none">
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-gray-900 via-gray-900 to-indigo-950 text-white flex items-center justify-between border-b border-gray-800">
             <div className="flex items-center gap-2.5">

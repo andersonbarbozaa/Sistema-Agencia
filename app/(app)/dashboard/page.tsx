@@ -22,7 +22,7 @@ import {
   X,
   Settings,
 } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
 import ConfirmModal from '@/components/ConfirmModal';
 import FinancialSummaryDashboard from '@/components/finance/FinancialSummaryDashboard';
@@ -319,13 +319,15 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                      task.status === 'Aprovada' ? 'bg-emerald-100 text-emerald-800' :
-                      task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                      task.status === 'Concluída' ? 'bg-gray-100 text-gray-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
+                    <span className={cn(
+                      'px-2.5 py-1 rounded-full text-xs font-semibold',
+                      task.status === 'Concluída' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' :
+                      task.status === 'Aprovada' ? 'bg-teal-100 text-teal-800 border border-teal-200' :
+                      task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                      task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                      task.status === 'Em produção' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                      'bg-slate-100 text-slate-700 border border-slate-200'
+                    )}>
                       {task.status}
                     </span>
                     <Link
@@ -512,12 +514,15 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800' :
-                      task.status === 'Em produção' ? 'bg-blue-100 text-blue-800' :
-                      task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={cn(
+                      'px-2.5 py-1 rounded-full text-xs font-semibold',
+                      task.status === 'Concluída' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' :
+                      task.status === 'Aprovada' ? 'bg-teal-100 text-teal-800 border border-teal-200' :
+                      task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                      task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                      task.status === 'Em produção' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                      'bg-slate-100 text-slate-700 border border-slate-200'
+                    )}>
                       {task.status}
                     </span>
                     <Link
