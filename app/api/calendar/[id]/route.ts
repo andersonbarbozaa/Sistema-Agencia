@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
@@ -76,6 +75,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const allowedFields = [
       'title', 'description', 'event_date', 'start_time', 'end_time',
       'client_id', 'project_id', 'event_type', 'location', 'attendees',
+      'visibility', 'calendar_id',
     ];
 
     const updates: string[] = [];
@@ -149,7 +149,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const existing = res.results?.[0];
 
     if (!existing) {
-      // Force delete anyway just in case the SELECT failed for some reason
       await db.prepare('DELETE FROM calendar_events WHERE id = ?').bind(resolvedId).run();
       return NextResponse.json({ message: 'Event deleted (not found in select)' });
     }
@@ -158,7 +157,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     await logAudit(user.id, 'calendar_events', 'DELETE', resolvedId, { title: existing.title });
 
-    // Remove from Google Calendar if google_event_id exists
     if (existing.google_event_id) {
       deleteGoogleCalendarEvent(user.id, existing.google_event_id as string).catch((err) =>
         console.error('Google Calendar delete error:', err)
@@ -186,8 +184,6 @@ async function updateGoogleCalendarEvent(
     .first();
 
   if (!integration) return;
-
-  // TODO: Implement Google Calendar API PATCH call
   console.log(`[Google Calendar] Updating event ${googleEventId} for user ${userId}`);
 }
 
@@ -199,7 +195,5 @@ async function deleteGoogleCalendarEvent(userId: string, googleEventId: string) 
     .first();
 
   if (!integration) return;
-
-  // TODO: Implement Google Calendar API DELETE call
   console.log(`[Google Calendar] Deleting event ${googleEventId} for user ${userId}`);
 }

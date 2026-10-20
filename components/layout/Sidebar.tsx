@@ -113,11 +113,15 @@ function SidebarInner({ user }: SidebarProps) {
   useEffect(() => {
     const handleToggle = () => setMobileOpen((prev) => !prev);
     const handleClose = () => setMobileOpen(false);
+    const handleToggleDesktop = () => setCollapsed((prev) => !prev);
+
     window.addEventListener('toggle-mobile-sidebar', handleToggle);
     window.addEventListener('close-mobile-sidebar', handleClose);
+    window.addEventListener('toggle-desktop-sidebar', handleToggleDesktop);
     return () => {
       window.removeEventListener('toggle-mobile-sidebar', handleToggle);
       window.removeEventListener('close-mobile-sidebar', handleClose);
+      window.removeEventListener('toggle-desktop-sidebar', handleToggleDesktop);
     };
   }, []);
 

@@ -25,6 +25,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
 import ConfirmModal from '@/components/ConfirmModal';
+import FinancialSummaryDashboard from '@/components/finance/FinancialSummaryDashboard';
 import { TaskMediaLink } from '@/types';
 
 export default function DashboardPage() {
@@ -444,58 +445,7 @@ export default function DashboardPage() {
             );
           })()}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-xs text-gray-500 font-medium">Saldo em Contas</span>
-              <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(financial.total_balance)}</p>
-              <div className="mt-2 text-[11px] text-gray-500 space-y-0.5">
-                {financial.accounts?.map((acc: any) => (
-                  <div key={acc.id} className="flex justify-between">
-                    <span>{acc.name}:</span>
-                    <span className="font-medium text-gray-700">{formatCurrency(acc.balance)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">Entradas do Mês</span>
-                <TrendingUp size={16} className="text-emerald-600" />
-              </div>
-              <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(financial.current_month?.entries)}</p>
-              <div className="mt-2 text-[11px] text-gray-500 flex justify-between">
-                <span>A receber:</span>
-                <span className="font-medium text-gray-700">{formatCurrency(financial.to_receive)}</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">Saídas do Mês</span>
-                <TrendingDown size={16} className="text-red-600" />
-              </div>
-              <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(financial.current_month?.exits)}</p>
-              <div className="mt-2 text-[11px] text-gray-500 flex justify-between">
-                <span>A pagar:</span>
-                <span className="font-medium text-gray-700">{formatCurrency(financial.to_pay)}</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">Resultado Líquido</span>
-                <DollarSign size={16} className="text-blue-600" />
-              </div>
-              <p className="text-xl font-bold text-gray-900 mt-1">
-                {formatCurrency(financial.current_month?.result)}
-              </p>
-              <div className="mt-2 text-[11px] text-gray-500 flex justify-between">
-                <span>Mês anterior:</span>
-                <span className="font-medium text-gray-700">{formatCurrency(financial.previous_month?.result)}</span>
-              </div>
-            </div>
-          </div>
+          <FinancialSummaryDashboard />
 
           {/* Partner Analytical Comparison (Sem ranking - Requisito 14 & 28) */}
           {partner_expenses && partner_expenses.length > 0 && (

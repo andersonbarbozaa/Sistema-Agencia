@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
+import FinancialSummaryDashboard from '@/components/finance/FinancialSummaryDashboard';
 import {
   DollarSign,
   TrendingUp,
@@ -531,83 +532,7 @@ export default function FinancePage() {
       {/* ======================================================== */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Saldo</span>
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <Wallet className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-gray-900 tracking-tight">
-                  {formatCurrency(totalBalance)}
-                </span>
-              </div>
-              <div className="mt-1 text-[11px] text-gray-500">
-                Disponível pós-pagar: {formatCurrency(totalBalance - (summary?.total_pending_pay || 0))}
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Renda no Mês</span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-emerald-600 tracking-tight">
-                  {formatCurrency(monthEntries)}
-                </span>
-              </div>
-              <div className="mt-1 text-[11px] text-gray-500">
-                A receber pendente: {formatCurrency(summary?.total_pending_receive || 0)}
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Despesas no Mês</span>
-                <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                  <TrendingDown className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold text-rose-600 tracking-tight">
-                  {formatCurrency(monthExits)}
-                </span>
-              </div>
-              <div className="mt-1 text-[11px] text-gray-500">
-                A pagar pendente: {formatCurrency(summary?.total_pending_pay || 0)}
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gastos por Parceiro</span>
-                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2.5 space-y-1.5 max-h-16 overflow-y-auto pr-1">
-                {reportsData?.by_partner && reportsData.by_partner.length > 0 ? (
-                  reportsData.by_partner.map((p: any) => (
-                    <div key={p.id} className="flex items-center justify-between text-xs">
-                      <span className="text-gray-700 font-medium truncate max-w-[120px]">{p.name}:</span>
-                      <span className="font-bold text-gray-900">{formatCurrency(p.total_expenses || 0)}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-xs text-gray-400">Nenhum gasto atribuído a parceiros.</div>
-                )}
-              </div>
-              <div className="mt-2 text-[10px] text-gray-400 border-t border-gray-100 pt-1">
-                Comparativo analítico do exercício
-              </div>
-            </div>
-          </div>
+          <FinancialSummaryDashboard />
 
           {/* GRÁFICO FINANCEIRO: QUANTO GASTANDO VS RECEBENDO */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">

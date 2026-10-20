@@ -5,21 +5,66 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const db = getDb();
-  let results = [];
+  const results: string[] = [];
 
-  const columns = [
-    'location TEXT',
-    'google_event_id TEXT',
-    'notes TEXT',
-    'workspace_id TEXT'
+  // 1. Tables creation
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS task_time_logs (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      duration_seconds INTEGER,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_task_time_logs_task_id ON task_time_logs(task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_task_time_logs_user_id ON task_time_logs(user_id)`,
+    `CREATE TABLE IF NOT EXISTS custom_calendars (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+      name TEXT NOT NULL,
+      description TEXT,
+      color TEXT DEFAULT '#3B82F6',
+      visibility TEXT NOT NULL DEFAULT 'group',
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_custom_calendars_workspace ON custom_calendars(workspace_id)`
   ];
 
-  for (const col of columns) {
+  for (const sql of tables) {
     try {
-      await db.prepare(`ALTER TABLE calendar_events ADD COLUMN ${col}`).run();
-      results.push(`Added ${col} successfully.`);
+      await db.prepare(sql).run();
+      results.push(`Executed table SQL: ${sql.substring(0, 40)}...`);
     } catch (e: any) {
-      results.push(`Skipped ${col}: ${e.message}`);
+      results.push(`Table error: ${e.message}`);
+    }
+  }
+
+  // 2. Column additions
+  const alterStatements = [
+    'ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"',
+    'ALTER TABLE tasks ADD COLUMN calendar_id TEXT',
+    'ALTER TABLE calendar_events ADD COLUMN location TEXT',
+    'ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT',
+    'ALTER TABLE calendar_events ADD COLUMN notes TEXT',
+    'ALTER TABLE calendar_events ADD COLUMN workspace_id TEXT',
+    'ALTER TABLE calendar_events ADD COLUMN visibility TEXT DEFAULT "group"',
+    'ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT',
+    'ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT "individual"',
+    'ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT "trial"',
+    'ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT'
+  ];
+
+  for (const stmt of alterStatements) {
+    try {
+      await db.prepare(stmt).run();
+      results.push(`Success: ${stmt}`);
+    } catch (e: any) {
+      results.push(`Skipped/Already exists (${stmt}): ${e.message}`);
     }
   }
 

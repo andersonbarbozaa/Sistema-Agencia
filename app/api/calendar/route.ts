@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year');
     const dateFrom = searchParams.get('date_from');
     const dateTo = searchParams.get('date_to');
+    const calendarId = searchParams.get('calendar_id');
 
     const db = getDb();
     const wsId = user.workspace_id || 'ws_default';
@@ -24,6 +25,20 @@ export async function GET(request: NextRequest) {
     let where = "WHERE (e.workspace_id = ? OR (e.workspace_id IS NULL AND ? = 'ws_default'))";
     let taskWhere = "WHERE t.status != 'Concluída' AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))";
     const params: any[] = [wsId, wsId];
+
+    // Visibility filter for non-admin
+    if (user.role !== 'ADMINISTRADOR') {
+      where += " AND (e.visibility != 'private' OR e.visibility IS NULL OR e.created_by = ?)";
+      taskWhere += " AND (t.visibility != 'private' OR t.visibility IS NULL OR t.created_by = ?)";
+      params.push(user.id);
+    }
+
+    // Custom calendar filter
+    if (calendarId && calendarId !== 'all') {
+      where += " AND e.calendar_id = ?";
+      taskWhere += " AND t.calendar_id = ?";
+      params.push(calendarId);
+    }
 
     if (user.role === 'CLIENTE') {
       if (!user.client_id) return NextResponse.json({ data: [] });
@@ -90,6 +105,8 @@ export async function POST(request: NextRequest) {
       client_id,
       project_id,
       location,
+      visibility,
+      calendar_id,
     } = body;
 
     if (!title || !event_date) {
@@ -104,13 +121,15 @@ export async function POST(request: NextRequest) {
     const id = 'evt_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
     const wsId = user.workspace_id || 'ws_default';
+    const eventVisibility = visibility === 'private' ? 'private' : 'group';
+    const eventCalId = calendar_id || null;
 
     try {
       await db
         .prepare(
           `INSERT INTO calendar_events
-            (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -124,6 +143,8 @@ export async function POST(request: NextRequest) {
           location ?? null,
           user.id,
           wsId,
+          eventVisibility,
+          eventCalId,
           now,
           now
         )
@@ -134,12 +155,14 @@ export async function POST(request: NextRequest) {
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN workspace_id TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT').run(); } catch(e){}
         
         await db
           .prepare(
             `INSERT INTO calendar_events
-              (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .bind(
             id,
@@ -153,6 +176,8 @@ export async function POST(request: NextRequest) {
             location ?? null,
             user.id,
             wsId,
+            eventVisibility,
+            eventCalId,
             now,
             now
           )

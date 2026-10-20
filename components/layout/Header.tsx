@@ -5,138 +5,58 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Bell,
-  Plus,
+  Menu,
+  Search,
+  X,
+  User as UserIcon,
+  Settings,
+  LogOut,
   CheckSquare,
   Users,
-  TrendingUp,
-  DollarSign,
   Calendar,
-  ChevronDown,
-  Menu,
+  DollarSign,
   AlertTriangle,
   Clock,
   FileCheck2,
-  CheckCircle2,
-  X,
   Trash2,
-  Settings,
+  ChevronDown,
 } from 'lucide-react';
 import { User, Notification } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 
 interface HeaderProps {
   user: User;
 }
 
-const DEFAULT_DASHBOARD_LAYOUT = {
-  showFinanceiro: true,
-  showProximasEntregas: true,
-  showStatusProjetos: true,
-  showLembretes: true,
-  showDesempenhoVendas: true,
-  showProximosCompromissos: true,
-  showAtividadesRecentes: true,
-};
-
 export default function Header({ user }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Notifications State
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showCreateDropdown, setShowCreateDropdown] = useState(false);
-  const [showLayoutDropdown, setShowLayoutDropdown] = useState(false);
-  const [layoutPrefs, setLayoutPrefs] = useState(DEFAULT_DASHBOARD_LAYOUT);
+
+  // User Profile Dropdown State
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<{
+    tasks: any[];
+    clients: any[];
+    events: any[];
+    finance: any[];
+  }>({ tasks: [], clients: [], events: [], finance: [] });
+  const [isSearching, setIsSearching] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
-  const createRef = useRef<HTMLDivElement>(null);
-  const layoutRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic Route Metadata (Title, Subtitle, Action Label, Action Event)
-  const getRouteConfig = () => {
-    if (pathname.startsWith('/tasks')) {
-      return {
-        title: 'Tarefas',
-        subtitle: 'Produção audiovisual, aprovação de conteúdos e prazos de entrega.',
-        actionLabel: 'Nova Tarefa',
-        actionType: 'task',
-        actionEvent: 'open-create-task',
-        fallbackPath: '/tasks',
-      };
-    }
-    if (pathname.startsWith('/clients')) {
-      return {
-        title: 'Clientes',
-        subtitle: 'Gestão cadastral, contratos, projetos e histórico financeiro de cada conta.',
-        actionLabel: 'Novo Cliente',
-        actionType: 'client',
-        actionEvent: 'open-create-client',
-        fallbackPath: '/clients',
-      };
-    }
-    if (pathname.startsWith('/crm')) {
-      return {
-        title: 'CRM',
-        subtitle: 'Funil de novos clientes, histórico de negociações e controle de follow-up.',
-        actionLabel: 'Novo Lead',
-        actionType: 'lead',
-        actionEvent: 'open-create-lead',
-        fallbackPath: '/crm',
-      };
-    }
-    if (pathname.startsWith('/finance')) {
-      return {
-        title: 'Financeiro',
-        subtitle: 'Controle de entradas, saídas, conciliação e comparativo de parceiros.',
-        actionLabel: 'Novo Lançamento',
-        actionType: 'transaction',
-        actionEvent: 'open-create-transaction',
-        fallbackPath: '/finance',
-      };
-    }
-    if (pathname.startsWith('/agenda')) {
-      return {
-        title: 'Agenda',
-        subtitle: 'Gerenciamento de reuniões, gravações, ensaios e compromissos da agência.',
-        actionLabel: 'Novo Compromisso',
-        actionType: 'event',
-        actionEvent: 'open-create-event',
-        fallbackPath: '/agenda',
-      };
-    }
-    if (pathname.startsWith('/notifications')) {
-      return {
-        title: 'Central de Notificações',
-        subtitle: 'Alertas de aprovação, prazos, vencimentos financeiros e novas atribuições.',
-        actionLabel: null,
-        actionType: null,
-        actionEvent: null,
-        fallbackPath: null,
-      };
-    }
-    if (pathname.startsWith('/settings')) {
-      return {
-        title: 'Configurações do Sistema',
-        subtitle: 'Administração do seu perfil, equipe e cargos, categorias, parâmetros financeiros e IA.',
-        actionLabel: null,
-        actionType: null,
-        actionEvent: null,
-        fallbackPath: null,
-      };
-    }
-    return {
-      title: 'Dashboard Geral',
-      subtitle: 'Visão geral e indicadores estratégicos da agência.',
-      actionLabel: 'Criar Novo',
-      actionType: 'dropdown',
-      actionEvent: null,
-      fallbackPath: null,
-    };
-  };
-
-  const routeConfig = getRouteConfig();
-
-  // Load unread count & notifications
+  // Fetch Notifications
   const fetchNotifications = async () => {
     try {
       const res = await fetch('/api/notifications');
@@ -144,9 +64,7 @@ export default function Header({ user }: HeaderProps) {
         const data = await res.json();
         const list: Notification[] = data.notifications || data.data || [];
         setNotifications(list);
-        const count = typeof data.unread_count === 'number'
-          ? data.unread_count
-          : list.filter((n) => !n.read_at).length;
+        const count = list.filter((n) => !n.read_at).length;
         setUnreadCount(count);
       }
     } catch (err) {
@@ -160,58 +78,82 @@ export default function Header({ user }: HeaderProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Search Handler with Debounce
   useEffect(() => {
-    try {
-      const saved =
-        localStorage.getItem(`dashboard_layout_${user.id}`) ||
-        localStorage.getItem('dashboard_layout_default');
-      if (saved) {
-        setLayoutPrefs(JSON.parse(saved));
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setSearchResults({ tasks: [], clients: [], events: [], finance: [] });
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        }
+      } catch (err) {
+        console.error('Search error', err);
+      } finally {
+        setIsSearching(false);
       }
-    } catch {}
-  }, [user.id]);
+    }, 250);
 
-  const toggleLayout = (key: keyof typeof DEFAULT_DASHBOARD_LAYOUT) => {
-    const newPrefs = { ...layoutPrefs, [key]: !layoutPrefs[key] };
-    setLayoutPrefs(newPrefs);
-    try {
-      localStorage.setItem(`dashboard_layout_${user.id}`, JSON.stringify(newPrefs));
-      localStorage.setItem('dashboard_layout_default', JSON.stringify(newPrefs));
-    } catch {}
-    window.dispatchEvent(new CustomEvent('dashboard-layout-changed', { detail: newPrefs }));
-  };
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  const restoreLayout = () => {
-    setLayoutPrefs(DEFAULT_DASHBOARD_LAYOUT);
-    try {
-      localStorage.removeItem(`dashboard_layout_${user.id}`);
-      localStorage.removeItem('dashboard_layout_default');
-    } catch {}
-    window.dispatchEvent(new CustomEvent('dashboard-layout-changed', { detail: DEFAULT_DASHBOARD_LAYOUT }));
-  };
-
-  // Close menus on outside click
+  // Click outside listener for all dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
-      if (createRef.current && !createRef.current.contains(event.target as Node)) {
-        setShowCreateDropdown(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
       }
-      if (layoutRef.current && !layoutRef.current.contains(event.target as Node)) {
-        setShowLayoutDropdown(false);
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Keyboard shortcut Ctrl+K / Cmd+K to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+        setSearchQuery('');
+        setShowNotifications(false);
+        setShowUserDropdown(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Menu button click
+  const handleMenuClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      window.dispatchEvent(new CustomEvent('toggle-mobile-sidebar'));
+    } else {
+      window.dispatchEvent(new CustomEvent('toggle-desktop-sidebar'));
+    }
+  };
+
   const handleMarkAllRead = async () => {
     try {
       const res = await fetch('/api/notifications', { method: 'PATCH' });
       if (res.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, read_at: new Date().toISOString() })));
+        setNotifications((prev) => prev.map((n) => ({ ...n, read_at: new Date().toISOString() })));
         setUnreadCount(0);
       }
     } catch (err) {
@@ -246,21 +188,19 @@ export default function Header({ user }: HeaderProps) {
   };
 
   const handleNotificationClick = async (n: Notification) => {
-    // If unread, mark as read
     if (!n.read_at) {
       try {
         await fetch(`/api/notifications/${n.id}`, { method: 'PATCH' });
-        setNotifications(prev =>
-          prev.map(item => (item.id === n.id ? { ...item, read_at: new Date().toISOString() } : item))
+        setNotifications((prev) =>
+          prev.map((item) => (item.id === n.id ? { ...item, read_at: new Date().toISOString() } : item))
         );
-        setUnreadCount(prev => Math.max(0, prev - 1));
+        setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch (err) {
         console.error('Failed to mark notification as read', err);
       }
     }
     setShowNotifications(false);
 
-    // Direct routing according to notification module & reference
     if (n.reference_module === 'tasks' && n.reference_id) {
       router.push(`/tasks?id=${n.reference_id}`);
     } else if (n.reference_module === 'tasks') {
@@ -276,214 +216,287 @@ export default function Header({ user }: HeaderProps) {
     }
   };
 
-  // Contextual Action helper
-  const handleQuickCreate = (type: string) => {
-    setShowCreateDropdown(false);
-    if (type === 'task') {
-      window.dispatchEvent(new CustomEvent('open-create-task'));
-      if (pathname !== '/tasks') router.push('/tasks?new=true');
-    } else if (type === 'client') {
-      window.dispatchEvent(new CustomEvent('open-create-client'));
-      if (pathname !== '/clients') router.push('/clients?new=true');
-    } else if (type === 'lead') {
-      window.dispatchEvent(new CustomEvent('open-create-lead'));
-      if (pathname !== '/crm') router.push('/crm?new=true');
-    } else if (type === 'transaction') {
-      window.dispatchEvent(new CustomEvent('open-create-transaction'));
-      if (pathname !== '/finance') router.push('/finance?new=true');
-    } else if (type === 'event') {
-      window.dispatchEvent(new CustomEvent('open-create-event'));
-      if (pathname !== '/agenda') router.push('/agenda?new=true');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handlePrimaryButtonClick = () => {
-    if (routeConfig.actionType === 'dropdown') {
-      setShowCreateDropdown(!showCreateDropdown);
-      setShowLayoutDropdown(false);
-    } else if (routeConfig.actionEvent) {
-      window.dispatchEvent(new CustomEvent(routeConfig.actionEvent));
-      if (routeConfig.fallbackPath && pathname !== routeConfig.fallbackPath) {
-        router.push(`${routeConfig.fallbackPath}?new=true`);
-      }
-    }
-  };
+  const companyName = user.workspace_name || 'PixelCraft Studio';
+  const companyLogo = user.workspace_logo;
+
+  const totalResults =
+    searchResults.tasks.length +
+    searchResults.clients.length +
+    searchResults.events.length +
+    searchResults.finance.length;
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 px-3.5 sm:px-6 flex items-center justify-between z-20 flex-shrink-0">
-      {/* Mobile Hamburger & Dynamic Page Title */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-2">
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3.5 sm:px-6 flex items-center justify-between z-20 flex-shrink-0 transition-colors">
+      {/* 1. LADO ESQUERDO: Botão de Menu + Logo da Empresa */}
+      <div className="flex items-center gap-3 min-w-0 pr-3">
         <button
-          onClick={() => window.dispatchEvent(new CustomEvent('toggle-mobile-sidebar'))}
-          className="p-2 -ml-1 text-gray-700 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors md:hidden flex-shrink-0"
-          title="Abrir menu"
+          type="button"
+          onClick={handleMenuClick}
+          className="p-2 -ml-1 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          title="Alternar menu lateral"
         >
-          <Menu size={22} />
+          <Menu size={20} />
         </button>
 
-        <div className="flex flex-col justify-center min-w-0">
-          <h1 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 tracking-tight leading-snug truncate">
-            {routeConfig.title}
-          </h1>
-          {routeConfig.subtitle && (
-            <p className="hidden sm:block text-xs text-gray-500 truncate leading-tight mt-0.5">
-              {routeConfig.subtitle}
-            </p>
+        <Link href="/dashboard" className="flex items-center gap-2.5 group min-w-0">
+          {companyLogo ? (
+            <img
+              src={companyLogo}
+              alt={companyName}
+              className="w-8 h-8 rounded-xl object-cover border border-gray-200 dark:border-gray-700 shadow-xs shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+              {companyName.charAt(0).toUpperCase()}
+            </div>
           )}
-        </div>
+
+          <div className="hidden sm:flex flex-col min-w-0">
+            <span className="font-extrabold text-sm text-gray-900 dark:text-white tracking-tight truncate group-hover:text-blue-600 transition-colors">
+              {companyName}
+            </span>
+            <span className="text-[10px] text-gray-400 font-medium truncate">
+              {user.workspace_description || 'Agência Digital'}
+            </span>
+          </div>
+        </Link>
       </div>
 
-      {/* Right actions: Layout Button (Dashboard) + Contextual Action Button + Notifications */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-        {user.role !== 'CLIENTE' && routeConfig.actionType === 'dropdown' && (
-          <div className="relative" ref={layoutRef}>
+      {/* 2. CENTRO: Busca Retrátil com Listagem Suspensa de Resultados */}
+      <div className="flex-1 max-w-md mx-2 sm:mx-4 relative" ref={searchRef}>
+        <div
+          className={cn(
+            'flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-1.5 transition-all',
+            isSearchOpen
+              ? 'border-blue-500 ring-2 ring-blue-500/10 bg-white dark:bg-gray-800 shadow-sm'
+              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+          )}
+        >
+          <Search size={16} className="text-gray-400 shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Buscar tarefas, clientes, finanças... (Ctrl+K)"
+            value={searchQuery}
+            onFocus={() => setIsSearchOpen(true)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setIsSearchOpen(true);
+            }}
+            className="w-full bg-transparent text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
+          />
+
+          {searchQuery && (
             <button
+              type="button"
               onClick={() => {
-                setShowLayoutDropdown(!showLayoutDropdown);
-                setShowCreateDropdown(false);
-                setShowNotifications(false);
+                setSearchQuery('');
+                searchInputRef.current?.focus();
               }}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 rounded-xl shadow-xs transition-all"
-              title="Configurar Widgets do Dashboard"
+              className="p-0.5 text-gray-400 hover:text-gray-600 rounded-md shrink-0"
+              title="Limpar busca (X)"
             >
-              <Settings size={15} className="text-gray-500" />
-              <span>Layout</span>
+              <X size={14} />
             </button>
+          )}
 
-            {showLayoutDropdown && (
-              <div className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-auto sm:mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-bold text-sm text-gray-900">Widgets do Dashboard</h4>
-                  <button
-                    onClick={() => setShowLayoutDropdown(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {Object.entries({
-                    showFinanceiro: 'Financeiro',
-                    showProximasEntregas: 'Próximas Entregas',
-                    showStatusProjetos: 'Status dos Projetos',
-                    showLembretes: 'Lembretes & Alertas',
-                    showDesempenhoVendas: 'Desempenho de Vendas',
-                    showProximosCompromissos: 'Próximos Compromissos',
-                    showAtividadesRecentes: 'Atividades Recentes',
-                  }).map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={layoutPrefs[key as keyof typeof DEFAULT_DASHBOARD_LAYOUT]}
-                        onChange={() => toggleLayout(key as keyof typeof DEFAULT_DASHBOARD_LAYOUT)}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-gray-700">{label}</span>
-                    </label>
-                  ))}
-                </div>
-                <button
-                  onClick={restoreLayout}
-                  className="mt-4 w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors"
-                >
-                  Restaurar padrão
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shrink-0">
+            ⌘K
+          </kbd>
+        </div>
 
-        {user.role !== 'CLIENTE' && routeConfig.actionLabel && (
-          <div className="relative" ref={createRef}>
-            <button
-              onClick={handlePrimaryButtonClick}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-sm transition-all active:scale-95"
-            >
-              <Plus size={15} strokeWidth={2.5} />
-              <span className="hidden sm:inline">{routeConfig.actionLabel}</span>
-              <span className="sm:hidden text-xs">
-                {routeConfig.actionLabel.replace('Novo ', '').replace('Nova ', '').replace('Criar ', '')}
+        {/* Dropdown de Resultados da Busca */}
+        {isSearchOpen && searchQuery.trim().length >= 2 && (
+          <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-[75vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/80 flex items-center justify-between text-xs">
+              <span className="font-bold text-gray-700 dark:text-gray-200">
+                {isSearching ? 'Pesquisando...' : `Resultados para "${searchQuery}" (${totalResults})`}
               </span>
-              {routeConfig.actionType === 'dropdown' && (
-                <ChevronDown size={13} className={cn('transition-transform duration-200', showCreateDropdown ? 'rotate-180' : '')} />
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-0.5"
+              >
+                <X size={14} />
+              </button>
+            </div>
 
-            {/* Quick Create Dropdown for Dashboard */}
-            {routeConfig.actionType === 'dropdown' && showCreateDropdown && (
-              <div className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-auto sm:mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  onClick={() => handleQuickCreate('task')}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left"
-                >
-                  <CheckSquare size={14} className="text-blue-500" />
-                  Nova Tarefa
-                </button>
-                <button
-                  onClick={() => handleQuickCreate('client')}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left"
-                >
-                  <Users size={14} className="text-emerald-500" />
-                  Novo Cliente
-                </button>
-                <button
-                  onClick={() => handleQuickCreate('lead')}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left"
-                >
-                  <TrendingUp size={14} className="text-purple-500" />
-                  Novo Lead (CRM)
-                </button>
-                {user.role === 'ADMINISTRADOR' && (
-                  <button
-                    onClick={() => handleQuickCreate('transaction')}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left"
-                  >
-                    <DollarSign size={14} className="text-amber-500" />
-                    Novo Lançamento
-                  </button>
+            {totalResults === 0 && !isSearching ? (
+              <div className="p-8 text-center text-xs text-gray-400">
+                Nenhum resultado encontrado para &quot;{searchQuery}&quot;.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700/60 p-2 space-y-2">
+                {/* Tarefas */}
+                {searchResults.tasks.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1 block">
+                      Tarefas
+                    </span>
+                    {searchResults.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        onClick={() => {
+                          setIsSearchOpen(false);
+                          router.push(`/tasks?id=${task.id}`);
+                        }}
+                        className="flex items-center justify-between p-2 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 rounded-xl cursor-pointer text-xs transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <CheckSquare size={14} className="text-blue-500 shrink-0" />
+                          <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {task.title}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 shrink-0">
+                          {task.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-                <button
-                  onClick={() => handleQuickCreate('event')}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left"
-                >
-                  <Calendar size={14} className="text-indigo-500" />
-                  Novo Compromisso
-                </button>
+
+                {/* Clientes */}
+                {searchResults.clients.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1 block">
+                      Clientes
+                    </span>
+                    {searchResults.clients.map((client) => (
+                      <div
+                        key={client.id}
+                        onClick={() => {
+                          setIsSearchOpen(false);
+                          router.push(`/clients`);
+                        }}
+                        className="flex items-center justify-between p-2 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30 rounded-xl cursor-pointer text-xs transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <Users size={14} className="text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {client.title}
+                          </span>
+                        </div>
+                        {client.subtitle && (
+                          <span className="text-[11px] text-gray-400 truncate max-w-[150px]">
+                            {client.subtitle}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Agenda */}
+                {searchResults.events.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1 block">
+                      Agenda & Eventos
+                    </span>
+                    {searchResults.events.map((evt) => (
+                      <div
+                        key={evt.id}
+                        onClick={() => {
+                          setIsSearchOpen(false);
+                          router.push(`/agenda`);
+                        }}
+                        className="flex items-center justify-between p-2 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 rounded-xl cursor-pointer text-xs transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <Calendar size={14} className="text-indigo-500 shrink-0" />
+                          <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {evt.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-gray-500 shrink-0">
+                          {evt.date ? new Date(evt.date).toLocaleDateString('pt-BR') : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Financeiro */}
+                {searchResults.finance.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1 block">
+                      Financeiro
+                    </span>
+                    {searchResults.finance.map((tx) => (
+                      <div
+                        key={tx.id}
+                        onClick={() => {
+                          setIsSearchOpen(false);
+                          router.push(`/finance`);
+                        }}
+                        className="flex items-center justify-between p-2 hover:bg-amber-50/60 dark:hover:bg-amber-950/30 rounded-xl cursor-pointer text-xs transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <DollarSign size={14} className="text-amber-500 shrink-0" />
+                          <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {tx.title}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            'font-bold text-xs shrink-0',
+                            tx.sub_type === 'Entrada' ? 'text-emerald-600' : 'text-rose-600'
+                          )}
+                        >
+                          {tx.sub_type === 'Entrada' ? '+' : '-'} {formatCurrency(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
+      </div>
 
-        {/* Notifications Bell */}
+      {/* 3. LADO DIREITO: Notificações + Perfil do Usuário */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {/* Notificações (com badge numérico e botão "Ver todas") */}
         <div className="relative" ref={notifRef}>
           <button
+            type="button"
             onClick={() => {
               const nextState = !showNotifications;
               setShowNotifications(nextState);
-              setShowCreateDropdown(false);
-              if (nextState) {
-                fetchNotifications();
-              }
+              setShowUserDropdown(false);
+              if (nextState) fetchNotifications();
             }}
-            className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+            className="relative p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
             title="Notificações"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white leading-none">
+              <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white leading-none shadow-xs">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>
 
-          {/* Notifications Dropdown */}
+          {/* Dropdown de Notificações */}
           {showNotifications && (
-            <div className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-24px)] sm:w-96 max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/90 gap-2">
+            <div className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-24px)] sm:w-96 max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/90 dark:bg-gray-800/90 gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-bold text-xs sm:text-sm text-gray-900 truncate">Notificações</span>
+                  <span className="font-bold text-xs sm:text-sm text-gray-900 dark:text-white truncate">
+                    Notificações
+                  </span>
                   {unreadCount > 0 && (
-                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">
+                    <span className="text-[10px] bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 px-1.5 py-0.5 rounded-full font-bold">
                       {unreadCount}
                     </span>
                   )}
@@ -492,8 +505,7 @@ export default function Header({ user }: HeaderProps) {
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold transition-colors"
-                      title="Marcar todas como lidas"
+                      className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold transition-colors"
                     >
                       Marcar todas lidas
                     </button>
@@ -505,13 +517,13 @@ export default function Header({ user }: HeaderProps) {
                       title="Limpar todas as notificações"
                     >
                       <Trash2 size={12} />
-                      Limpar Notificações
+                      Limpar
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700/60">
                 {notifications.filter((n) => !n.read_at).length === 0 ? (
                   <div className="p-6 text-center text-xs text-gray-400">
                     Nenhuma notificação pendente.
@@ -524,18 +536,18 @@ export default function Header({ user }: HeaderProps) {
                       <div
                         key={n.id}
                         onClick={() => handleNotificationClick(n)}
-                        className="p-3.5 hover:bg-blue-50/50 transition-colors text-xs cursor-pointer flex items-start gap-3 bg-blue-50/30 group relative"
+                        className="p-3.5 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors text-xs cursor-pointer flex items-start gap-3 bg-blue-50/30 dark:bg-blue-950/10 group relative"
                       >
                         <div
                           className={cn(
                             'p-2 rounded-xl flex-shrink-0 mt-0.5',
                             n.type === 'client_approval'
-                              ? 'bg-emerald-100 text-emerald-700'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
                               : n.type === 'change_request'
-                              ? 'bg-amber-100 text-amber-700'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                               : n.type === 'bill_due'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-blue-100 text-blue-700'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
                           )}
                         >
                           {n.type === 'client_approval' ? (
@@ -551,23 +563,22 @@ export default function Header({ user }: HeaderProps) {
 
                         <div className="flex-1 min-w-0 pr-6">
                           <div className="flex items-start justify-between gap-1.5 mb-0.5">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 flex-shrink-0" />
-                              <p className="font-bold text-gray-900 truncate">
-                                {n.title}
-                              </p>
-                            </div>
+                            <p className="font-bold text-gray-900 dark:text-gray-100 truncate">
+                              {n.title}
+                            </p>
                             <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">
                               {n.created_at ? new Date(n.created_at).toLocaleDateString('pt-BR') : ''}
                             </span>
                           </div>
-                          <p className="text-gray-600 leading-relaxed line-clamp-2">{n.message}</p>
+                          <p className="text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-2">
+                            {n.message}
+                          </p>
                         </div>
 
                         <button
                           type="button"
                           onClick={(e) => handleDeleteNotification(e, n.id)}
-                          className="absolute right-2 top-2 p-1 text-gray-400 hover:text-red-600 hover:bg-gray-100 rounded-lg transition-colors opacity-70 group-hover:opacity-100"
+                          className="absolute right-2 top-2 p-1 text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors opacity-70 group-hover:opacity-100"
                           title="Remover notificação"
                         >
                           <X size={14} />
@@ -577,14 +588,92 @@ export default function Header({ user }: HeaderProps) {
                 )}
               </div>
 
-              <div className="p-3 border-t border-gray-100 bg-gray-50 text-center">
+              {/* Botão "Ver todas" */}
+              <div className="p-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-center">
                 <Link
                   href="/notifications"
                   onClick={() => setShowNotifications(false)}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                 >
                   Ver todas as notificações &rarr;
                 </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Perfil do Usuário (dropdown com Perfil, Configurações e Sair) */}
+        <div className="relative" ref={userMenuRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowUserDropdown(!showUserDropdown);
+              setShowNotifications(false);
+            }}
+            className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+          >
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+                {(user.name || 'U').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="hidden lg:flex flex-col text-left">
+              <span className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">
+                {user.name?.split(' ')[0]}
+              </span>
+              <span className="text-[10px] text-gray-400 leading-none">
+                {user.job_title || (user.role === 'ADMINISTRADOR' ? 'Admin' : 'Equipe')}
+              </span>
+            </div>
+            <ChevronDown size={14} className="text-gray-400 hidden sm:block" />
+          </button>
+
+          {/* User Profile Dropdown Menu */}
+          {showUserDropdown && (
+            <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
+                <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{user.name}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                <span className="mt-1 inline-block px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                  {user.job_title || user.role}
+                </span>
+              </div>
+
+              <div className="py-1">
+                <Link
+                  href="/settings?tab=profile"
+                  onClick={() => setShowUserDropdown(false)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700 hover:text-blue-600 transition-colors"
+                >
+                  <UserIcon size={15} className="text-gray-400" />
+                  Meu Perfil
+                </Link>
+
+                <Link
+                  href="/settings"
+                  onClick={() => setShowUserDropdown(false)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700 hover:text-blue-600 transition-colors"
+                >
+                  <Settings size={15} className="text-gray-400" />
+                  Configurações
+                </Link>
+              </div>
+
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-1">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left font-semibold"
+                >
+                  <LogOut size={15} />
+                  Sair do Sistema
+                </button>
               </div>
             </div>
           )}

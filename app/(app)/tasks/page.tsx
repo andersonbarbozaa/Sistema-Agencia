@@ -57,6 +57,7 @@ export default function TasksPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [customCalendars, setCustomCalendars] = useState<any[]>([]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -81,6 +82,8 @@ export default function TasksPage() {
     delivery_date: '',
     value: 0,
     assignee_ids: [] as string[],
+    visibility: 'grupo',
+    calendar_id: '',
   });
 
   // Edit Task Modal
@@ -93,6 +96,8 @@ export default function TasksPage() {
     delivery_date: '',
     value: 0,
     status: 'Não iniciada',
+    visibility: 'grupo',
+    calendar_id: '',
     assignee_ids: [] as string[],
   });
 
@@ -125,12 +130,13 @@ export default function TasksPage() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [userRes, tasksRes, clientsRes, catRes, usersRes] = await Promise.all([
+      const [userRes, tasksRes, clientsRes, catRes, usersRes, calRes] = await Promise.all([
         fetch('/api/auth/me'),
         fetch('/api/tasks'),
         fetch('/api/clients'),
         fetch('/api/categories?type=tasks'),
         fetch('/api/users'),
+        fetch('/api/custom-calendars'),
       ]);
 
       if (userRes.ok) {
@@ -152,6 +158,10 @@ export default function TasksPage() {
       if (usersRes.ok) {
         const usr = await usersRes.json();
         setUsers(usr.users || usr.data || []);
+      }
+      if (calRes && calRes.ok) {
+        const cd = await calRes.json();
+        setCustomCalendars(cd.data || []);
       }
     } catch (err) {
       console.error(err);
@@ -219,6 +229,8 @@ export default function TasksPage() {
           category_id: '',
           delivery_date: '',
           value: 0,
+          visibility: 'grupo',
+          calendar_id: '',
           assignee_ids: [],
         });
         // Reload tasks
@@ -243,6 +255,8 @@ export default function TasksPage() {
       value: task.value || 0,
       status: task.status || 'Não iniciada',
       assignee_ids: task.assignees ? task.assignees.map((a: any) => a.id) : [],
+      visibility: task.visibility || 'grupo',
+      calendar_id: task.calendar_id || '',
     });
     setShowEditTaskModal(true);
   };
@@ -412,7 +426,7 @@ export default function TasksPage() {
       case 'Aprovada':
         return { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' };
       case 'Concluída':
-        return { bg: 'bg-gray-50', border: 'border-gray-300', text: 'text-gray-600', badge: 'bg-gray-100 text-gray-700' };
+        return { bg: 'bg-emerald-100/90', border: 'border-emerald-400', text: 'text-emerald-900', badge: 'bg-emerald-200 text-emerald-950 font-bold' };
       default:
         return { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-800' };
     }
@@ -617,7 +631,7 @@ export default function TasksPage() {
                         key={task.id}
                         className={cn(
                           'hover:bg-gray-50/80 transition-colors cursor-pointer flex flex-col md:table-row py-3 px-4 md:py-0 md:px-0',
-                          isDeletionPending ? 'bg-red-50/60 opacity-60 text-red-900 md:border-l-4 md:border-red-500' : ''
+                          task.status === 'Concluída' ? 'bg-emerald-50/70 hover:bg-emerald-100/70 md:border-l-4 md:border-emerald-500' : isDeletionPending ? 'bg-red-50/60 opacity-60 text-red-900 md:border-l-4 md:border-red-500' : 'hover:bg-gray-50/80'
                         )}
                         onClick={() => openTaskDetail(task.id)}
                       >
@@ -1008,36 +1022,42 @@ export default function TasksPage() {
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50 sticky top-0 z-10">
               <div className="min-w-0 pr-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white uppercase tracking-wider"
-                    style={{ backgroundColor: selectedTask.category_color || '#3b82f6' }}
-                  >
-                    {selectedTask.category_name || 'Geral'}
-                  </span>
-                  <span className="text-xs text-gray-500">ID: {selectedTask.id}</span>
-                </div>
                 <h3 className="text-lg font-bold text-gray-900 leading-snug">
                   {selectedTask.name}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
                   Cliente: <span className="font-semibold text-gray-800">{selectedTask.client_name}</span>
                 </p>
+                {selectedTask.visibility === 'privado' && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 mt-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    Privado (Apenas Administrador)
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => openEditTask(selectedTask)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openEditTask(selectedTask)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+                  >
+                    <Edit2 size={13} /> EDITAR TAREFA
+                  </button>
+                  <button
+                    onClick={() => setSelectedTask(null)}
+                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                {/* Tag da tarefa posicionada abaixo do botão Editar Tarefa */}
+                <span
+                  className="text-[10px] font-bold px-2.5 py-0.5 rounded-full text-white uppercase tracking-wider"
+                  style={{ backgroundColor: selectedTask.category_color || '#3b82f6' }}
                 >
-                  <Edit2 size={13} /> EDITAR TAREFA
-                </button>
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
+                  {selectedTask.category_name || 'Geral'}
+                </span>
               </div>
             </div>
 
@@ -1081,21 +1101,23 @@ export default function TasksPage() {
                   </select>
                 </div>
 
-                {/* Client Approval Controls (Requisito 22) */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleApprove}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                  >
-                    APROVAR
-                  </button>
-                  <button
-                    onClick={() => setShowChangeRequestModal(true)}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                  >
-                    SOLICITAR ALTERAÇÃO
-                  </button>
-                </div>
+                {/* Client Approval Controls (Ocultar quando tarefa for concluída) */}
+                {selectedTask.status !== 'Concluída' && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleApprove}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                    >
+                      APROVAR
+                    </button>
+                    <button
+                      onClick={() => setShowChangeRequestModal(true)}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                    >
+                      SOLICITAR ALTERAÇÃO
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Task Details Info */}
@@ -1559,6 +1581,63 @@ export default function TasksPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Visibilidade (Plano Equipe Pro)</label>
+                <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setNewTask({ ...newTask, visibility: 'grupo' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      newTask.visibility !== 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    Grupo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTask({ ...newTask, visibility: 'privado' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      newTask.visibility === 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                    Privado
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {newTask.visibility === 'privado' ? 'Privado: Visível exclusivamente para o administrador.' : 'Grupo: Visível para toda a equipe.'}
+                </p>
+              </div>
+
+              {customCalendars.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Agenda Personalizada (Plano Corporativo)</label>
+                  <select
+                    value={newTask.calendar_id || ''}
+                    onChange={(e) => {
+                      const calId = e.target.value;
+                      const cal = customCalendars.find((c: any) => c.id === calId);
+                      setNewTask({
+                        ...newTask,
+                        calendar_id: calId,
+                        ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="">Criação Global (Sem agenda específica)</option>
+                    {customCalendars.map((cal: any) => (
+                      <option key={cal.id} value={cal.id}>
+                        {cal.name} ({cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
                 <RichTextEditor
                   value={newTask.description || ''}
@@ -1681,6 +1760,60 @@ export default function TasksPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Visibilidade (Plano Equipe Pro)</label>
+                <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setEditTaskForm({ ...editTaskForm, visibility: 'grupo' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      editTaskForm.visibility !== 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    Grupo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditTaskForm({ ...editTaskForm, visibility: 'privado' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      editTaskForm.visibility === 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                    Privado
+                  </button>
+                </div>
+              </div>
+
+              {customCalendars.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Agenda Personalizada (Plano Corporativo)</label>
+                  <select
+                    value={editTaskForm.calendar_id || ''}
+                    onChange={(e) => {
+                      const calId = e.target.value;
+                      const cal = customCalendars.find((c) => c.id === calId);
+                      setEditTaskForm({
+                        ...editTaskForm,
+                        calendar_id: calId,
+                        ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="">Criação Global (Sem agenda específica)</option>
+                    {customCalendars.map((cal) => (
+                      <option key={cal.id} value={cal.id}>
+                        {cal.name} ({cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
@@ -1742,7 +1875,7 @@ export default function TasksPage() {
                               if (e.target.checked) {
                                 setEditTaskForm({ ...editTaskForm, assignee_ids: [...editTaskForm.assignee_ids, u.id] });
                               } else {
-                                setEditTaskForm({ ...editTaskForm, assignee_ids: editTaskForm.assignee_ids.filter(id => id !== u.id) });
+                                setEditTaskForm({ ...editTaskForm, assignee_ids: editTaskForm.assignee_ids.filter((id: string) => id !== u.id) });
                               }
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"

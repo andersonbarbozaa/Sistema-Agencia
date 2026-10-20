@@ -1,14 +1,16 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification, notifyAdmins } from '@/lib/notifications';
 
-type RouteParams = { params: Promise<{ id: string }> };
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/tasks/[id]
+// Returns full details: task + assignees + comments + media + status history
 // ---------------------------------------------------------------------------
 export async function GET(request: Request, { params }: RouteParams) {
   try {
@@ -25,9 +27,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         SELECT t.*, c.name as client_name,
                tc.name as category_name, tc.color as category_color,
                u.name as created_by_name,
-               (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
-               (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
-               (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status,
                (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
                (SELECT id FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_id
         FROM tasks t
@@ -49,6 +48,11 @@ export async function GET(request: Request, { params }: RouteParams) {
       title: taskRow.name,
       due_date: taskRow.delivery_date,
     };
+
+    // Private task visibility check
+    if (!isAdmin(user) && task.visibility === 'private' && task.created_by !== user.id) {
+      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    }
 
     // CLIENTE visibility check
     if (user.role === 'CLIENTE' && task.client_id !== user.client_id) {
@@ -99,10 +103,21 @@ export async function GET(request: Request, { params }: RouteParams) {
         FROM task_status_history tsh
         LEFT JOIN users u ON tsh.user_id = u.id
         WHERE tsh.task_id = ?
-        ORDER BY tsh.created_at DESC
+        ORDER BY tsh.created_at ASC
       `)
       .bind(id)
       .all<any>();
+
+    // Deletion requests
+    const deletionRequest = await db
+      .prepare(`
+        SELECT * FROM task_deletion_requests
+        WHERE task_id = ? AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `)
+      .bind(id)
+      .first<any>();
 
     return NextResponse.json({
       task: {
@@ -111,11 +126,12 @@ export async function GET(request: Request, { params }: RouteParams) {
         comments,
         media_links: mediaLinks,
         status_history: statusHistory,
+        deletion_request: deletionRequest || null,
       },
     });
   } catch (error) {
     console.error('[GET /api/tasks/[id]]', error);
-    return NextResponse.json({ error: String(error) + String((error as any)?.stack) }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -188,6 +204,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       setClauses.push('notes = ?');
       updateParams.push(notes);
     }
+    if (body.visibility !== undefined) {
+      setClauses.push('visibility = ?');
+      updateParams.push(body.visibility === 'private' ? 'private' : 'group');
+    }
+    if (body.calendar_id !== undefined) {
+      setClauses.push('calendar_id = ?');
+      updateParams.push(body.calendar_id || null);
+    }
 
     if (isCompleted && !existing.completed_at) {
       setClauses.push('completed_at = ?');
@@ -199,10 +223,23 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     updateParams.push(id);
 
-    await db
-      .prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`)
-      .bind(...updateParams)
-      .run();
+    try {
+      await db
+        .prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`)
+        .bind(...updateParams)
+        .run();
+    } catch (updateErr: any) {
+      if (updateErr.message && updateErr.message.includes('has no column')) {
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN calendar_id TEXT').run(); } catch(e){}
+        await db
+          .prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`)
+          .bind(...updateParams)
+          .run();
+      } else {
+        throw updateErr;
+      }
+    }
 
     // Update assignees if provided
     const newAssigneesList = assignee_ids || assignees;

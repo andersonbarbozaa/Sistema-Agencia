@@ -26,6 +26,18 @@ export default function AgendaPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  // Custom Calendars State (Plano Corporativo)
+  const [customCalendars, setCustomCalendars] = useState<any[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('all');
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [calendarForm, setCalendarForm] = useState<any>({
+    id: '',
+    name: '',
+    color: '#3b82f6',
+    default_visibility: 'grupo',
+    description: '',
+  });
+  const [isSavingCalendar, setIsSavingCalendar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
 
@@ -44,6 +56,8 @@ export default function AgendaPage() {
     end_time: '11:00',
     location: '',
     client_id: '',
+    visibility: 'grupo',
+    calendar_id: '',
     notes: '',
   });
 
@@ -58,6 +72,8 @@ export default function AgendaPage() {
     end_time: '',
     location: '',
     client_id: '',
+    visibility: 'grupo',
+    calendar_id: '',
     notes: '',
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -92,6 +108,10 @@ export default function AgendaPage() {
   };
 
   useEffect(() => {
+    fetchData(); // re-fetch on calendar filter
+  }, [selectedCalendarId]);
+
+  useEffect(() => {
     fetchData();
     const handleOpenCreate = () => setShowCreateModal(true);
     window.addEventListener('open-create-event', handleOpenCreate);
@@ -100,6 +120,74 @@ export default function AgendaPage() {
     }
     return () => window.removeEventListener('open-create-event', handleOpenCreate);
   }, []);
+
+    const openCreateCalendarModal = () => {
+    setCalendarForm({ id: '', name: '', color: '#3b82f6', default_visibility: 'grupo', description: '' });
+    setShowCalendarModal(true);
+  };
+
+  const openEditCalendarModal = (cal: any) => {
+    setCalendarForm({
+      id: cal.id,
+      name: cal.name,
+      color: cal.color || '#3b82f6',
+      default_visibility: cal.default_visibility || 'grupo',
+      description: cal.description || '',
+    });
+    setShowCalendarModal(true);
+  };
+
+  const handleSaveCalendar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!calendarForm.name) return;
+
+    try {
+      setIsSavingCalendar(true);
+      const url = calendarForm.id ? `/api/custom-calendars/${calendarForm.id}` : '/api/custom-calendars';
+      const method = calendarForm.id ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(calendarForm),
+      });
+
+      if (res.ok) {
+        setShowCalendarModal(false);
+        await fetchData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao salvar agenda.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingCalendar(false);
+    }
+  };
+
+  const handleDeleteCalendar = async () => {
+    if (!calendarForm.id) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Agenda',
+      message: `Deseja realmente excluir a agenda "${calendarForm.name}"? Tarefas e compromissos vinculados não serão apagados.`,
+      onConfirm: async () => {
+        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(`/api/custom-calendars/${calendarForm.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            setShowCalendarModal(false);
+            if (selectedCalendarId === calendarForm.id) setSelectedCalendarId('all');
+            await fetchData();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      },
+      onCancel: () => setConfirmState((prev: any) => ({ ...prev, isOpen: false })),
+      type: 'danger',
+    });
+  };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +211,8 @@ export default function AgendaPage() {
           end_time: '11:00',
           location: '',
           client_id: '',
+          visibility: 'grupo',
+          calendar_id: '',
           notes: '',
         });
         await fetchData();
@@ -147,6 +237,8 @@ export default function AgendaPage() {
       end_time: evt.end_time || '',
       location: evt.location || '',
       client_id: evt.client_id || '',
+      visibility: evt.visibility || 'grupo',
+      calendar_id: evt.calendar_id || '',
       notes: evt.notes || '',
     });
   };
@@ -263,6 +355,78 @@ export default function AgendaPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* ======================================================== */}
+      {/* BARRA DE MÚLTIPLAS AGENDAS (Plano Corporativo)            */}
+      {/* ======================================================== */}
+      <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            Agendas:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedCalendarId('all')}
+            className={cn(
+              'px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+              selectedCalendarId === 'all'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            )}
+          >
+            Todas as Agendas (Global)
+          </button>
+
+          {customCalendars.map((cal) => (
+            <div
+              key={cal.id}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer group',
+                selectedCalendarId === cal.id
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              )}
+              onClick={() => setSelectedCalendarId(cal.id)}
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
+                style={{ backgroundColor: cal.color || '#3b82f6' }}
+              />
+              <span>{cal.name}</span>
+              <span
+                className={cn(
+                  'text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1',
+                  cal.default_visibility === 'privado'
+                    ? 'bg-rose-100 text-rose-800'
+                    : 'bg-emerald-100 text-emerald-800'
+                )}
+              >
+                {cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditCalendarModal(cal);
+                }}
+                className="opacity-70 hover:opacity-100 p-0.5 ml-1 rounded hover:bg-black/10 transition-opacity"
+                title="Editar Configurações da Agenda"
+              >
+                <Edit3 className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={openCreateCalendarModal}
+          className="px-3.5 py-1.5 bg-gray-50 hover:bg-blue-50 text-blue-600 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Nova Agenda
+        </button>
+      </div>
+
       {/* Top Navigation & View Toolbar */}
       <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -409,7 +573,12 @@ export default function AgendaPage() {
                       <div
                         key={`task-${task.id}`}
                         onClick={() => setSelectedTaskPreview(task)}
-                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg text-[11px] cursor-pointer transition-all truncate text-amber-900 font-medium"
+                        className={cn(
+                          'px-2 py-1 rounded-lg text-[11px] cursor-pointer transition-all truncate font-medium',
+                          task.status === 'Concluída'
+                            ? 'bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 text-emerald-950 font-bold'
+                            : 'bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900'
+                        )}
                         title={`Tarefa: ${task.name}${task.client_name ? ` - ${task.client_name}` : ''}`}
                       >
                         <span className="font-bold text-amber-700 mr-1">
@@ -449,7 +618,12 @@ export default function AgendaPage() {
                   <div
                     key={`${item.type}-${item.id}`}
                     onClick={() => item.type === 'event' ? openEditModal(item) : setSelectedTaskPreview(item)}
-                    className="p-4 hover:bg-gray-50 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    className={cn(
+                      'p-4 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4',
+                      item.type === 'task' && item.status === 'Concluída'
+                        ? 'bg-emerald-50/70 hover:bg-emerald-100/70 border-l-4 border-emerald-500'
+                        : 'hover:bg-gray-50'
+                    )}
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -602,8 +776,77 @@ export default function AgendaPage() {
                 </select>
               </div>
 
+                            {/* Controle de Visibilidade (Plano Equipe Pro) */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">DescriÃ§Ã£o / Pauta</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Visibilidade (Plano Equipe Pro)
+                </label>
+                <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setNewEvent({ ...newEvent, visibility: 'grupo' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      newEvent.visibility !== 'privado'
+                        ? 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    Grupo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewEvent({ ...newEvent, visibility: 'privado' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      newEvent.visibility === 'privado'
+                        ? 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                    Privado
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {newEvent.visibility === 'privado'
+                    ? 'Privado: Visível exclusivamente para o administrador.'
+                    : 'Grupo: Visível para toda a equipe.'}
+                </p>
+              </div>
+
+              {/* Agenda Personalizada (Plano Corporativo) */}
+              {customCalendars.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Agenda Vinculada (Plano Corporativo)
+                  </label>
+                  <select
+                    value={newEvent.calendar_id || ''}
+                    onChange={(e) => {
+                      const calId = e.target.value;
+                      const cal = customCalendars.find((c) => c.id === calId);
+                      setNewEvent({
+                        ...newEvent,
+                        calendar_id: calId,
+                        ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Criação Global (Sem vínculo a agenda)</option>
+                    {customCalendars.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Pauta</label>
                 <textarea
                   rows={2}
                   placeholder="InformaÃ§Ãµes adicionais, roteiro ou tÃ³picos..."
@@ -805,7 +1048,71 @@ export default function AgendaPage() {
                 </select>
               </div>
 
+                            {/* Controle de Visibilidade (Plano Equipe Pro) */}
               <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Visibilidade (Plano Equipe Pro)
+                </label>
+                <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, visibility: 'grupo' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      editForm.visibility !== 'privado'
+                        ? 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    Grupo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, visibility: 'privado' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                      editForm.visibility === 'privado'
+                        ? 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                    Privado
+                  </button>
+                </div>
+              </div>
+
+              {/* Agenda Personalizada (Plano Corporativo) */}
+              {customCalendars.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Agenda Vinculada (Plano Corporativo)
+                  </label>
+                  <select
+                    value={editForm.calendar_id || ''}
+                    onChange={(e) => {
+                      const calId = e.target.value;
+                      const cal = customCalendars.find((c) => c.id === calId);
+                      setEditForm({
+                        ...editForm,
+                        calendar_id: calId,
+                        ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Criação Global (Sem vínculo a agenda)</option>
+                    {customCalendars.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+<div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">DescriÃ§Ã£o / Pauta</label>
                 <textarea
                   rows={2}
@@ -847,6 +1154,146 @@ export default function AgendaPage() {
           </div>
         </div>
       </ModalPortal>)}
+
+      {/* ======================================================== */}
+      {/* MODAL: CRIAR / EDITAR AGENDA PERSONALIZADA               */}
+      {/* ======================================================== */}
+      {showCalendarModal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+              <button
+                type="button"
+                onClick={() => setShowCalendarModal(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-blue-600" />
+                {calendarForm.id ? 'Editar Agenda Personalizada' : 'Nova Agenda Personalizada'}
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Configure calendários específicos (particular, empresa, reuniões) com visibilidade padrão.
+              </p>
+
+              <form onSubmit={handleSaveCalendar} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Nome da Agenda *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Particular, Empresa, Reuniões..."
+                    value={calendarForm.name}
+                    onChange={(e) => setCalendarForm({ ...calendarForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Cor Identificadora
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={calendarForm.color}
+                      onChange={(e) => setCalendarForm({ ...calendarForm, color: e.target.value })}
+                      className="w-10 h-9 p-0.5 border border-gray-200 rounded-xl cursor-pointer"
+                    />
+                    <span className="text-xs font-mono text-gray-600 uppercase">{calendarForm.color}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Visibilidade Padrão (Plano Corporativo)
+                  </label>
+                  <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarForm({ ...calendarForm, default_visibility: 'grupo' })}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                        calendarForm.default_visibility !== 'privado'
+                          ? 'bg-white text-gray-900 shadow-xs'
+                          : 'text-gray-500 hover:text-gray-700'
+                      )}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                      Grupo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarForm({ ...calendarForm, default_visibility: 'privado' })}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                        calendarForm.default_visibility === 'privado'
+                          ? 'bg-white text-gray-900 shadow-xs'
+                          : 'text-gray-500 hover:text-gray-700'
+                      )}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                      Privada
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {calendarForm.default_visibility === 'privado'
+                      ? 'Eventos criados nesta agenda serão privados para você e administradores por padrão.'
+                      : 'Eventos criados nesta agenda serão visíveis para toda a equipe por padrão.'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Descrição (Opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Finalidade desta agenda..."
+                    value={calendarForm.description}
+                    onChange={(e) => setCalendarForm({ ...calendarForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  {calendarForm.id ? (
+                    <button
+                      type="button"
+                      onClick={handleDeleteCalendar}
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Excluir
+                    </button>
+                  ) : <div />}
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendarModal(false)}
+                      className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingCalendar}
+                      className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors disabled:opacity-50 shadow-sm"
+                    >
+                      {isSavingCalendar ? 'Salvando...' : 'Salvar Agenda'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }

@@ -100,6 +100,24 @@ function getLocalDatabase(): D1DatabaseInterface {
         CREATE INDEX IF NOT EXISTS idx_task_time_logs_task_id ON task_time_logs(task_id);
         CREATE INDEX IF NOT EXISTS idx_task_time_logs_user_id ON task_time_logs(user_id);
 
+        CREATE TABLE IF NOT EXISTS custom_calendars (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+          name TEXT NOT NULL,
+          description TEXT,
+          color TEXT DEFAULT '#3B82F6',
+          visibility TEXT NOT NULL DEFAULT 'group',
+          created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_custom_calendars_workspace ON custom_calendars(workspace_id);
+
+        ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT 'group';
+        ALTER TABLE tasks ADD COLUMN calendar_id TEXT;
+        ALTER TABLE calendar_events ADD COLUMN visibility TEXT DEFAULT 'group';
+        ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT;
+
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL,

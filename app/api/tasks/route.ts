@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
@@ -21,6 +20,7 @@ export async function GET(request: Request) {
     const client_id = searchParams.get('client_id');
     const assignee_id = searchParams.get('assignee_id');
     const category_id = searchParams.get('category_id');
+    const calendar_id = searchParams.get('calendar_id');
     const cursor = searchParams.get('cursor');
     const limit = 20;
 
@@ -48,6 +48,12 @@ export async function GET(request: Request) {
     conditions.push("(t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))");
     params.push(wsId, wsId);
 
+    // Private tasks visibility (Plano Equipe Pro)
+    if (!isAdmin(user)) {
+      conditions.push("(t.visibility != 'private' OR t.visibility IS NULL OR t.created_by = ?)");
+      params.push(user.id);
+    }
+
     // Role-based visibility
     if (user.role === 'CLIENTE') {
       conditions.push('t.client_id = ?');
@@ -65,6 +71,10 @@ export async function GET(request: Request) {
     if (category_id) {
       conditions.push('t.category_id = ?');
       params.push(category_id);
+    }
+    if (calendar_id && calendar_id !== 'all') {
+      conditions.push('t.calendar_id = ?');
+      params.push(calendar_id);
     }
 
     if (assignee_id) {
@@ -163,6 +173,8 @@ export async function POST(request: Request) {
     const value = body.value ? Number(body.value) : 0;
     const notes = body.notes || null;
     const assignees = body.assignees || body.assignee_ids || [];
+    const visibility = body.visibility === 'private' ? 'private' : 'group';
+    const calendar_id = body.calendar_id || null;
 
     if (!taskName) {
       return NextResponse.json({ error: 'Nome da tarefa é obrigatório' }, { status: 400 });
@@ -178,28 +190,63 @@ export async function POST(request: Request) {
 
     const wsId = user.workspace_id || 'ws_default';
 
-    await db
-      .prepare(`
-        INSERT INTO tasks (id, name, description, status, client_id,
-                           category_id, delivery_date, value, notes, created_by, workspace_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        id,
-        taskName,
-        description,
-        status,
-        client_id,
-        category_id,
-        delivery_date,
-        value,
-        notes,
-        user.id,
-        wsId,
-        now,
-        now
-      )
-      .run();
+    try {
+      await db
+        .prepare(`
+          INSERT INTO tasks (id, name, description, status, client_id,
+                             category_id, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .bind(
+          id,
+          taskName,
+          description,
+          status,
+          client_id,
+          category_id,
+          delivery_date,
+          value,
+          notes,
+          user.id,
+          wsId,
+          visibility,
+          calendar_id,
+          now,
+          now
+        )
+        .run();
+    } catch (insertError: any) {
+      if (insertError.message && insertError.message.includes('has no column')) {
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN calendar_id TEXT').run(); } catch(e){}
+        await db
+          .prepare(`
+            INSERT INTO tasks (id, name, description, status, client_id,
+                               category_id, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `)
+          .bind(
+            id,
+            taskName,
+            description,
+            status,
+            client_id,
+            category_id,
+            delivery_date,
+            value,
+            notes,
+            user.id,
+            wsId,
+            visibility,
+            calendar_id,
+            now,
+            now
+          )
+          .run();
+      } else {
+        throw insertError;
+      }
+    }
 
     if (Array.isArray(assignees) && assignees.length > 0) {
       for (const userId of assignees) {
@@ -280,6 +327,8 @@ export async function POST(request: Request) {
           due_date: delivery_date,
           value,
           notes,
+          visibility,
+          calendar_id,
           created_by: user.id,
           created_at: now,
           updated_at: now,
