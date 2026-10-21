@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -28,9 +27,11 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
+                  var root = document.documentElement;
+
+                  // 1. Theme sync
                   var theme = localStorage.getItem('agency_app_theme') || 'system';
                   var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                  var root = document.documentElement;
                   if (isDark) {
                     root.classList.add('dark');
                     root.classList.remove('light');
@@ -39,6 +40,17 @@ export default function RootLayout({
                     root.classList.remove('dark');
                     root.classList.add('light');
                     root.style.colorScheme = 'light';
+                  }
+
+                  // 2. Font Size sync
+                  var fontSize = localStorage.getItem('agency_app_font_size') || 'medium';
+                  root.setAttribute('data-font-size', fontSize);
+                  if (fontSize === 'small') {
+                    root.style.fontSize = '14px';
+                  } else if (fontSize === 'large') {
+                    root.style.fontSize = '18px';
+                  } else {
+                    root.style.fontSize = '16px';
                   }
                 } catch(e) {}
               })();

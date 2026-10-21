@@ -418,7 +418,7 @@ export default function TasksPage() {
   const getTaskStatusBadgeStyle = (status: string) => {
     switch (status) {
       case 'Concluída':
-        return 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold';
+        return 'bg-gray-100 text-gray-700 border border-gray-200 font-semibold';
       case 'Aprovada':
         return 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold';
       case 'Em alteração':
@@ -497,6 +497,20 @@ export default function TasksPage() {
       return t.name.toLowerCase().includes(q) || (t.client_name && t.client_name.toLowerCase().includes(q));
     }
     return true;
+  });
+
+  // Ordenação: Tarefas em atraso no topo, seguidas por data de entrega mais próxima no início
+  filteredTasks.sort((a, b) => {
+    const aOverdue = isTaskOverdue(a);
+    const bOverdue = isTaskOverdue(b);
+    if (aOverdue && !bOverdue) return -1;
+    if (!aOverdue && bOverdue) return 1;
+
+    const dateA = a.delivery_date ? new Date(a.delivery_date.split('T')[0]).getTime() : Infinity;
+    const dateB = b.delivery_date ? new Date(b.delivery_date.split('T')[0]).getTime() : Infinity;
+    if (dateA !== dateB) return dateA - dateB;
+
+    return (a.name || '').localeCompare(b.name || '');
   });
 
   return (
@@ -649,9 +663,7 @@ export default function TasksPage() {
                         key={task.id}
                         className={cn(
                           'transition-colors cursor-pointer flex flex-col md:table-row py-3.5 px-4 md:py-0 md:px-0 border-b border-gray-100',
-                          task.status === 'Concluída'
-                            ? 'bg-emerald-50/90 hover:bg-emerald-100/90 border-l-4 border-emerald-500 text-emerald-950'
-                            : isDeletionPending
+                          isDeletionPending
                             ? 'bg-red-50/60 opacity-60 text-red-900 border-l-4 border-red-500 hover:bg-red-100/50'
                             : 'bg-white hover:bg-gray-50/80'
                         )}
@@ -808,9 +820,7 @@ export default function TasksPage() {
                         onClick={() => openTaskDetail(task.id)}
                         className={cn(
                           'p-3.5 rounded-xl border shadow-xs hover:shadow-md transition-all cursor-pointer group',
-                          task.status === 'Concluída'
-                            ? 'bg-emerald-50/90 border-emerald-300'
-                            : isDeletionPending
+                          isDeletionPending
                             ? 'bg-red-50/70 border-red-300 opacity-60'
                             : 'bg-white border-gray-200'
                         )}

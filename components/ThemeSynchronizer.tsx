@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 
 export type AppTheme = 'light' | 'dark' | 'system';
+export type AppFontSize = 'small' | 'medium' | 'large';
 
 export function applyAppTheme(theme?: AppTheme | string | null) {
   if (typeof window === 'undefined') return;
@@ -27,16 +28,37 @@ export function applyAppTheme(theme?: AppTheme | string | null) {
   }
 }
 
+export function applyAppFontSize(fontSize?: AppFontSize | string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    const activeSize = (fontSize || localStorage.getItem('agency_app_font_size') || 'medium') as AppFontSize;
+    const root = document.documentElement;
+    root.setAttribute('data-font-size', activeSize);
+
+    if (activeSize === 'small') {
+      root.style.fontSize = '14px';
+    } else if (activeSize === 'large') {
+      root.style.fontSize = '18px';
+    } else {
+      root.style.fontSize = '16px';
+    }
+  } catch (e) {
+    // Ignore storage errors
+  }
+}
+
 export default function ThemeSynchronizer() {
   const pathname = usePathname();
 
-  // Re-apply whenever route changes to guarantee class is preserved across navigations
+  // Re-apply whenever route changes to guarantee class and font size are preserved across navigations
   useEffect(() => {
     applyAppTheme();
+    applyAppFontSize();
   }, [pathname]);
 
   useEffect(() => {
     applyAppTheme();
+    applyAppFontSize();
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -58,6 +80,15 @@ export default function ThemeSynchronizer() {
       }
     };
 
+    const handleFontSizeChange = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      if (customEvt?.detail?.fontSize) {
+        applyAppFontSize(customEvt.detail.fontSize);
+      } else {
+        applyAppFontSize();
+      }
+    };
+
     if (typeof mediaQuery.addEventListener === 'function') {
       mediaQuery.addEventListener('change', handleSystemThemeChange);
     } else if (typeof (mediaQuery as any).addListener === 'function') {
@@ -66,6 +97,7 @@ export default function ThemeSynchronizer() {
 
     window.addEventListener('storage', handleStorageOrCustomThemeChange);
     window.addEventListener('theme-changed', handleStorageOrCustomThemeChange);
+    window.addEventListener('app-font-size-changed', handleFontSizeChange);
 
     return () => {
       if (typeof mediaQuery.removeEventListener === 'function') {
@@ -75,6 +107,7 @@ export default function ThemeSynchronizer() {
       }
       window.removeEventListener('storage', handleStorageOrCustomThemeChange);
       window.removeEventListener('theme-changed', handleStorageOrCustomThemeChange);
+      window.removeEventListener('app-font-size-changed', handleFontSizeChange);
     };
   }, []);
 

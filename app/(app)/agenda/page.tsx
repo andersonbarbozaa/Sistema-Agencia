@@ -560,31 +560,27 @@ export default function AgendaPage() {
                       <div
                         key={evt.id}
                         onClick={() => openEditModal(evt)}
-                        className="px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-[11px] cursor-pointer transition-all truncate text-blue-900 font-medium"
-                        title={`${evt.start_time || ''} - ${evt.title} (${evt.location || 'Sem local'})`}
+                        className="px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-[11px] cursor-pointer transition-all flex items-center gap-1.5 min-w-0"
+                        title={`${evt.start_time ? evt.start_time.substring(0, 5) + ' - ' : ''}${evt.title} (${evt.location || 'Sem local'})`}
                       >
-                        <span className="font-bold text-blue-700 mr-1">
-                          {evt.start_time?.substring(0, 5)}
-                        </span>
-                        <span>{evt.title}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
+                        {evt.start_time && (
+                          <span className="font-bold text-blue-700 text-[10px] shrink-0">
+                            {evt.start_time.substring(0, 5)}
+                          </span>
+                        )}
+                        <span className="font-medium text-gray-900 truncate flex-1 leading-tight">{evt.title}</span>
                       </div>
                     ))}
                     {dayTasks.map((task) => (
                       <div
                         key={`task-${task.id}`}
                         onClick={() => setSelectedTaskPreview(task)}
-                        className={cn(
-                          'px-2 py-1 rounded-lg text-[11px] cursor-pointer transition-all truncate font-medium',
-                          task.status === 'Concluída'
-                            ? 'bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 text-emerald-950 font-bold'
-                            : 'bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900'
-                        )}
-                        title={`Tarefa: ${task.name}${task.client_name ? ` - ${task.client_name}` : ''}`}
+                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg text-[11px] cursor-pointer transition-all flex items-center gap-1.5 min-w-0"
+                        title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
                       >
-                        <span className="font-bold text-amber-700 mr-1">
-                          Tarefa:
-                        </span>
-                        <span>{task.name}{task.client_name ? ` (${task.client_name})` : ''}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                        <span className="font-semibold text-gray-900 truncate flex-1 leading-tight">{task.name}</span>
                       </div>
                     ))}
                   </div>
@@ -618,12 +614,7 @@ export default function AgendaPage() {
                   <div
                     key={`${item.type}-${item.id}`}
                     onClick={() => item.type === 'event' ? openEditModal(item) : setSelectedTaskPreview(item)}
-                    className={cn(
-                      'p-4 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4',
-                      item.type === 'task' && item.status === 'Concluída'
-                        ? 'bg-emerald-50/70 hover:bg-emerald-100/70 border-l-4 border-emerald-500'
-                        : 'hover:bg-gray-50'
-                    )}
+                    className="p-4 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">

@@ -183,6 +183,33 @@ function SettingsContent() {
     }
   };
 
+  // FONT SIZE (Aparência)
+  const [appFontSize, setAppFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+
+  useEffect(() => {
+    try {
+      const savedSize = (localStorage.getItem('agency_app_font_size') as any) || 'medium';
+      setAppFontSize(savedSize);
+    } catch (e) {}
+  }, []);
+
+  const changeFontSize = (newSize: 'small' | 'medium' | 'large') => {
+    setAppFontSize(newSize);
+    try {
+      localStorage.setItem('agency_app_font_size', newSize);
+      const root = document.documentElement;
+      root.setAttribute('data-font-size', newSize);
+      if (newSize === 'small') {
+        root.style.fontSize = '14px';
+      } else if (newSize === 'large') {
+        root.style.fontSize = '18px';
+      } else {
+        root.style.fontSize = '16px';
+      }
+      window.dispatchEvent(new CustomEvent('app-font-size-changed', { detail: { fontSize: newSize } }));
+    } catch (e) {}
+  };
+
   // THEME (Aparência)
   const [appTheme, setAppTheme] = useState<'light' | 'dark' | 'system'>('system');
 
@@ -1361,7 +1388,7 @@ function SettingsContent() {
               <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-purple-600">
                 <span>Personalizar tema &rarr;</span>
                 <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[11px] font-bold capitalize">
-                  {appTheme === 'dark' ? 'Modo Escuro' : appTheme === 'light' ? 'Modo Claro' : 'Dispositivo'}
+                  {appTheme === 'dark' ? 'Escuro' : appTheme === 'light' ? 'Claro' : 'Sistema'} • Fonte {appFontSize === 'small' ? 'Menor' : appFontSize === 'large' ? 'Maior' : 'Média'}
                 </span>
               </div>
             </div>
@@ -2409,7 +2436,94 @@ function SettingsContent() {
               )}
             </div>
           </div>
-        </div>
+        
+          {/* Seção Tamanho da Fonte */}
+          <div className="pt-6 border-t border-gray-100">
+            <div className="pb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Type className="w-5 h-5 text-blue-600" />
+                Tamanho da Fonte
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Escolha a escala de texto do aplicativo. A preferência será mantida salva no seu navegador e celular.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Opção 1: Menor */}
+              <div
+                onClick={() => changeFontSize('small')}
+                className={cn(
+                  'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
+                  appFontSize === 'small'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                )}
+              >
+                <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
+                  <span className="text-xs font-black">Aa</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-gray-900">Menor</h4>
+                  <p className="text-[11px] text-gray-500 mt-1">Mais conteúdo visível simultaneamente na tela.</p>
+                </div>
+                {appFontSize === 'small' && (
+                  <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                    Ativo
+                  </span>
+                )}
+              </div>
+
+              {/* Opção 2: Média (Padrão atual) */}
+              <div
+                onClick={() => changeFontSize('medium')}
+                className={cn(
+                  'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
+                  appFontSize === 'medium'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                )}
+              >
+                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shadow-xs">
+                  <span className="text-base font-black">Aa</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-gray-900">Média (Padrão)</h4>
+                  <p className="text-[11px] text-gray-500 mt-1">Tamanho original equilibrado do sistema.</p>
+                </div>
+                {appFontSize === 'medium' && (
+                  <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                    Ativo
+                  </span>
+                )}
+              </div>
+
+              {/* Opção 3: Maior */}
+              <div
+                onClick={() => changeFontSize('large')}
+                className={cn(
+                  'border-2 rounded-2xl p-5 cursor-pointer transition-all flex flex-col items-center text-center gap-3 relative',
+                  appFontSize === 'large'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                )}
+              >
+                <div className="w-12 h-12 rounded-full bg-blue-200 text-blue-900 flex items-center justify-center shadow-xs">
+                  <span className="text-xl font-black">Aa</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-gray-900">Maior</h4>
+                  <p className="text-[11px] text-gray-500 mt-1">Textos maiores para maior conforto visual e leitura facilitada.</p>
+                </div>
+                {appFontSize === 'large' && (
+                  <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                    Ativo
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+</div>
       )}
 
       {/* ======================================================== */}
