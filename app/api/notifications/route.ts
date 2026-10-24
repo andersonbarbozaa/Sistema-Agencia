@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
+import { checkAndSendWeeklyFinancialNotification } from '@/lib/notifications';
 
 // GET /api/notifications — list notifications for current user
 export async function GET(request: NextRequest) {
@@ -12,6 +13,9 @@ export async function GET(request: NextRequest) {
   const unreadOnly = searchParams.get('unread') === 'true';
 
   try {
+    // Dispara checagem semanal de saúde financeira do contador
+    checkAndSendWeeklyFinancialNotification(user).catch(() => {});
+
     const db = getDb();
     const filter = unreadOnly ? 'AND n.read_at IS NULL' : '';
 

@@ -10,6 +10,7 @@ import {
   Plus,
   Filter,
   CheckCircle,
+  CheckCircle2,
   Clock,
   Building,
   CreditCard,
@@ -971,38 +972,234 @@ export default function FinancePage() {
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 4: RELATÓRIOS & DRE ANUAL                            */}
+      {/* VIEW 4: TENDÊNCIA & RELATÓRIOS (CONTADOR CONSULTIVO)      */}
       {/* ======================================================== */}
       {activeTab === 'reports' && (
         <div className="space-y-6">
-          {/* Controls */}
-          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-            <div>
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-600" />
-                Demonstrativo de Resultado & Desempenho
-              </h3>
-              <p className="text-xs text-gray-500">
-                Evolução mensal de receitas, despesas operacionais e distribuição por cliente e categoria.
-              </p>
+          {/* ======================================================== */}
+          {/* 1. VISÃO DE CONTADOR CONSULTIVO (Parecer Executivo)      */}
+          {/* ======================================================== */}
+          {reportsData?.accountant_consulting && (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-6">
+              {/* Header com Parecer e Selo de Saúde */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-100 dark:border-gray-700">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Parecer do Contador Consultivo
+                    </span>
+                    <span
+                      className={cn(
+                        'px-2.5 py-0.5 rounded-full text-xs font-bold border',
+                        reportsData.accountant_consulting.health_status === 'excelente'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'
+                          : reportsData.accountant_consulting.health_status === 'boa'
+                          ? 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'
+                          : reportsData.accountant_consulting.health_status === 'atencao'
+                          ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'
+                          : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'
+                      )}
+                    >
+                      {reportsData.accountant_consulting.health_title}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-black text-gray-900 dark:text-gray-100">
+                    Diagnóstico Financeiro & Diretrizes Estratégicas
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed max-w-3xl pt-1">
+                    {reportsData.accountant_consulting.summary_text}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-500 font-medium">Ano Base:</span>
+                  <select
+                    value={reportYear}
+                    onChange={(e) => setReportYear(e.target.value)}
+                    className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid 4 Cards: Mês Passado, Mês Atual, Previsão Mês Seguinte, Média Anual */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Mês Passado */}
+                <div className="bg-gray-50/70 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      Mês Passado
+                    </span>
+                    <p className="text-xs font-bold text-gray-800 dark:text-gray-200 mb-2 truncate">
+                      {reportsData.accountant_consulting.last_month.label}
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Recebido:</span>
+                        <span className="font-bold text-emerald-600">
+                          {formatCurrency(reportsData.accountant_consulting.last_month.received)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Gasto:</span>
+                        <span className="font-bold text-rose-600">
+                          {formatCurrency(reportsData.accountant_consulting.last_month.spent)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between text-xs font-bold">
+                    <span className="text-gray-600 dark:text-gray-400">Resultado:</span>
+                    <span
+                      className={
+                        reportsData.accountant_consulting.last_month.result >= 0
+                          ? 'text-emerald-600'
+                          : 'text-rose-600'
+                      }
+                    >
+                      {formatCurrency(reportsData.accountant_consulting.last_month.result)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Mês Atual */}
+                <div className="bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                      Mês Atual (Em Curso)
+                    </span>
+                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-2 truncate">
+                      {reportsData.accountant_consulting.current_month.label}
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Recebido:</span>
+                        <span className="font-bold text-emerald-600">
+                          {formatCurrency(reportsData.accountant_consulting.current_month.received)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Gasto:</span>
+                        <span className="font-bold text-rose-600">
+                          {formatCurrency(reportsData.accountant_consulting.current_month.spent)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-blue-200 dark:border-blue-900 flex justify-between text-xs font-bold">
+                    <span className="text-gray-700 dark:text-gray-300">Resultado Real:</span>
+                    <span
+                      className={
+                        reportsData.accountant_consulting.current_month.result >= 0
+                          ? 'text-emerald-600 font-black'
+                          : 'text-rose-600 font-black'
+                      }
+                    >
+                      {formatCurrency(reportsData.accountant_consulting.current_month.result)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Previsão Mês Seguinte */}
+                <div className="bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                      Previsão Mês Seguinte
+                    </span>
+                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-2 truncate">
+                      {reportsData.accountant_consulting.next_month.label}
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Prev. Receitas:</span>
+                        <span className="font-bold text-emerald-600">
+                          {formatCurrency(reportsData.accountant_consulting.next_month.projected_revenue)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Prev. Despesas:</span>
+                        <span className="font-bold text-rose-600">
+                          {formatCurrency(reportsData.accountant_consulting.next_month.projected_expenses)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-indigo-200 dark:border-indigo-900 flex justify-between text-xs font-bold">
+                    <span className="text-gray-700 dark:text-gray-300">Lucro Previsto:</span>
+                    <span
+                      className={
+                        reportsData.accountant_consulting.next_month.projected_result >= 0
+                          ? 'text-indigo-600 font-black'
+                          : 'text-rose-600 font-black'
+                      }
+                    >
+                      {formatCurrency(reportsData.accountant_consulting.next_month.projected_result)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Média Anual */}
+                <div className="bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                      Média do Ano ({reportYear})
+                    </span>
+                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-2">
+                      Desempenho Mensal Médio
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Média Receitas:</span>
+                        <span className="font-bold text-gray-800 dark:text-gray-200">
+                          {formatCurrency(reportsData.accountant_consulting.annual_averages.monthly_revenue)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Média Despesas:</span>
+                        <span className="font-bold text-gray-800 dark:text-gray-200">
+                          {formatCurrency(reportsData.accountant_consulting.annual_averages.monthly_expenses)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-amber-200 dark:border-amber-900 flex justify-between text-xs font-bold">
+                    <span className="text-gray-700 dark:text-gray-300">Margem Média:</span>
+                    <span className="text-amber-700 dark:text-amber-400 font-black">
+                      {reportsData.accountant_consulting.annual_averages.margin_percent}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ações e Recomendações Práticas do Contador */}
+              <div className="pt-2">
+                <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Recomendações Práticas do Contador:
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {reportsData.accountant_consulting.recommended_actions.map((act: string, aIdx: number) => (
+                    <div
+                      key={aIdx}
+                      className="p-3 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-700 dark:text-gray-300 leading-relaxed flex items-start gap-2"
+                    >
+                      <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        {aIdx + 1}
+                      </span>
+                      <span>{act}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 font-medium">Ano de Exercício:</span>
-              <select
-                value={reportYear}
-                onChange={(e) => setReportYear(e.target.value)}
-                className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="2026">2026</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-              </select>
-            </div>
-          </div>
+          )}
 
           {/* Monthly Evolution Overview */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-blue-600" />
               Evolução Mensal do Exercício ({reportYear})
             </h4>
@@ -1018,9 +1215,9 @@ export default function FinancePage() {
                 return (
                   <div
                     key={monthKey}
-                    className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex flex-col justify-between"
+                    className="bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl p-3 flex flex-col justify-between"
                   >
-                    <span className="text-xs font-bold text-gray-700">{label}</span>
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{label}</span>
                     <div className="mt-2 space-y-1 text-[11px]">
                       <div className="text-emerald-600 flex justify-between">
                         <span>Rec:</span>
@@ -1030,7 +1227,7 @@ export default function FinancePage() {
                         <span>Desp:</span>
                         <span>{formatCurrency(ext)}</span>
                       </div>
-                      <div className="pt-1 border-t border-gray-200 flex justify-between font-bold">
+                      <div className="pt-1 border-t border-gray-200 dark:border-gray-700 flex justify-between font-bold">
                         <span className="text-gray-500">Res:</span>
                         <span className={res >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                           {formatCurrency(res)}
@@ -1046,8 +1243,8 @@ export default function FinancePage() {
           {/* Categories and Clients Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* By Category */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <PieChart className="w-4 h-4 text-blue-600" />
                 Despesas Pagas por Categoria
               </h4>
@@ -1057,10 +1254,10 @@ export default function FinancePage() {
                   {reportsData.by_category.map((cat: any) => (
                     <div key={cat.id} className="space-y-1">
                       <div className="flex justify-between text-xs">
-                        <span className="font-medium text-gray-700">{cat.name}</span>
-                        <span className="font-bold text-gray-900">{formatCurrency(cat.total_amount)}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{cat.name}</span>
+                        <span className="font-bold text-gray-900 dark:text-gray-100">{formatCurrency(cat.total_amount)}</span>
                       </div>
-                      <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-blue-600 rounded-full"
                           style={{
@@ -1080,8 +1277,8 @@ export default function FinancePage() {
             </div>
 
             {/* By Client */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <Building className="w-4 h-4 text-blue-600" />
                 Faturamento Realizado por Cliente
               </h4>
@@ -1090,20 +1287,20 @@ export default function FinancePage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-gray-200 text-gray-500 font-semibold uppercase text-[10px]">
+                      <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 font-semibold uppercase text-[10px]">
                         <th className="pb-2">Cliente</th>
                         <th className="pb-2 text-right">Recebido</th>
                         <th className="pb-2 text-right">A Receber</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
                       {reportsData.by_client.map((cli: any) => (
-                        <tr key={cli.id}>
-                          <td className="py-2.5 text-gray-800 font-medium">{cli.name}</td>
+                        <tr key={cli.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-750">
+                          <td className="py-2.5 font-medium text-gray-900 dark:text-gray-100">{cli.name}</td>
                           <td className="py-2.5 text-right font-bold text-emerald-600">
                             {formatCurrency(cli.total_received)}
                           </td>
-                          <td className="py-2.5 text-right text-gray-500">
+                          <td className="py-2.5 text-right font-semibold text-blue-600">
                             {formatCurrency(cli.total_pending)}
                           </td>
                         </tr>
@@ -1119,7 +1316,6 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* ======================================================== */}
       {/* MODAL: CRIAR NOVO LANÇAMENTO                              */}
       {/* ======================================================== */}
       {showTransModal && (
