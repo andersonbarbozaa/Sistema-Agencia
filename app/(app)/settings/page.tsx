@@ -42,6 +42,7 @@ import {
   Mail,
   Send,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Zap,
   Crown,
@@ -1227,244 +1228,251 @@ function SettingsContent() {
       {/* OVERVIEW: CARDS DOS SUBMENUS (Requisito usuário)           */}
       {/* ======================================================== */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {/* Card 1: Meu Perfil */}
-            <div
-              onClick={() => setActiveTab('profile')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <User className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                  Meu Perfil
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Altere seus dados pessoais, telefone, foto de perfil e senha de acesso.
+        <div className="space-y-6 max-w-4xl">
+          {/* Banner Horizontal: Instalar App no Celular */}
+          <div
+            onClick={handleInstallClick}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 sm:p-5 shadow-sm text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 cursor-pointer hover:shadow-md hover:from-blue-700 hover:to-indigo-700 transition-all group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Smartphone className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-white tracking-tight truncate">
+                  Instalar App no Celular
+                </h4>
+                <p className="text-xs text-blue-100 truncate">
+                  Acesse em tela cheia adicionando o sistema à tela inicial do seu dispositivo
                 </p>
               </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
-                <span>Configurar perfil &rarr;</span>
-                <span className="text-[11px] text-gray-400 font-normal truncate max-w-[140px]">{currentUser?.email}</span>
-              </div>
             </div>
-
-            {/* Card 1B: Perfil da Empresa */}
-            <div
-              onClick={() => setActiveTab('company')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                  Perfil da Empresa
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Configure o nome da empresa, ramo de atuação, logotipo e convites para a equipe.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
-                <span>Dados da empresa &rarr;</span>
-                <span className="text-[11px] text-gray-400 font-normal truncate max-w-[140px]">{profileForm.company_name}</span>
-              </div>
+            <div className="flex items-center gap-1.5 px-3.5 py-2 bg-white/20 group-hover:bg-white/30 rounded-xl text-xs font-bold text-white transition-colors shrink-0 self-start sm:self-auto">
+              <span>Instalar Agora</span>
+              <Download size={14} />
             </div>
+          </div>
 
-            {/* Card 2: Usuários & Cargos */}
-            <div
-              onClick={() => setActiveTab('users')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Users className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                  Usuários & Cargos
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Convide membros por e-mail, defina níveis de permissão e configure os cargos da agência.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-emerald-600">
-                <span>Gerenciar equipe &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
-                  {users.length} cadastrados
-                </span>
-              </div>
-            </div>
-
-            {/* Card 3: Categorias do Sistema */}
-            <div
-              onClick={() => setActiveTab('categories')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Layers className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
-                  Categorias do Sistema
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Configure os tipos de serviços criativos, cores de status, etapas de produção e categorias gerais.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-purple-600">
-                <span>Configurar categorias &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[11px] font-bold">
-                  {taskCategories.length} categorias
-                </span>
-              </div>
-            </div>
-
-            {/* Card 4: Financeiro */}
-            <div
-              onClick={() => setActiveTab('finance')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                  Categoria Financeiro & Contas
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Gerencie categorias financeiras, meta de receita mensal, cotações e contas bancárias.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-amber-600">
-                <span>Ajustar finanças &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold">
-                  {financialCategories.length} categorias
-                </span>
-              </div>
-            </div>
-
-            {/* Card 5: Assistente de IA */}
-            <div
-              onClick={() => setActiveTab('ai')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Bot className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                  Assistente de IA
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Personalize o prompt de inteligência artificial, diretrizes da agência e validações de comandos.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-indigo-600">
-                <span>Personalizar IA &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-bold">
-                  Gemini API
-                </span>
-              </div>
-            </div>
-
-            {/* Card 7: Tema do App */}
-            <div
-              onClick={() => setActiveTab('appearance')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  {appTheme === 'dark' ? <Moon className="w-6 h-6" /> : appTheme === 'light' ? <Sun className="w-6 h-6" /> : <Laptop className="w-6 h-6" />}
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
-                  Aparência & Tema
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Alterne entre tema claro, escuro ou use a preferência automática do seu dispositivo.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-purple-600">
-                <span>Personalizar tema &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[11px] font-bold capitalize">
-                  {appTheme === 'dark' ? 'Escuro' : appTheme === 'light' ? 'Claro' : 'Sistema'} • Fonte {appFontSize === 'small' ? 'Menor' : appFontSize === 'large' ? 'Maior' : 'Média'}
-                </span>
-              </div>
-            </div>
-
-            {/* Card 8: Padrões de Formatação */}
-            <div
-              onClick={() => setActiveTab('formatting')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Highlighter className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                  Padrões de Roteiro
-                </h3>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Crie modelos de texto para roteiros e tarefas com cores, marca-texto, títulos e notas.
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-amber-600">
-                <span>Configurar padrões &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold">
-                  {formattingPresets.length} modelos
-                </span>
-              </div>
-            </div>
-
-            {/* Card 9: Assinaturas & Planos */}
-            <div
-              onClick={() => setActiveTab('plans')}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-500 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                    Assinaturas & Planos
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
-                    30 Dias Grátis
+          {/* GRUPO 1: Minha Conta */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
+              Minha Conta
+            </h3>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+              {/* Meu Perfil */}
+              <div
+                onClick={() => setActiveTab('profile')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    Meu Perfil
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                  Gerencie seu plano de assinatura, conheça os diferenciais e teste novos planos sem cartão de crédito.
-                </p>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="text-xs text-gray-400 font-medium truncate max-w-[160px] sm:max-w-xs">
+                    {currentUser?.email}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
-                <span>Ver planos disponíveis &rarr;</span>
-                <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold capitalize">
-                  {workspaceData?.plan_type === 'corporativo' ? 'Corporativo' : workspaceData?.plan_type === 'pro' ? 'Equipe Pro' : 'Individual'}
-                </span>
+
+              {/* Assinaturas & Planos */}
+              <div
+                onClick={() => setActiveTab('plans')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    Assinaturas & Planos
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider hidden sm:inline-block">
+                    30 Dias Grátis
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-xs font-semibold capitalize">
+                    {workspaceData?.plan_type === 'corporativo' ? 'Corporativo' : workspaceData?.plan_type === 'pro' ? 'Equipe Pro' : 'Individual'}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Card 6: Instalar Aplicativo */}
-            <div
-              onClick={handleInstallClick}
-              className="bg-blue-600 border border-blue-500 rounded-2xl p-6 shadow-md hover:bg-blue-700 hover:shadow-lg transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Smartphone className="w-6 h-6" />
+          {/* GRUPO 2: Agência / Empresa */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
+              Agência / Empresa
+            </h3>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+              {/* Perfil da Empresa */}
+              <div
+                onClick={() => setActiveTab('company')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    Perfil da Empresa
+                  </span>
                 </div>
-                <h3 className="text-base font-bold text-white group-hover:text-blue-50 transition-colors">
-                  Instalar App no Celular
-                </h3>
-                <p className="text-xs text-blue-100 mt-1.5 leading-relaxed">
-                  Adicione o sistema à tela inicial do seu dispositivo para usá-lo em tela cheia como um aplicativo nativo.
-                </p>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate max-w-[150px] sm:max-w-xs">
+                    {profileForm.company_name || 'Configurar'}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
-              <div className="mt-5 pt-4 border-t border-blue-500/50 flex items-center justify-between text-xs font-semibold text-white">
-                <span>Instalar Agora &rarr;</span>
-                <Download size={16} />
+
+              {/* Usuários & Cargos */}
+              <div
+                onClick={() => setActiveTab('users')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    Usuários & Cargos
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold">
+                    {users.length} cadastrados
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* GRUPO 3: Configurações do Sistema */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
+              Configurações do Sistema
+            </h3>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+              {/* Aparência & Tema */}
+              <div
+                onClick={() => setActiveTab('appearance')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    {appTheme === 'dark' ? <Moon className="w-5 h-5" /> : appTheme === 'light' ? <Sun className="w-5 h-5" /> : <Laptop className="w-5 h-5" />}
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    Aparência & Tema
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 text-xs font-semibold capitalize">
+                    {appTheme === 'dark' ? 'Escuro' : appTheme === 'light' ? 'Claro' : 'Sistema'} • Fonte {appFontSize === 'small' ? 'Menor' : appFontSize === 'large' ? 'Maior' : 'Média'}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
+              {/* Categorias do Sistema */}
+              <div
+                onClick={() => setActiveTab('categories')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    Categorias do Sistema
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 text-xs font-semibold">
+                    {taskCategories.length} categorias
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
+              {/* Categoria Financeiro & Contas */}
+              <div
+                onClick={() => setActiveTab('finance')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                    Categoria Financeiro & Contas
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                    {financialCategories.length} categorias
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* GRUPO 4: Ferramentas & IA */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
+              Ferramentas & IA
+            </h3>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+              {/* Assistente de IA */}
+              <div
+                onClick={() => setActiveTab('ai')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    Assistente de IA
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 text-xs font-semibold">
+                    Gemini API
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
+              {/* Padrões de Roteiro */}
+              <div
+                onClick={() => setActiveTab('formatting')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Highlighter className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                    Padrões de Roteiro
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                    {formattingPresets.length} modelos
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
             </div>
           </div>
