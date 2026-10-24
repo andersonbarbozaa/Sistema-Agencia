@@ -82,10 +82,12 @@ export default function AgendaPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [evtRes, tasksRes, clientsRes] = await Promise.all([
-        fetch('/api/calendar', { cache: 'no-store' }),
+      const calQuery = selectedCalendarId && selectedCalendarId !== 'all' ? `?calendar_id=${selectedCalendarId}` : '';
+      const [evtRes, tasksRes, clientsRes, calRes] = await Promise.all([
+        fetch(`/api/calendar${calQuery}`, { cache: 'no-store' }),
         fetch('/api/tasks', { cache: 'no-store' }),
         fetch('/api/clients', { cache: 'no-store' }),
+        fetch('/api/custom-calendars', { cache: 'no-store' }),
       ]);
 
       if (evtRes.ok) {
@@ -99,6 +101,10 @@ export default function AgendaPage() {
       if (clientsRes.ok) {
         const c = await clientsRes.json();
         setClients(c.clients || c.data || []);
+      }
+      if (calRes.ok) {
+        const cd = await calRes.json();
+        setCustomCalendars(cd.calendars || cd.data || []);
       }
     } catch (err) {
       console.error(err);
@@ -360,9 +366,6 @@ export default function AgendaPage() {
       {/* ======================================================== */}
       <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-            Agendas:
-          </span>
           <button
             type="button"
             onClick={() => setSelectedCalendarId('all')}
@@ -373,7 +376,7 @@ export default function AgendaPage() {
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             )}
           >
-            Todas as Agendas (Global)
+            Todas
           </button>
 
           {customCalendars.map((cal) => (
@@ -442,7 +445,7 @@ export default function AgendaPage() {
               )}
             >
               <CalendarIcon className="w-3.5 h-3.5" />
-              CalendÃ¡rio
+              Calendário
             </button>
             <button
               onClick={() => setViewMode('list')}
@@ -474,14 +477,14 @@ export default function AgendaPage() {
             <button
               onClick={prevMonth}
               className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors"
-              title="MÃªs anterior"
+              title="Mês anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={nextMonth}
               className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors"
-              title="PrÃ³ximo mÃªs"
+              title="Próximo mês"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -498,95 +501,173 @@ export default function AgendaPage() {
       ) : viewMode === 'calendar' ? (
         /* CALENDAR VIEW */
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <div className="min-w-[650px]">
-              {/* Weekday Headers */}
-              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/80 text-center py-2.5 text-xs font-bold text-gray-600 uppercase tracking-wider">
-                <div>Dom</div>
-                <div>Seg</div>
-                <div>Ter</div>
-                <div>Qua</div>
-                <div>Qui</div>
-                <div>Sex</div>
-                <div>SÃ¡b</div>
+          {/* Contêiner com rolagem horizontal fluida para manter grade legível no mobile */}
+          <div className="overflow-x-auto scrollbar-thin overscroll-x-contain">
+            <div className="min-w-[680px] md:min-w-full">
+              {/* Weekday Headers (DOM a SÁB) */}
+              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/80 text-center py-2.5 text-xs font-bold text-gray-600 uppercase tracking-wider select-none">
+                <div>DOM</div>
+                <div>SEG</div>
+                <div>TER</div>
+                <div>QUA</div>
+                <div>QUI</div>
+                <div>SEX</div>
+                <div>SÁB</div>
               </div>
 
               {/* Days Grid */}
-              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[560px]">
-            {calendarDays.map((cell, idx) => {
-              const dayEvents = events.filter((e) => e.event_date === cell.dateStr);
-              const dayTasks = tasks.filter((t) => t.delivery_date && t.delivery_date.startsWith(cell.dateStr));
-              const isToday = cell.dateStr === todayStr;
+              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[500px] md:min-h-[560px]">
+                {calendarDays.map((cell, idx) => {
+                  const dayEvents = (selectedCalendarId === 'all'
+                    ? events
+                    : events.filter((e) => e.calendar_id === selectedCalendarId)
+                  ).filter((e) => e.event_date === cell.dateStr);
 
-              return (
-                <div
-                  key={idx}
-                  className={`p-2 transition-colors relative flex flex-col justify-between ${
-                    cell.currentMonth
-                      ? 'bg-white hover:bg-blue-50/20'
-                      : 'bg-gray-50/40 opacity-40'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span
+                  const dayTasks = (selectedCalendarId === 'all'
+                    ? tasks
+                    : tasks.filter((t) => t.calendar_id === selectedCalendarId)
+                  ).filter((t) => t.delivery_date && t.delivery_date.startsWith(cell.dateStr));
+
+                  const isToday = cell.dateStr === todayStr;
+
+                  // Agrupa compromissos e tarefas cronologicamente por horário
+                  const dayItems = [
+                    ...dayEvents.map((evt) => ({
+                      id: `evt-${evt.id}`,
+                      type: 'event' as const,
+                      title: evt.title,
+                      startTime: evt.start_time ? evt.start_time.substring(0, 5) : '',
+                      location: evt.location,
+                      status: evt.visibility,
+                      calendarId: evt.calendar_id,
+                      raw: evt,
+                    })),
+                    ...dayTasks.map((task) => {
+                      let taskTime = '';
+                      if (task.delivery_date && task.delivery_date.includes('T')) {
+                        taskTime = task.delivery_date.split('T')[1].substring(0, 5);
+                      }
+                      return {
+                        id: `task-${task.id}`,
+                        type: 'task' as const,
+                        title: task.name,
+                        startTime: taskTime,
+                        location: task.client_name,
+                        status: task.status,
+                        calendarId: task.calendar_id,
+                        raw: task,
+                      };
+                    }),
+                  ].sort((a, b) => {
+                    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+                    if (a.startTime) return -1;
+                    if (b.startTime) return 1;
+                    return 0;
+                  });
+
+                  return (
+                    <div
+                      key={idx}
                       className={cn(
-                        'text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full',
-                        isToday
-                          ? 'bg-blue-600 text-white'
-                          : cell.currentMonth
-                          ? 'text-gray-700'
-                          : 'text-gray-400'
+                        'p-1.5 sm:p-2 transition-colors relative flex flex-col justify-between min-h-[95px] sm:min-h-[110px] group',
+                        cell.currentMonth
+                          ? isToday
+                            ? 'bg-blue-50/25 hover:bg-blue-50/40'
+                            : 'bg-white hover:bg-gray-50/60'
+                          : 'bg-gray-50/40 opacity-40'
                       )}
                     >
-                      {cell.day}
-                    </span>
-                    {cell.currentMonth && (
-                      <button
-                        onClick={() => {
-                          setNewEvent((prev) => ({ ...prev, event_date: cell.dateStr }));
-                          setShowCreateModal(true);
-                        }}
-                        className="opacity-0 hover:opacity-100 p-0.5 text-gray-400 hover:text-blue-600 transition-opacity"
-                        title="Adicionar compromisso neste dia"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Day Event & Task Chips */}
-                  <div className="space-y-1 overflow-y-auto max-h-24 flex-1">
-                    {dayEvents.map((evt) => (
-                      <div
-                        key={evt.id}
-                        onClick={() => openEditModal(evt)}
-                        className="px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-[11px] cursor-pointer transition-all flex items-center gap-1.5 min-w-0"
-                        title={`${evt.start_time ? evt.start_time.substring(0, 5) + ' - ' : ''}${evt.title} (${evt.location || 'Sem local'})`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
-                        {evt.start_time && (
-                          <span className="font-bold text-blue-700 text-[10px] shrink-0">
-                            {evt.start_time.substring(0, 5)}
-                          </span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={cn(
+                            'text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full',
+                            isToday
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : cell.currentMonth
+                              ? 'text-gray-800'
+                              : 'text-gray-400'
+                          )}
+                        >
+                          {cell.day}
+                        </span>
+                        {cell.currentMonth && (
+                          <button
+                            onClick={() => {
+                              setNewEvent((prev) => ({ ...prev, event_date: cell.dateStr }));
+                              setShowCreateModal(true);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 hover:opacity-100 p-0.5 text-gray-400 hover:text-blue-600 transition-opacity"
+                            title="Adicionar compromisso neste dia"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
                         )}
-                        <span className="font-medium text-gray-900 truncate flex-1 leading-tight">{evt.title}</span>
                       </div>
-                    ))}
-                    {dayTasks.map((task) => (
-                      <div
-                        key={`task-${task.id}`}
-                        onClick={() => setSelectedTaskPreview(task)}
-                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg text-[11px] cursor-pointer transition-all flex items-center gap-1.5 min-w-0"
-                        title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                        <span className="font-semibold text-gray-900 truncate flex-1 leading-tight">{task.name}</span>
+
+                      {/* Compromissos e Tarefas como Pílulas Compactas Cronológicas */}
+                      <div className="space-y-1 overflow-y-auto max-h-24 sm:max-h-28 flex-1 scrollbar-none">
+                        {dayItems.map((item) => {
+                          const isEvent = item.type === 'event';
+                          const cal = customCalendars.find((c) => c.id === item.calendarId);
+
+                          // Cores e estilos por tipo e status
+                          let pillClasses = 'bg-blue-50 hover:bg-blue-100 border border-blue-200/90 text-blue-950';
+                          let dotColor = cal?.color || '#3b82f6';
+                          let timeColor = 'text-blue-700';
+
+                          if (!isEvent) {
+                            if (item.status === 'Concluída') {
+                              pillClasses = 'bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700';
+                              dotColor = '#9ca3af';
+                              timeColor = 'text-gray-600';
+                            } else if (item.raw.delivery_date && item.raw.delivery_date < todayStr) {
+                              pillClasses = 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-950';
+                              dotColor = '#ef4444';
+                              timeColor = 'text-rose-700';
+                            } else {
+                              pillClasses = 'bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-amber-950';
+                              dotColor = cal?.color || '#f59e0b';
+                              timeColor = 'text-amber-800';
+                            }
+                          } else if (cal?.color) {
+                            dotColor = cal.color;
+                          }
+
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() =>
+                                isEvent ? openEditModal(item.raw) : setSelectedTaskPreview(item.raw)
+                              }
+                              className={cn(
+                                'px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] cursor-pointer transition-all flex items-center gap-1 sm:gap-1.5 min-w-0 shadow-2xs group/pill',
+                                pillClasses
+                              )}
+                              title={
+                                isEvent
+                                  ? `${item.startTime ? item.startTime + ' - ' : ''}${item.title} (${item.location || 'Sem local'})`
+                                  : `Tarefa: ${item.title}${item.location ? ` (${item.location})` : ''}`
+                              }
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: dotColor }}
+                              />
+                              {item.startTime && (
+                                <span className={cn('font-bold text-[9px] sm:text-[10px] shrink-0 leading-none', timeColor)}>
+                                  {item.startTime}
+                                </span>
+                              )}
+                              <span className="font-semibold truncate flex-1 leading-tight">
+                                {item.title}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -608,7 +689,7 @@ export default function AgendaPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {[...events.map(e => ({ ...e, type: 'event' })), ...tasks.filter(t => t.delivery_date).map(t => ({ ...t, type: 'task', event_date: t.delivery_date }))]
+              {[(selectedCalendarId === 'all' ? events : events.filter(e => e.calendar_id === selectedCalendarId)).map(e => ({ ...e, type: 'event' })), ...(selectedCalendarId === 'all' ? tasks : tasks.filter(t => t.calendar_id === selectedCalendarId)).filter(t => t.delivery_date).map(t => ({ ...t, type: 'task', event_date: t.delivery_date }))]
                 .sort((a, b) => (a.event_date > b.event_date ? 1 : -1))
                 .map((item) => (
                   <div
