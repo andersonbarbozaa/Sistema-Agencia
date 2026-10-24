@@ -236,8 +236,8 @@ export default function Header({ user }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3.5 sm:px-6 flex items-center justify-between z-20 flex-shrink-0 transition-colors">
-      {/* 1. LADO ESQUERDO: Botão de Menu + Logo da Empresa */}
-      <div className="flex items-center gap-3 min-w-0 pr-3">
+      {/* 1. LADO ESQUERDO: Botão de Menu + Logo da Empresa (Oculto em Web / Desktop) */}
+      <div className="flex md:hidden items-center gap-3 min-w-0 pr-3">
         <button
           type="button"
           onClick={handleMenuClick}
@@ -272,7 +272,7 @@ export default function Header({ user }: HeaderProps) {
       </div>
 
       {/* 2. CENTRO: Busca Retrátil com Listagem Suspensa de Resultados */}
-      <div className="flex-1 max-w-md mx-2 sm:mx-4 relative" ref={searchRef}>
+      <div className="flex-1 max-w-md mx-2 sm:mx-4 md:ml-0 md:mr-4 relative" ref={searchRef}>
         <div
           className={cn(
             'flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-1.5 transition-all',
