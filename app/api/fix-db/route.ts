@@ -32,7 +32,18 @@ export async function GET() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_custom_calendars_workspace ON custom_calendars(workspace_id)`
+    `CREATE INDEX IF NOT EXISTS idx_custom_calendars_workspace ON custom_calendars(workspace_id)`,
+    `CREATE TABLE IF NOT EXISTS crm_interactions (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      interaction_date TEXT NOT NULL DEFAULT (datetime('now')),
+      platform TEXT DEFAULT 'WhatsApp',
+      message TEXT DEFAULT '',
+      notes TEXT,
+      type TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`
   ];
 
   for (const sql of tables) {
@@ -56,7 +67,12 @@ export async function GET() {
     'ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT',
     'ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT "individual"',
     'ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT "trial"',
-    'ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT'
+    'ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT',
+    'ALTER TABLE crm_interactions ADD COLUMN platform TEXT',
+    'ALTER TABLE crm_interactions ADD COLUMN message TEXT',
+    'ALTER TABLE crm_interactions ADD COLUMN type TEXT',
+    'ALTER TABLE crm_interactions ADD COLUMN notes TEXT',
+    'ALTER TABLE crm_interactions ADD COLUMN created_at TEXT'
   ];
 
   for (const stmt of alterStatements) {
@@ -68,5 +84,9 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ success: true, results });
+  return NextResponse.json({
+    status: 'ok',
+    message: 'Database check and updates completed',
+    results
+  });
 }

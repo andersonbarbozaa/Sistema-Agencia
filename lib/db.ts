@@ -118,6 +118,23 @@ function getLocalDatabase(): D1DatabaseInterface {
         ALTER TABLE calendar_events ADD COLUMN visibility TEXT DEFAULT 'group';
         ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT;
 
+        CREATE TABLE IF NOT EXISTS crm_interactions (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          interaction_date TEXT NOT NULL DEFAULT (datetime('now')),
+          platform TEXT DEFAULT 'WhatsApp',
+          message TEXT DEFAULT '',
+          notes TEXT,
+          type TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        ALTER TABLE crm_interactions ADD COLUMN platform TEXT;
+        ALTER TABLE crm_interactions ADD COLUMN message TEXT;
+        ALTER TABLE crm_interactions ADD COLUMN type TEXT;
+        ALTER TABLE crm_interactions ADD COLUMN notes TEXT;
+        ALTER TABLE crm_interactions ADD COLUMN created_at TEXT;
+
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL,

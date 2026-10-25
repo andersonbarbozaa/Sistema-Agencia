@@ -31,11 +31,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const interactions = await db
       .prepare(
-        `SELECT i.*, u.name as author_name
+        `SELECT
+          i.id,
+          i.lead_id,
+          i.user_id,
+          i.interaction_date,
+          COALESCE(i.platform, i.type, 'WhatsApp') AS platform,
+          COALESCE(i.message, i.notes, '') AS message,
+          COALESCE(i.notes, i.message, '') AS notes,
+          COALESCE(i.type, i.platform, 'WhatsApp') AS type,
+          COALESCE(i.created_at, i.interaction_date) AS created_at,
+          u.name AS author_name
         FROM crm_interactions i
         LEFT JOIN users u ON u.id = i.user_id
         WHERE i.lead_id = ?
-        ORDER BY i.interaction_date DESC`
+        ORDER BY i.interaction_date DESC, i.created_at DESC`
       )
       .bind(id)
       .all();
