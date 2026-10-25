@@ -15,6 +15,7 @@ import {
   Calendar,
   Clock,
   Send,
+  Loader2,
   AlertTriangle,
   CheckCircle2,
   XCircle,
@@ -66,6 +67,19 @@ export default function CRMPage() {
   });
 
   // New interaction form
+  const [submittingInteraction, setSubmittingInteraction] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   const [newInteraction, setNewInteraction] = useState({
     platform: 'WhatsApp',
     message: '',
@@ -252,26 +266,58 @@ export default function CRMPage() {
 
   const handleAddInteraction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLead || !newInteraction.message.trim()) return;
+    if (!selectedLead) return;
+
+    const trimmedMessage = newInteraction.message.trim();
+    if (!trimmedMessage) {
+      showToast('Por favor, descreva a interação antes de enviar.', 'error');
+      return;
+    }
 
     try {
+      setSubmittingInteraction(true);
       const res = await fetch(`/api/crm/${selectedLead.id}/interactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newInteraction),
+        body: JSON.stringify({
+          platform: newInteraction.platform,
+          message: trimmedMessage,
+        }),
       });
-      if (res.ok) {
-        setNewInteraction({ platform: 'WhatsApp', message: '', notes: '' });
-        // Refresh interactions and lead
-        const intRes = await fetch(`/api/crm/${selectedLead.id}/interactions`);
-        if (intRes.ok) {
-          const d = await intRes.json();
-          setInteractions(d.interactions || d.data || []);
-        }
-        fetchLeads();
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao registrar interação no servidor.');
       }
-    } catch (err) {
-      console.error(err);
+
+      // Limpa o campo de texto mantendo a plataforma selecionada
+      setNewInteraction((prev) => ({ ...prev, message: '' }));
+
+      // Atualiza a timeline na interface imediatamente com a nova interação
+      if (data.data) {
+        setInteractions((prev) => [data.data, ...prev.filter((i) => i.id !== data.data.id)]);
+      }
+
+      // Sincroniza a timeline com o servidor
+      const intRes = await fetch(`/api/crm/${selectedLead.id}/interactions`);
+      if (intRes.ok) {
+        const d = await intRes.json();
+        setInteractions(d.interactions || d.data || []);
+      }
+
+      // Atualiza a data de última atividade do Lead
+      const nowIso = new Date().toISOString();
+      setSelectedLead((prev) => (prev ? { ...prev, last_activity_at: nowIso } : null));
+      setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, last_activity_at: nowIso } : l)));
+      fetchLeads();
+
+      showToast('Interação registrada com sucesso!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao adicionar interação:', err);
+      showToast(err.message || 'Erro ao registrar interação.', 'error');
+    } finally {
+      setSubmittingInteraction(false);
     }
   };
 
@@ -616,13 +662,23 @@ export default function CRMPage() {
                 </h4>
 
                 <div className="space-y-3 mb-4">
-                  {interactions.length === 0 ? (
+                  {loadingInteractions ? (
+                    <div className="flex items-center justify-center py-6 text-gray-400 gap-2">
+                      <Loader2 size={16} className="animate-spin text-blue-600" />
+                      <span>Carregando interações...</span>
+                    </div>
+                  ) : interactions.length === 0 ? (
                     <p className="text-center text-gray-400 py-4">Nenhuma interação registrada ainda.</p>
                   ) : (
-                    interactions.map((int) => (
+                    interactions.map((int: any) => (
                       <div key={int.id} className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 leading-relaxed">
                         <div className="flex items-center justify-between font-semibold mb-1 text-gray-800">
-                          <span className="text-blue-600 font-bold">{int.platform}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-blue-600 font-bold">{int.platform}</span>
+                            {int.author_name && (
+                              <span className="text-[10px] text-gray-400 font-normal">por {int.author_name}</span>
+                            )}
+                          </div>
                           <span className="text-[10px] text-gray-400 font-normal">{formatDateTime(int.interaction_date)}</span>
                         </div>
                         <p className="text-gray-700">{int.message}</p>
@@ -637,7 +693,8 @@ export default function CRMPage() {
                     <select
                       value={newInteraction.platform}
                       onChange={(e) => setNewInteraction({ ...newInteraction, platform: e.target.value })}
-                      className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-xl font-semibold"
+                      disabled={submittingInteraction}
+                      className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <option value="WhatsApp">WhatsApp</option>
                       <option value="Ligação">Ligação</option>
@@ -650,13 +707,20 @@ export default function CRMPage() {
                       placeholder="Descreva a interação (atualiza a data de última atividade)..."
                       value={newInteraction.message}
                       onChange={(e) => setNewInteraction({ ...newInteraction, message: e.target.value })}
-                      className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={submittingInteraction}
+                      className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     <button
                       type="submit"
-                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold flex items-center gap-1 shadow-sm"
+                      disabled={submittingInteraction || !newInteraction.message.trim()}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold flex items-center gap-1 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={submittingInteraction ? 'Enviando...' : 'Enviar interação'}
                     >
-                      <Send size={13} />
+                      {submittingInteraction ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Send size={13} />
+                      )}
                     </button>
                   </div>
                 </form>
@@ -931,6 +995,33 @@ export default function CRMPage() {
         onConfirm={confirmState.onConfirm}
         onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
       />
+          {/* Toast de Feedback */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            'fixed top-5 right-5 z-[100] flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs font-semibold animate-in fade-in slide-in-from-top-3 duration-200 backdrop-blur-md',
+            toast.type === 'success'
+              ? 'bg-emerald-50/95 text-emerald-800 border-emerald-200 shadow-emerald-500/10'
+              : 'bg-rose-50/95 text-rose-800 border-rose-200 shadow-rose-500/10'
+          )}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
