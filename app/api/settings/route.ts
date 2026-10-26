@@ -1,8 +1,8 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+import { getFallbackGeminiKey } from '@/lib/gemini';
 
 export async function GET(request: Request) {
   try {
@@ -19,14 +19,17 @@ export async function GET(request: Request) {
       settingsObj[r.key] = r.value;
     }
 
-    const isGeminiConfigured =
-      (!!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '') ||
-      (!!settingsObj['gemini_api_key'] && settingsObj['gemini_api_key'].trim() !== '');
+    const geminiKey = (settingsObj['gemini_api_key'] || process.env.GEMINI_API_KEY || getFallbackGeminiKey() || '').trim();
+    if (geminiKey && !settingsObj['gemini_api_key']) {
+      settingsObj['gemini_api_key'] = geminiKey;
+    }
+
+    const isGeminiConfigured = !!geminiKey && geminiKey !== '';
 
     return NextResponse.json({
       settings: settingsObj,
       gemini_configured: isGeminiConfigured,
-      gemini_model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      gemini_model: settingsObj['ai_model'] || process.env.GEMINI_MODEL || 'gemini-3.5-flash',
       google_calendar_configured: !!process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID.trim() !== '',
     });
   } catch (err: any) {

@@ -157,7 +157,9 @@ function getLocalDatabase(): D1DatabaseInterface {
         ('monthly_revenue_goal', '50000', 'Meta mensal de receita da agência'),
         ('default_currency', 'BRL', 'Moeda padrão do sistema (BRL, USD, EUR)'),
         ('exchange_rate_usd', '5.65', 'Taxa de conversão USD para moeda padrão'),
-        ('exchange_rate_eur', '6.15', 'Taxa de conversão EUR para moeda padrão');
+        ('exchange_rate_eur', '6.15', 'Taxa de conversão EUR para moeda padrão'),
+        ('ai_assistant_enabled', 'true', 'Ativação do assistente de IA Gemini'),
+        ('ai_model', 'gemini-3.5-flash', 'Modelo padrão do Google Gemini');
       `);
     } catch {}
 

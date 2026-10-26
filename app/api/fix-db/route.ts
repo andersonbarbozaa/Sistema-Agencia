@@ -96,6 +96,21 @@ export async function GET() {
     }
   }
 
+  // 3. Essential default settings
+  const defaultSettings = [
+    { key: 'ai_assistant_enabled', value: 'true', desc: 'Ativação do assistente de IA Gemini' },
+    { key: 'ai_model', value: 'gemini-3.5-flash', desc: 'Modelo padrão do Google Gemini' },
+  ];
+
+  for (const s of defaultSettings) {
+    try {
+      await db.prepare("INSERT OR IGNORE INTO settings (key, value, description) VALUES (?, ?, ?)").bind(s.key, s.value, s.desc).run();
+      results.push(`Setting verified: ${s.key}`);
+    } catch (e: any) {
+      results.push(`Setting skipped (${s.key}): ${e.message}`);
+    }
+  }
+
   return NextResponse.json({
     status: 'ok',
     message: 'Database check and updates completed',

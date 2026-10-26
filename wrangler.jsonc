@@ -19,6 +19,7 @@
     }
   ],
   "vars": {
-    "DEFAULT_TIMEZONE": "America/Sao_Paulo"
+    "DEFAULT_TIMEZONE": "America/Sao_Paulo",
+    "GEMINI_MODEL": "gemini-3.5-flash"
   }
 }
