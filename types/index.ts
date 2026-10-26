@@ -278,6 +278,12 @@ export interface CRMLead {
   assignee_name?: string | null;
   status: CRMLeadStatus;
   notes?: string | null;
+  website?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  instagram?: string | null;
+  segment?: string | null;
+  description?: string | null;
   last_activity_at: string;
   is_inactive?: boolean; // True se last_activity_at > 7 dias
   created_at: string;

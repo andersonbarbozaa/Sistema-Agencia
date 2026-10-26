@@ -25,6 +25,12 @@ async function ensureCrmLeadsSchema(db: any) {
           estimated_value REAL DEFAULT 0,
           first_contact_date TEXT,
           workspace_id TEXT DEFAULT 'ws_default',
+          website TEXT,
+          facebook TEXT,
+          linkedin TEXT,
+          instagram TEXT,
+          segment TEXT,
+          description TEXT,
           last_activity_at TEXT NOT NULL DEFAULT (datetime('now')),
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -41,6 +47,12 @@ async function ensureCrmLeadsSchema(db: any) {
     'ALTER TABLE crm_leads ADD COLUMN estimated_value REAL DEFAULT 0',
     'ALTER TABLE crm_leads ADD COLUMN first_contact_date TEXT',
     'ALTER TABLE crm_leads ADD COLUMN workspace_id TEXT DEFAULT "ws_default"',
+    'ALTER TABLE crm_leads ADD COLUMN website TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN facebook TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN linkedin TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN instagram TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN segment TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN description TEXT',
   ];
   for (const sql of alters) {
     try {
@@ -152,6 +164,12 @@ export async function POST(request: NextRequest) {
     const assignee_id = body.assignee_id ?? null;
     const notes = body.notes ?? null;
     const estimated_value = body.estimated_value ? parseFloat(body.estimated_value) : 0;
+    const website = body.website ?? null;
+    const facebook = body.facebook ?? null;
+    const linkedin = body.linkedin ?? null;
+    const instagram = body.instagram ?? null;
+    const segment = body.segment ?? null;
+    const description = body.description ?? null;
 
     if (!contact_name) {
       return NextResponse.json({ error: 'contact_name is required' }, { status: 400 });
@@ -166,6 +184,41 @@ export async function POST(request: NextRequest) {
     const first_contact_date = body.first_contact_date || now;
 
     try {
+      await db
+        .prepare(
+          `INSERT INTO crm_leads
+            (id, contact_name, company, email, phone, whatsapp, city, platform, source, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, last_activity_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          id,
+          contact_name,
+          company,
+          email,
+          phone,
+          whatsapp,
+          city,
+          platform,
+          source,
+          status,
+          assignee_id,
+          notes,
+          estimated_value,
+          first_contact_date,
+          wsId,
+          website,
+          facebook,
+          linkedin,
+          instagram,
+          segment,
+          description,
+          now,
+          now,
+          now
+        )
+        .run();
+    } catch (insertErr) {
+      // Fallback para schema parcial
       await db
         .prepare(
           `INSERT INTO crm_leads
@@ -187,31 +240,6 @@ export async function POST(request: NextRequest) {
           notes,
           estimated_value,
           first_contact_date,
-          wsId,
-          now,
-          now,
-          now
-        )
-        .run();
-    } catch (insertErr) {
-      // Fallback para schema parcial
-      await db
-        .prepare(
-          `INSERT INTO crm_leads
-            (id, contact_name, company, email, phone, status, assignee_id, notes, source, estimated_value, workspace_id, last_activity_at, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          id,
-          contact_name,
-          company,
-          email,
-          phone,
-          status,
-          assignee_id,
-          notes,
-          source,
-          estimated_value,
           wsId,
           now,
           now,

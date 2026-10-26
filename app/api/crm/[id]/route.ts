@@ -94,7 +94,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       'status',
       'assignee_id',
       'notes',
-      'estimated_value'
+      'estimated_value',
+      'website',
+      'facebook',
+      'linkedin',
+      'instagram',
+      'segment',
+      'description'
     ];
     const updates: string[] = [];
     const values: unknown[] = [];

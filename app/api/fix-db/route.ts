@@ -78,7 +78,13 @@ export async function GET() {
     'ALTER TABLE crm_leads ADD COLUMN source TEXT',
     'ALTER TABLE crm_leads ADD COLUMN whatsapp TEXT',
     'ALTER TABLE crm_leads ADD COLUMN estimated_value REAL DEFAULT 0',
-    'ALTER TABLE crm_leads ADD COLUMN first_contact_date TEXT'
+    'ALTER TABLE crm_leads ADD COLUMN first_contact_date TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN website TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN facebook TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN linkedin TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN instagram TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN segment TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN description TEXT'
   ];
 
   for (const stmt of alterStatements) {

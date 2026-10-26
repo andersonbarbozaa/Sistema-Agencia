@@ -27,7 +27,39 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
+  Globe,
+  ExternalLink,
+  Briefcase,
+  FileText,
 } from 'lucide-react';
+
+function InstagramIcon({ size = 14, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ size = 14, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    </svg>
+  );
+}
+
+function LinkedinIcon({ size = 14, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+      <rect width="4" height="12" x="2" y="9" />
+      <circle cx="4" cy="4" r="2" />
+    </svg>
+  );
+}
 import { CRMLead, CRMInteraction, CRMLeadStatus } from '@/types';
 import { formatDate, formatDateTime, cn } from '@/lib/utils';
 
@@ -64,6 +96,12 @@ export default function CRMPage() {
     city: '',
     platform: 'WhatsApp',
     notes: '',
+    website: '',
+    facebook: '',
+    linkedin: '',
+    instagram: '',
+    segment: '',
+    description: '',
   });
 
   // New interaction form
@@ -99,6 +137,12 @@ export default function CRMPage() {
     status: 'Novo',
     estimated_value: 0,
     notes: '',
+    website: '',
+    facebook: '',
+    linkedin: '',
+    instagram: '',
+    segment: '',
+    description: '',
   });
 
   const openEditLead = (lead: any) => {
@@ -113,6 +157,12 @@ export default function CRMPage() {
       status: lead.status || 'Novo',
       estimated_value: lead.estimated_value || 0,
       notes: lead.notes || '',
+      website: lead.website || '',
+      facebook: lead.facebook || '',
+      linkedin: lead.linkedin || '',
+      instagram: lead.instagram || '',
+      segment: lead.segment || '',
+      description: lead.description || '',
     });
     setShowEditLeadModal(true);
   };
@@ -252,6 +302,12 @@ export default function CRMPage() {
           city: '',
           platform: 'WhatsApp',
           notes: '',
+          website: '',
+          facebook: '',
+          linkedin: '',
+          instagram: '',
+          segment: '',
+          description: '',
         });
         fetchLeads();
       } else {
@@ -661,7 +717,7 @@ export default function CRMPage() {
               </div>
 
               {/* Contact Info */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-400">Telefone / WhatsApp:</span>
                   <p className="font-semibold text-gray-800 mt-1">{selectedLead.whatsapp || selectedLead.phone || '-'}</p>
@@ -679,6 +735,10 @@ export default function CRMPage() {
                   <p className="font-semibold text-gray-800 mt-1">{selectedLead.city || '-'}</p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl">
+                  <span className="text-gray-400">Ramo de Atuação:</span>
+                  <p className="font-semibold text-gray-800 mt-1">{selectedLead.segment || '-'}</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-400">Valor Estimado:</span>
                   <p className="font-semibold text-emerald-600 mt-1">
                     {selectedLead.estimated_value ? `R$ ${Number(selectedLead.estimated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
@@ -686,9 +746,74 @@ export default function CRMPage() {
                 </div>
               </div>
 
+              {/* Social and Web Links */}
+              {(selectedLead.website || selectedLead.instagram || selectedLead.facebook || selectedLead.linkedin) && (
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <span className="text-gray-400 block mb-2 font-semibold">Links & Redes Sociais:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedLead.website && (
+                      <a
+                        href={selectedLead.website.startsWith('http') ? selectedLead.website : `https://${selectedLead.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-blue-600 hover:text-blue-700 hover:border-blue-300 font-medium transition-colors"
+                      >
+                        <Globe size={13} />
+                        <span>Website</span>
+                        <ExternalLink size={10} className="text-gray-400" />
+                      </a>
+                    )}
+                    {selectedLead.instagram && (
+                      <a
+                        href={selectedLead.instagram.startsWith('http') ? selectedLead.instagram : `https://instagram.com/${selectedLead.instagram.replace(/^@/, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-pink-600 hover:text-pink-700 hover:border-pink-300 font-medium transition-colors"
+                      >
+                        <InstagramIcon size={13} />
+                        <span>{selectedLead.instagram.startsWith('@') ? selectedLead.instagram : 'Instagram'}</span>
+                        <ExternalLink size={10} className="text-gray-400" />
+                      </a>
+                    )}
+                    {selectedLead.facebook && (
+                      <a
+                        href={selectedLead.facebook.startsWith('http') ? selectedLead.facebook : `https://facebook.com/${selectedLead.facebook}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-blue-700 hover:text-blue-800 hover:border-blue-400 font-medium transition-colors"
+                      >
+                        <FacebookIcon size={13} />
+                        <span>Facebook</span>
+                        <ExternalLink size={10} className="text-gray-400" />
+                      </a>
+                    )}
+                    {selectedLead.linkedin && (
+                      <a
+                        href={selectedLead.linkedin.startsWith('http') ? selectedLead.linkedin : `https://linkedin.com/in/${selectedLead.linkedin}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sky-700 hover:text-sky-800 hover:border-sky-400 font-medium transition-colors"
+                      >
+                        <LinkedinIcon size={13} />
+                        <span>LinkedIn</span>
+                        <ExternalLink size={10} className="text-gray-400" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Descrição do Cliente */}
+              {selectedLead.description && (
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <span className="text-gray-400 block mb-1 font-semibold">Sobre o Cliente:</span>
+                  <p className="text-gray-700 whitespace-pre-wrap">{selectedLead.description}</p>
+                </div>
+              )}
+
               {selectedLead.notes && (
                 <div className="p-3 bg-gray-50 rounded-xl">
-                  <span className="text-gray-400 block mb-1">Observações do Lead:</span>
+                  <span className="text-gray-400 block mb-1 font-semibold">Observações Internas:</span>
                   <p className="text-gray-700 whitespace-pre-wrap">{selectedLead.notes}</p>
                 </div>
               )}
@@ -781,7 +906,7 @@ export default function CRMPage() {
       {/* CREATE MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
@@ -789,43 +914,66 @@ export default function CRMPage() {
               <X size={20} />
             </button>
             <h3 className="text-lg font-bold text-gray-900 mb-1 pr-6">Cadastrar Lead</h3>
-            <p className="text-xs text-gray-500 mb-4">Adicione um novo prospecto ao funil de vendas.</p>
+            <p className="text-xs text-gray-500 mb-4">Adicione um novo prospecto ao funil de vendas com informações completas.</p>
 
-            <form onSubmit={handleCreateLead} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Dra. Carolina Lima"
-                  value={newLead.contact_name}
-                  onChange={(e) => setNewLead({ ...newLead, contact_name: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
+            <form onSubmit={handleCreateLead} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Dra. Carolina Lima"
+                    value={newLead.contact_name}
+                    onChange={(e) => setNewLead({ ...newLead, contact_name: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Empresa / Negócio</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Clínica Sorriso & Estética"
-                  value={newLead.company}
-                  onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Empresa / Negócio</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Clínica Sorriso & Estética"
+                    value={newLead.company}
+                    onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
                   <input
                     type="text"
                     placeholder="(18) 99999-9999"
                     value={newLead.whatsapp}
-                    onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value })}
+                    onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value, phone: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    placeholder="contato@empresa.com"
+                    value={newLead.email}
+                    onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Araçatuba"
+                    value={newLead.city}
+                    onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
                   <select
@@ -838,22 +986,110 @@ export default function CRMPage() {
                     <option value="Indicação">Indicação</option>
                     <option value="Google">Google</option>
                     <option value="LinkedIn">LinkedIn</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Outro">Outro</option>
                   </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-gray-700 mb-1">Ramo de Atuação</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Odontologia, Arquitetura, Varejo de Moda, etc."
+                    value={newLead.segment}
+                    onChange={(e) => setNewLead({ ...newLead, segment: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
+              {/* Redes Sociais e Links */}
+              <div className="pt-2 border-t border-gray-100">
+                <span className="block font-bold text-gray-700 mb-2">Links & Redes Sociais</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <Globe size={12} className="text-blue-500" />
+                      Link do Site
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://exemplo.com.br"
+                      value={newLead.website}
+                      onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <InstagramIcon size={12} className="text-pink-500" />
+                      Instagram
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="@perfil ou link"
+                      value={newLead.instagram}
+                      onChange={(e) => setNewLead({ ...newLead, instagram: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <FacebookIcon size={12} className="text-blue-600" />
+                      Facebook
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Link da página ou perfil"
+                      value={newLead.facebook}
+                      onChange={(e) => setNewLead({ ...newLead, facebook: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <LinkedinIcon size={12} className="text-sky-600" />
+                      LinkedIn
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Link do perfil ou empresa"
+                      value={newLead.linkedin}
+                      onChange={(e) => setNewLead({ ...newLead, linkedin: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Descrição sobre o Cliente */}
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
-                <input
-                  type="text"
-                  placeholder="Araçatuba"
-                  value={newLead.city}
-                  onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                <label className="block font-semibold text-gray-700 mb-1">Descrição sobre o Cliente</label>
+                <textarea
+                  rows={2}
+                  placeholder="Descreva detalhes sobre o cliente, perfil, necessidades ou dores identificadas..."
+                  value={newLead.description}
+                  onChange={(e) => setNewLead({ ...newLead, description: e.target.value })}
+                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3">
+              {/* Observações Internas */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Observações Internas</label>
+                <textarea
+                  rows={2}
+                  placeholder="Anotações internas sobre o lead..."
+                  value={newLead.notes}
+                  onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
+                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -876,7 +1112,7 @@ export default function CRMPage() {
       {/* EDIT LEAD MODAL */}
       {showEditLeadModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Edit2 size={18} className="text-blue-600" />
@@ -890,7 +1126,7 @@ export default function CRMPage() {
               </button>
             </div>
 
-            <form onSubmit={handleUpdateLead} className="mt-4 space-y-3.5 text-xs">
+            <form onSubmit={handleUpdateLead} className="mt-4 space-y-4 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
@@ -960,6 +1196,7 @@ export default function CRMPage() {
                     <option value="Indicação">Indicação</option>
                     <option value="Google">Google</option>
                     <option value="LinkedIn">LinkedIn</option>
+                    <option value="Facebook">Facebook</option>
                     <option value="Outro">Outro</option>
                   </select>
                 </div>
@@ -975,6 +1212,17 @@ export default function CRMPage() {
                 </div>
 
                 <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Ramo de Atuação</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Odontologia, Moda, etc."
+                    value={editLead.segment}
+                    onChange={(e) => setEditLead({ ...editLead, segment: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
                   <label className="block font-semibold text-gray-700 mb-1">Valor Estimado (R$)</label>
                   <input
                     type="number"
@@ -986,6 +1234,81 @@ export default function CRMPage() {
                 </div>
               </div>
 
+              {/* Redes Sociais e Links */}
+              <div className="pt-2 border-t border-gray-100">
+                <span className="block font-bold text-gray-700 mb-2">Links & Redes Sociais</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <Globe size={12} className="text-blue-500" />
+                      Link do Site
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://exemplo.com.br"
+                      value={editLead.website}
+                      onChange={(e) => setEditLead({ ...editLead, website: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <InstagramIcon size={12} className="text-pink-500" />
+                      Instagram
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="@perfil ou link"
+                      value={editLead.instagram}
+                      onChange={(e) => setEditLead({ ...editLead, instagram: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <FacebookIcon size={12} className="text-blue-600" />
+                      Facebook
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Link da página ou perfil"
+                      value={editLead.facebook}
+                      onChange={(e) => setEditLead({ ...editLead, facebook: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <LinkedinIcon size={12} className="text-sky-600" />
+                      LinkedIn
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Link do perfil ou empresa"
+                      value={editLead.linkedin}
+                      onChange={(e) => setEditLead({ ...editLead, linkedin: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Descrição sobre o Cliente */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Descrição sobre o Cliente</label>
+                <textarea
+                  rows={2}
+                  placeholder="Descreva detalhes sobre o cliente, perfil, necessidades ou dores identificadas..."
+                  value={editLead.description}
+                  onChange={(e) => setEditLead({ ...editLead, description: e.target.value })}
+                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Observações Internas */}
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Observações Internas</label>
                 <textarea
