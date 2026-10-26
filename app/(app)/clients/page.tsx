@@ -749,7 +749,7 @@ export default function ClientsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const url = window.location.origin + '/login';
+                        const url = window.location.origin + '/login?portal=cliente';
                         handleCopy(url, 'modalLoginLink');
                       }}
                       className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
@@ -1024,7 +1024,7 @@ export default function ClientsPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const url = window.location.origin + '/login';
+                                  const url = window.location.origin + '/login?portal=cliente';
                                   handleCopy(url, 'link-' + user.id);
                                 }}
                                 className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -1816,10 +1816,10 @@ export default function ClientsPage() {
                 <div>
                   <span className="text-gray-400 font-sans block text-[11px]">Link de Acesso:</span>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
-                    <span className="text-indigo-600 truncate">{typeof window !== 'undefined' ? window.location.origin : ''}/login</span>
+                    <span className="text-indigo-600 truncate">{typeof window !== 'undefined' ? window.location.origin : ''}/login?portal=cliente</span>
                     <button
                       type="button"
-                      onClick={() => handleCopy(window.location.origin + '/login', 'createdLink')}
+                      onClick={() => handleCopy(window.location.origin + '/login?portal=cliente', 'createdLink')}
                       className="text-gray-500 hover:text-indigo-600 font-sans text-[11px] font-semibold flex items-center gap-1 shrink-0"
                     >
                       {copiedText === 'createdLink' ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}

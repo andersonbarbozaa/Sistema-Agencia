@@ -227,34 +227,81 @@ export async function POST(request: Request) {
       }
 
       case 'CLIENT': {
-        const clientName = data.name || 'Novo Cliente';
+        const clientName = data.name || data.company || 'Novo Cliente';
         const clientId = generateId('cli');
+        const corporateName = data.corporate_name || data.company || null;
+        const phone = data.phone || null;
+        const whatsapp = data.whatsapp || data.phone || null;
+        const email = data.email || null;
+        const address = data.address || null;
+        const city = data.city || null;
+        const state = data.state || null;
+        const website = data.website || null;
+        const instagram = data.instagram || null;
+        const notes = data.notes || (data.segment ? `Ramo: ${data.segment}` : 'Cadastrado via IA');
+
+        let socialLinksJson = '[]';
+        if (data.social_links) {
+          try {
+            socialLinksJson = typeof data.social_links === 'string' ? data.social_links : JSON.stringify(data.social_links);
+          } catch {
+            socialLinksJson = '[]';
+          }
+        }
 
         try {
           await db
             .prepare(`
-              INSERT INTO clients (id, name, email, phone, whatsapp, city, notes, status, workspace_id, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, 'ativo', ?, datetime('now'), datetime('now'))
+              INSERT INTO clients (
+                id, name, corporate_name, email, phone, whatsapp, address, city, state,
+                website, instagram, social_links, notes, status, workspace_id, created_at, updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ativo', ?, datetime('now'), datetime('now'))
             `)
             .bind(
               clientId,
               clientName,
-              data.email || null,
-              data.phone || null,
-              data.whatsapp || data.phone || null,
-              data.city || null,
-              data.notes || 'Cadastrado via IA',
+              corporateName,
+              email,
+              phone,
+              whatsapp,
+              address,
+              city,
+              state,
+              website,
+              instagram,
+              socialLinksJson,
+              notes,
               wsId
             )
             .run();
         } catch {
-          await db
-            .prepare(`
-              INSERT INTO clients (id, name, phone, city, notes, status, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
-            `)
-            .bind(clientId, clientName, data.phone || null, data.city || null, data.notes || 'Cadastrado via IA')
-            .run();
+          try {
+            await db
+              .prepare(`
+                INSERT INTO clients (id, name, email, phone, whatsapp, city, notes, status, workspace_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'ativo', ?, datetime('now'), datetime('now'))
+              `)
+              .bind(
+                clientId,
+                clientName,
+                email,
+                phone,
+                whatsapp,
+                city,
+                notes,
+                wsId
+              )
+              .run();
+          } catch {
+            await db
+              .prepare(`
+                INSERT INTO clients (id, name, phone, city, notes, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
+              `)
+              .bind(clientId, clientName, phone, city, notes)
+              .run();
+          }
         }
 
         createdId = clientId;
@@ -349,23 +396,33 @@ export async function POST(request: Request) {
         const platformVal = data.platform || data.source || 'WhatsApp';
         const firstContact = new Date().toISOString().split('T')[0];
 
+        let socialLinksJson = '[]';
+        if (data.social_links) {
+          try {
+            socialLinksJson = typeof data.social_links === 'string' ? data.social_links : JSON.stringify(data.social_links);
+          } catch {
+            socialLinksJson = '[]';
+          }
+        }
+
         try {
           await db
             .prepare(`
               INSERT INTO crm_leads (
-                id, contact_name, company, phone, whatsapp, email, city, first_contact_date,
+                id, contact_name, company, phone, whatsapp, email, address, city, first_contact_date,
                 platform, source, status, notes, workspace_id, website, facebook, linkedin,
-                instagram, segment, description, last_activity_at, created_at, updated_at
+                instagram, segment, description, social_links, last_activity_at, created_at, updated_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
             `)
             .bind(
               leadId,
-              data.contact_name || 'Contato',
+              data.contact_name || data.name || 'Contato',
               data.company || null,
               phoneVal,
               whatsappVal,
               data.email || null,
+              data.address || null,
               data.city || null,
               firstContact,
               platformVal,
@@ -377,28 +434,62 @@ export async function POST(request: Request) {
               data.linkedin || null,
               data.instagram || null,
               data.segment || null,
-              data.description || null
+              data.description || null,
+              socialLinksJson
             )
             .run();
         } catch {
-          await db
-            .prepare(`
-              INSERT INTO crm_leads (id, contact_name, company, phone, email, city, first_contact_date, platform, status, notes, workspace_id, last_activity_at, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, datetime('now'), datetime('now'), datetime('now'))
-            `)
-            .bind(
-              leadId,
-              data.contact_name || 'Contato',
-              data.company || null,
-              phoneVal,
-              data.email || null,
-              data.city || null,
-              firstContact,
-              platformVal,
-              data.notes || null,
-              wsId
-            )
-            .run();
+          try {
+            await db
+              .prepare(`
+                INSERT INTO crm_leads (
+                  id, contact_name, company, phone, whatsapp, email, city, first_contact_date,
+                  platform, source, status, notes, workspace_id, website, facebook, linkedin,
+                  instagram, segment, description, last_activity_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+              `)
+              .bind(
+                leadId,
+                data.contact_name || data.name || 'Contato',
+                data.company || null,
+                phoneVal,
+                whatsappVal,
+                data.email || null,
+                data.city || null,
+                firstContact,
+                platformVal,
+                platformVal,
+                data.notes || null,
+                wsId,
+                data.website || null,
+                data.facebook || null,
+                data.linkedin || null,
+                data.instagram || null,
+                data.segment || null,
+                data.description || null
+              )
+              .run();
+          } catch {
+            await db
+              .prepare(`
+                INSERT INTO crm_leads (id, contact_name, company, phone, email, city, first_contact_date, platform, status, notes, workspace_id, last_activity_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, datetime('now'), datetime('now'), datetime('now'))
+              `)
+              .bind(
+                leadId,
+                data.contact_name || data.name || 'Contato',
+                data.company || null,
+                phoneVal,
+                data.email || null,
+                data.city || null,
+                firstContact,
+                platformVal,
+                data.notes || null,
+                wsId
+              )
+              .run();
+          }
         }
 
         createdId = leadId;

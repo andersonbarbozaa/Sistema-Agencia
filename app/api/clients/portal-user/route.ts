@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     const host = request.headers.get('host') || 'localhost:3000';
     const protocol = host.includes('localhost') ? 'http' : 'https';
-    const loginUrl = `${protocol}://${host}/login`;
+    const loginUrl = `${protocol}://${host}/login?portal=cliente`;
 
     const inviteMessage = `Olá, ${resolvedName}! Seu acesso ao Portal do Cliente da agência está pronto.\n\n🔗 Link de Acesso: ${loginUrl}\n📧 E-mail: ${cleanEmail}\n🔑 Senha: ${password}\n\nNo portal você pode aprovar, reprovar e acompanhar todas as suas demandas em tempo real.`;
 

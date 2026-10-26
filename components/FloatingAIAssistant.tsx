@@ -23,6 +23,66 @@ interface FloatingAIAssistantProps {
   user: User;
 }
 
+const PAYLOAD_LABELS: Record<string, string> = {
+  name: 'Nome',
+  contact_name: 'Nome do Contato',
+  company: 'Empresa',
+  corporate_name: 'Razão Social',
+  phone: 'Telefone',
+  whatsapp: 'WhatsApp',
+  email: 'E-mail',
+  address: 'Endereço',
+  city: 'Cidade',
+  state: 'Estado / UF',
+  website: 'Site / Portal',
+  segment: 'Ramo de Atuação',
+  notes: 'Sobre o Cliente / Obs',
+  description: 'Descrição',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+  social_links: 'Redes Sociais',
+  platform: 'Plataforma',
+  amount: 'Valor (R$)',
+  type: 'Tipo',
+  category_name: 'Categoria',
+  bank_account_name: 'Conta Bancária',
+  due_date: 'Vencimento',
+  delivery_date: 'Prazo de Entrega',
+  status: 'Status',
+  assignee_name: 'Responsável',
+  title: 'Título',
+  start_time: 'Horário Início',
+  end_time: 'Horário Fim',
+  event_date: 'Data do Evento',
+  location: 'Localização',
+};
+
+function formatPayloadValue(val: any): string {
+  if (val === null || val === undefined || val === '') return '-';
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '-';
+    return val
+      .map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          return item.platform && item.url ? `${item.platform}: ${item.url}` : item.platform || item.url || JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(', ');
+  }
+  if (typeof val === 'object') {
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
 export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) {
   // Only admins have access to AI operations
   if (user.role !== 'ADMINISTRADOR') return null;
@@ -356,13 +416,17 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
                     </div>
 
                     {/* Payload Details */}
-                    <div className="space-y-1 text-gray-700 bg-gray-50 p-2.5 rounded-xl border border-gray-100 font-mono text-[11px]">
-                      {Object.entries(m.interpretation.structured_payload || {}).map(([key, val]: any) => (
-                        <div key={key} className="flex justify-between gap-2">
-                          <span className="text-gray-400 capitalize">{key}:</span>
-                          <span className="font-semibold text-gray-900 truncate max-w-[180px]">{String(val || '-')}</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5 text-gray-700 bg-gray-50 p-2.5 rounded-xl border border-gray-100 font-sans text-[11px]">
+                      {Object.entries(m.interpretation.structured_payload || {})
+                        .filter(([_, val]) => val !== null && val !== undefined && val !== '' && !(Array.isArray(val) && val.length === 0))
+                        .map(([key, val]: any) => (
+                          <div key={key} className="flex justify-between items-start gap-2 border-b border-gray-100/60 pb-1 last:border-0 last:pb-0">
+                            <span className="text-gray-400 shrink-0 font-medium">{PAYLOAD_LABELS[key] || key}:</span>
+                            <span className="font-semibold text-gray-900 text-right truncate max-w-[200px]" title={formatPayloadValue(val)}>
+                              {formatPayloadValue(val)}
+                            </span>
+                          </div>
+                        ))}
                     </div>
 
                     {/* Action Confirmation Buttons */}

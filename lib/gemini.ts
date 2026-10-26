@@ -19,13 +19,54 @@ Sua missão é interpretar comandos em linguagem natural (em português do Brasi
 AÇÕES RECONHECIDAS:
 1. TASK: Criar tarefa. Campos: name (obrigatório), client_name, assignee_name, category_name, delivery_date (formato YYYY-MM-DD ou descrição temporal como 'sexta-feira'), value (número), description.
 2. TRANSACTION: Lançamento financeiro. Campos: description (obrigatório), amount (número obrigatório), type ('Entrada' ou 'Saída', obrigatório), category_name, bank_account_name, client_name, due_date (YYYY-MM-DD), status ('Pendente' ou 'Pago'), partner_name.
-3. CLIENT: Cadastro de cliente. Campos: name (obrigatório), phone, email, city, notes. NUNCA invente campos ausentes.
+3. CLIENT: Cadastro de cliente ou empresa parceira.
+   Extraia e estruture com o máximo rigor todos os campos informados:
+   - name: Nome do cliente ou contato principal (obrigatório)
+   - contact_name: Nome do contato / pessoa física
+   - company: Nome da empresa / consultório / loja
+   - corporate_name: Razão Social ou Nome Fantasia da Empresa
+   - phone: Telefone fixo ou comercial
+   - whatsapp: WhatsApp ou celular
+   - email: E-mail de contato ou login
+   - address: Endereço completo (rua, avenida, número, bairro, complemento)
+   - city: Cidade
+   - state: Estado / UF
+   - website: Site ou portal (ex: https://..., www...)
+   - segment: Ramo de atuação / nicho / especialidade (ex: Odontologia, Restaurante, Construção Civil, Moda, etc.)
+   - notes: Sobre o cliente / detalhes / observações / contexto
+   - instagram: Perfil ou @ do Instagram
+   - tiktok: Perfil ou @ do TikTok
+   - facebook: Perfil ou link do Facebook
+   - linkedin: Perfil ou link do LinkedIn
+   - youtube: Canal ou link do YouTube
+   - social_links: Array de objetos [{ "platform": "Instagram" | "TikTok" | "Facebook" | "LinkedIn" | "YouTube" | "Outro", "url": string }]
 4. PROJECT: Criação de projeto. Campos: name (obrigatório), client_name, deadline, value.
-5. CRM_LEAD: Cadastro de lead. Campos: contact_name (obrigatório), company, phone, email, city, platform, segment (ramo de atuação), website, instagram, facebook, linkedin, description.
+5. CRM_LEAD: Cadastro de lead / oportunidade no CRM.
+   Extraia e estruture com o máximo rigor todos os campos informados:
+   - contact_name: Nome do contato responsável
+   - company: Nome da empresa ou negócio
+   - phone: Telefone comercial ou fixo
+   - whatsapp: WhatsApp ou celular
+   - email: E-mail
+   - address: Endereço completo (rua, número, bairro)
+   - city: Cidade
+   - state: Estado / UF
+   - platform: Plataforma ou canal de origem (ex: WhatsApp, Instagram, Indicação, Google, Site)
+   - segment: Ramo de atuação / nicho / mercado
+   - website: Site ou URL
+   - instagram: Perfil do Instagram
+   - tiktok: Perfil do TikTok
+   - facebook: Perfil do Facebook
+   - linkedin: Perfil do LinkedIn
+   - youtube: Canal do YouTube
+   - social_links: Array de objetos [{ "platform": string, "url": string }]
+   - description: Sobre o lead / observações / contexto
+   - notes: Observações gerais
 6. CRM_INTERACTION: Registro de histórico de contato. Campos: contact_name ou company (obrigatório), platform ('WhatsApp', 'Ligação', 'E-mail', etc.), message (resumo do que ocorreu), notes.
 7. CALENDAR_EVENT: Compromisso ou reunião na agenda. Campos: title (obrigatório), client_name, event_date (YYYY-MM-DD), start_time (HH:MM), end_time (HH:MM), location, description.
 8. COMMENT: Comentário em tarefa.
 9. CONTRACT: Contrato com cliente.
+10. USER: Cadastro de usuário ou membro de equipe.
 
 REGRAS CRÍTICAS DE AMBIGUIDADE E SEGURANÇA:
 - Se o usuário disser apenas algo vago como "Registrar 500 reais", marque is_ambiguous: true e liste em missing_fields: ["type (Entrada ou Saída)", "description", "category", "bank_account"]. NUNCA invente se é entrada ou saída, conta ou categoria!
@@ -341,27 +382,80 @@ function fallbackPortugueseParser(text: string): AIInterpretationResult {
     };
   }
 
-  // 5. CLIENT (Requisito 50: "Cadastrar cliente Conscape, telefone XXXXX, cidade Araçatuba.")
-  if (lower.includes('cadastrar cliente') || lower.includes('novo cliente') || lower.includes('adicionar cliente')) {
-    const nameMatch = lower.match(/(?:cliente)\s+([^,]+)/i);
-    const name = nameMatch ? nameMatch[1].trim() : 'Novo Cliente';
+  // 5. CRM LEAD (Prospecção / Lead)
+  if (lower.includes('lead') || lower.includes('prospect') || lower.includes('prospecção') || lower.includes('novo contato') || lower.includes('oportunidade')) {
+    const extracted = extractClientOrLeadData(text);
+    const contact = extracted.contact_name || extracted.name || 'Contato';
+    const comp = extracted.company || null;
+    return {
+      detected_action: 'CRM_LEAD',
+      confidence: 0.95,
+      is_ambiguous: false,
+      missing_fields: [],
+      summary: `Cadastrar lead "${contact}"${comp ? ` da empresa ${comp}` : ''}${extracted.segment ? ` (${extracted.segment})` : ''}`,
+      structured_payload: {
+        contact_name: contact,
+        company: comp,
+        phone: extracted.phone || null,
+        whatsapp: extracted.whatsapp || extracted.phone || null,
+        email: extracted.email || null,
+        address: extracted.address || null,
+        city: extracted.city || null,
+        state: extracted.state || null,
+        website: extracted.website || null,
+        segment: extracted.segment || null,
+        description: extracted.description || extracted.notes || null,
+        notes: extracted.notes || null,
+        instagram: extracted.instagram || null,
+        tiktok: extracted.tiktok || null,
+        facebook: extracted.facebook || null,
+        linkedin: extracted.linkedin || null,
+        youtube: extracted.youtube || null,
+        social_links: extracted.social_links || [],
+        platform: extracted.platform || 'WhatsApp',
+      },
+    };
+  }
 
-    const phoneMatch = lower.match(/(?:telefone|fone|celular|whats|whatsapp)\s+([^,]+)/i);
-    const phone = phoneMatch ? phoneMatch[1].trim() : null;
-
-    const cityMatch = lower.match(/(?:cidade|em)\s+([^,.]+)/i);
-    const city = cityMatch ? cityMatch[1].trim() : null;
+  // 6. CLIENT (Requisito 50 e reconhecimento profundo de dados cadastrais)
+  if (
+    lower.includes('cliente') ||
+    lower.includes('cadastrar empresa') ||
+    lower.includes('nova empresa') ||
+    lower.includes('ramo de atuação') ||
+    lower.includes('sobre o cliente') ||
+    (lower.includes('empresa') && (lower.includes('telefone') || lower.includes('whatsapp') || lower.includes('endereço') || lower.includes('instagram')))
+  ) {
+    const extracted = extractClientOrLeadData(text);
+    const clientName = extracted.name || extracted.company || 'Novo Cliente';
+    const comp = extracted.company || extracted.corporate_name || null;
 
     return {
       detected_action: 'CLIENT',
       confidence: 0.96,
       is_ambiguous: false,
       missing_fields: [],
-      summary: `Cadastrar cliente "${name}" (${city || 'Sem cidade definida'})`,
+      summary: `Cadastrar cliente "${clientName}"${comp && comp !== clientName ? ` (${comp})` : ''}${extracted.city ? ` em ${extracted.city}` : ''}`,
       structured_payload: {
-        name,
-        phone,
-        city,
+        name: clientName,
+        contact_name: extracted.contact_name || clientName,
+        company: comp,
+        corporate_name: comp,
+        phone: extracted.phone || null,
+        whatsapp: extracted.whatsapp || extracted.phone || null,
+        email: extracted.email || null,
+        address: extracted.address || null,
+        city: extracted.city || null,
+        state: extracted.state || null,
+        website: extracted.website || null,
+        segment: extracted.segment || null,
+        notes: extracted.notes || null,
+        instagram: extracted.instagram || null,
+        tiktok: extracted.tiktok || null,
+        facebook: extracted.facebook || null,
+        linkedin: extracted.linkedin || null,
+        youtube: extracted.youtube || null,
+        social_links: extracted.social_links || [],
       },
     };
   }
@@ -377,4 +471,129 @@ function fallbackPortugueseParser(text: string): AIInterpretationResult {
       name: text,
     },
   };
+}
+
+export function extractClientOrLeadData(text: string): Record<string, any> {
+  const data: Record<string, any> = {};
+  const socialLinks: Array<{ platform: string; url: string }> = [];
+
+  // 1. Email
+  const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (emailMatch) data.email = emailMatch[0].trim();
+
+  // 2. Website / Site
+  const webMatch = text.match(/(?:site|website|portal|url)\s*(?:é|:)?\s*(https?:\/\/[^\s,]+|www\.[^\s,]+|[a-zA-Z0-9-]+\.(?:com|br|net|org|io|me|app)[^\s,]*)/i);
+  if (webMatch) {
+    let site = webMatch[1].trim().replace(/[.,;]$/, '');
+    if (!site.startsWith('http')) site = 'https://' + site;
+    data.website = site;
+  }
+
+  // 3. Redes Sociais
+  // Instagram
+  const instaMatch = text.match(/(?:instagram|insta|ig)\s*(?:é|:)?\s*(@?[\w\d._]+|https?:\/\/(?:www\.)?instagram\.com\/[\w\d._]+)/i);
+  if (instaMatch) {
+    const handle = instaMatch[1].trim();
+    data.instagram = handle;
+    const url = handle.startsWith('http') ? handle : `https://instagram.com/${handle.replace(/^@/, '')}`;
+    socialLinks.push({ platform: 'Instagram', url });
+  }
+
+  // TikTok
+  const tiktokMatch = text.match(/(?:tiktok|tik\s*tok)\s*(?:é|:)?\s*(@?[\w\d._]+|https?:\/\/(?:www\.)?tiktok\.com\/@?[\w\d._]+)/i);
+  if (tiktokMatch) {
+    const handle = tiktokMatch[1].trim();
+    data.tiktok = handle;
+    const url = handle.startsWith('http') ? handle : `https://tiktok.com/@${handle.replace(/^@/, '')}`;
+    socialLinks.push({ platform: 'TikTok', url });
+  }
+
+  // Facebook
+  const faceMatch = text.match(/(?:facebook|face|fb)\s*(?:é|:)?\s*([a-zA-Z0-9._/-]+|https?:\/\/(?:www\.)?facebook\.com\/[a-zA-Z0-9._/-]+)/i);
+  if (faceMatch && !faceMatch[1].toLowerCase().includes('instagram') && !faceMatch[1].toLowerCase().includes('tiktok')) {
+    const handle = faceMatch[1].trim();
+    data.facebook = handle;
+    const url = handle.startsWith('http') ? handle : `https://facebook.com/${handle.replace(/^@/, '').replace(/^\//, '')}`;
+    socialLinks.push({ platform: 'Facebook', url });
+  }
+
+  // LinkedIn
+  const linkedinMatch = text.match(/(?:linkedin)\s*(?:é|:)?\s*([a-zA-Z0-9._/-]+|https?:\/\/(?:www\.)?linkedin\.com\/(?:in|company)\/[a-zA-Z0-9._/-]+)/i);
+  if (linkedinMatch) {
+    const handle = linkedinMatch[1].trim();
+    data.linkedin = handle;
+    const url = handle.startsWith('http') ? handle : `https://linkedin.com/in/${handle.replace(/^@/, '').replace(/^\//, '')}`;
+    socialLinks.push({ platform: 'LinkedIn', url });
+  }
+
+  // YouTube
+  const youtubeMatch = text.match(/(?:youtube|canal)\s*(?:é|:)?\s*([a-zA-Z0-9._/@-]+|https?:\/\/(?:www\.)?youtube\.com\/[a-zA-Z0-9._/@-]+)/i);
+  if (youtubeMatch) {
+    const handle = youtubeMatch[1].trim();
+    data.youtube = handle;
+    const url = handle.startsWith('http') ? handle : `https://youtube.com/${handle.startsWith('@') ? handle : '@' + handle}`;
+    socialLinks.push({ platform: 'YouTube', url });
+  }
+
+  // 4. WhatsApp
+  const whatsMatch = text.match(/(?:whatsapp|whats|zap)\s*(?:é|:)?\s*(\+?[0-9()\s.-]{8,20})/i);
+  if (whatsMatch) {
+    data.whatsapp = whatsMatch[1].trim().replace(/[.,;]$/, '');
+  }
+
+  // 5. Telefone Comercial / Fixo
+  const phoneMatch = text.match(/(?:telefone|tel|fone|fixo|comercial)\s*(?:é|:)?\s*(\+?[0-9()\s.-]{8,20})/i);
+  if (phoneMatch) {
+    data.phone = phoneMatch[1].trim().replace(/[.,;]$/, '');
+  }
+
+  // 6. Ramo de Atuação / Segmento
+  const segmentMatch = text.match(/(?:ramo(?:\s+de\s+atua[çc][ãa]o)?|nicho|segmento|setor)\s*(?:de|em|é|:)?\s*([^,.;\n]+)/i);
+  if (segmentMatch) {
+    data.segment = segmentMatch[1].trim();
+  }
+
+  // 7. Sobre o Cliente / Observações / Detalhes
+  const notesMatch = text.match(/(?:sobre(?:\s+o\s+cliente|\s+o\s+lead|\s+a\s+empresa)?|observa[çc][õo]es|obs|detalhes|nota)\s*(?:é|:)?\s*([^.;\n]+(?:[.,][^.;\n]+)*)/i);
+  if (notesMatch) {
+    data.notes = notesMatch[1].trim();
+    data.description = notesMatch[1].trim();
+  }
+
+  // 8. Endereço completo
+  const addrMatch = text.match(/(?:endere[çc]o|localizado\s+em|localizado\s+na|rua|av\.?|avenida|alameda|rodovia)\s*(?:é|:)?\s*([^,;\n]+(?:,\s*\d+[^,;\n]*)?)/i);
+  if (addrMatch) {
+    let rawAddr = addrMatch[0].toLowerCase().startsWith('endereço') || addrMatch[0].toLowerCase().startsWith('endereco') ? addrMatch[1] : addrMatch[0];
+    rawAddr = rawAddr.trim().replace(/[.;]$/, '');
+    data.address = rawAddr;
+  }
+
+  // 9. Cidade e Estado
+  const cityMatch = text.match(/(?:cidade(?:\s+de)?)\s*(?:é|:)?\s*([A-ZÀ-ÿa-z\s]+?)(?:[-/]\s*([A-Za-z]{2}))?(?:[,.;]|$)/i);
+  if (cityMatch) {
+    data.city = cityMatch[1].trim();
+    if (cityMatch[2]) data.state = cityMatch[2].toUpperCase().trim();
+  }
+
+  // 10. Empresa / Razão Social
+  const compMatch = text.match(/(?:empresa|raz[ãa]o\s+social|nome\s+fantasia|loja)\s*(?:é|:)?\s*([^,;]+)/i);
+  if (compMatch) {
+    data.company = compMatch[1].trim();
+    data.corporate_name = compMatch[1].trim();
+  }
+
+  // 11. Nome do Contato / Cliente
+  const nameMatch = text.match(/(?:cadastrar\s+(?:cliente|lead)|novo\s+(?:cliente|lead)|adicionar\s+(?:cliente|lead)|contato|nome|cliente|lead)\s*(?:é|:)?\s*([^,;]+)/i);
+  if (nameMatch) {
+    let n = nameMatch[1].trim();
+    n = n.replace(/\s+da\s+(?:empresa|loja).*/i, '');
+    data.name = n;
+    data.contact_name = n;
+  }
+
+  if (socialLinks.length > 0) {
+    data.social_links = socialLinks;
+  }
+
+  return data;
 }

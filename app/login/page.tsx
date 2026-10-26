@@ -13,12 +13,19 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [clientOptions, setClientOptions] = useState<any[] | null>(null);
   const [selectingClient, setSelectingClient] = useState(false);
+  const [isPortalClient, setIsPortalClient] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const urlEmail = params.get('email');
       if (urlEmail) setEmail(urlEmail);
+      const portal = params.get('portal');
+      const tipo = params.get('tipo');
+      const role = params.get('role');
+      if (portal === 'cliente' || tipo === 'cliente' || role === 'cliente') {
+        setIsPortalClient(true);
+      }
     }
   }, []);
 
@@ -81,7 +88,9 @@ export default function LoginPage() {
             <span className="text-2xl font-bold text-white">P</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">PixelCraft Studio</h1>
-          <p className="text-gray-500 text-sm mt-1">Sistema de Gestão Criativa</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {isPortalClient ? 'Portal do Cliente' : 'Sistema de Gestão Criativa'}
+          </p>
         </div>
 
         {/* Form or Account Selector */}
@@ -136,7 +145,9 @@ export default function LoginPage() {
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Entrar na sua conta</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                {isPortalClient ? 'Acesso Painel Cliente' : 'Entrar na sua conta'}
+              </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -192,17 +203,23 @@ export default function LoginPage() {
               ) : (
                 <LogIn size={16} />
               )}
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? 'Acessando...' : isPortalClient ? 'Acessar Painel' : 'Entrar'}
             </button>
           </form>
 
           <div className="mt-6 pt-5 border-t border-gray-200 text-center">
-            <p className="text-gray-500 text-xs">
-              Ainda não tem conta?{' '}
-              <a href="/register" className="text-blue-600 hover:text-blue-500 font-semibold inline-flex items-center gap-1">
-                Criar agência ou entrar com convite &rarr;
-              </a>
-            </p>
+            {isPortalClient ? (
+              <p className="text-gray-500 text-xs">
+                Dúvidas ou problemas de acesso? Entre em contato com a equipe da agência.
+              </p>
+            ) : (
+              <p className="text-gray-500 text-xs">
+                Ainda não tem conta?{' '}
+                <a href="/register" className="text-blue-600 hover:text-blue-500 font-semibold inline-flex items-center gap-1">
+                  Criar agência ou entrar com convite &rarr;
+                </a>
+              </p>
+            )}
           </div>
             </>
           )}
