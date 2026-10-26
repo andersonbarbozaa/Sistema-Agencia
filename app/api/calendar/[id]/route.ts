@@ -96,10 +96,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updates.push('updated_at = ?');
     values.push(now, resolvedId);
 
-    await db
-      .prepare(`UPDATE calendar_events SET ${updates.join(', ')} WHERE id = ?`)
-      .bind(...values)
-      .run();
+    const runUpdate = async () => {
+      await db
+        .prepare(`UPDATE calendar_events SET ${updates.join(', ')} WHERE id = ?`)
+        .bind(...values)
+        .run();
+    };
+
+    try {
+      await runUpdate();
+    } catch (err: any) {
+      const errMsg = (err?.message || '').toLowerCase();
+      if (
+        errMsg.includes('no such column') ||
+        errMsg.includes('has no column') ||
+        errMsg.includes('sqlite_error')
+      ) {
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN location TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN workspace_id TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT').run(); } catch(e){}
+        await runUpdate();
+      } else {
+        throw err;
+      }
+    }
 
     await logAudit(user.id, 'calendar_events', 'UPDATE', resolvedId, body);
 

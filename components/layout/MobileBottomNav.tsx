@@ -115,14 +115,14 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
                   key={idx}
                   href="/clients"
                   className={cn(
-                    'flex flex-col items-center justify-center flex-1 py-1 text-[9px] min-[390px]:text-[10px] font-medium transition-colors min-w-0',
+                    'flex items-center justify-center flex-1 h-full transition-colors min-w-0',
                     pathname.startsWith('/clients')
-                      ? 'text-blue-600 dark:text-blue-400 font-bold'
+                      ? 'text-blue-600 dark:text-blue-400'
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   )}
+                  title="Clientes"
                 >
-                  <Users size={19} strokeWidth={pathname.startsWith('/clients') ? 2.5 : 1.8} />
-                  <span className="mt-0.5 truncate max-w-[48px] min-[390px]:max-w-[58px] text-center leading-tight">Clientes</span>
+                  <Users size={21} strokeWidth={pathname.startsWith('/clients') ? 2.5 : 2} />
                 </Link>
               );
             }
@@ -135,14 +135,14 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
                 key={idx}
                 href={item.href!}
                 className={cn(
-                  'flex flex-col items-center justify-center flex-1 py-1 text-[9px] min-[390px]:text-[10px] font-medium transition-colors min-w-0',
+                  'flex items-center justify-center flex-1 h-full transition-colors min-w-0',
                   isActive
-                    ? 'text-blue-600 dark:text-blue-400 font-bold'
+                    ? 'text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 )}
+                title={item.label}
               >
-                <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} />
-                <span className="mt-0.5 truncate max-w-[48px] min-[390px]:max-w-[58px] text-center leading-tight">{item.label}</span>
+                <Icon size={21} strokeWidth={isActive ? 2.5 : 2} />
               </Link>
             );
           })}

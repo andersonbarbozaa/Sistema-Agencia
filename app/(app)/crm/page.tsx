@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
+import ModalPortal from '@/components/ModalPortal';
 import {
   TrendingUp,
   Plus,
@@ -936,14 +937,15 @@ export default function CRMPage() {
 
       {/* LEAD DETAILS & TIMELINE MODAL (Requisito 35) */}
       {selectedLead && (
-        <div
-          onClick={() => setSelectedLead(null)}
-          className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-        >
+        <ModalPortal>
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={() => setSelectedLead(null)}
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            >
             <div className="shrink-0 p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">{selectedLead.contact_name}</h3>
@@ -1212,18 +1214,20 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* CREATE MODAL */}
       {showCreateModal && (
-        <div
-          onClick={handleRequestCloseCreateModal}
-          className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-        >
+        <ModalPortal>
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl max-w-xl w-full shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={handleRequestCloseCreateModal}
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-xl w-full shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            >
             <div className="shrink-0 px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Cadastrar Lead</h3>
@@ -1475,18 +1479,20 @@ export default function CRMPage() {
             </form>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* EDIT LEAD MODAL */}
       {showEditLeadModal && (
-        <div
-          onClick={handleRequestCloseEditModal}
-          className="fixed inset-0 !mt-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-        >
+        <ModalPortal>
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={handleRequestCloseEditModal}
+            className="fixed inset-0 !m-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col overflow-hidden"
+            >
             {/* Cabeçalho Fixo no Topo */}
             <div className="shrink-0 px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -1770,18 +1776,20 @@ export default function CRMPage() {
             </form>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* MODAL DE CONFIRMAÇÃO DE ALTERAÇÕES NÃO SALVAS */}
       {unsavedChangesModal.isOpen && (
-        <div
-          onClick={() => setUnsavedChangesModal((prev) => ({ ...prev, isOpen: false }))}
-          className="fixed inset-0 !mt-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-        >
+        <ModalPortal>
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={() => setUnsavedChangesModal((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 !m-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            >
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
@@ -1840,6 +1848,7 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       <ConfirmModal

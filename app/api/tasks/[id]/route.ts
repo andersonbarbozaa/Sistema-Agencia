@@ -223,19 +223,30 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     updateParams.push(id);
 
-    try {
+    const runUpdate = async () => {
       await db
         .prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`)
         .bind(...updateParams)
         .run();
+    };
+
+    try {
+      await runUpdate();
     } catch (updateErr: any) {
-      if (updateErr.message && updateErr.message.includes('has no column')) {
+      const errMsg = (updateErr?.message || '').toLowerCase();
+      if (
+        errMsg.includes('no such column') ||
+        errMsg.includes('has no column') ||
+        errMsg.includes('sqlite_error')
+      ) {
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN calendar_id TEXT').run(); } catch(e){}
-        await db
-          .prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`)
-          .bind(...updateParams)
-          .run();
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN address TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN value REAL DEFAULT 0').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN notes TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN delivery_date TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN completed_at TEXT').run(); } catch(e){}
+        await runUpdate();
       } else {
         throw updateErr;
       }

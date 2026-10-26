@@ -714,18 +714,20 @@ export default function TasksPage() {
                         </td>
 
                         {/* DESKTOP VIEW */}
-                        <td className="hidden md:table-cell py-3 px-4 font-semibold text-gray-900">
-                          <div className="flex items-center gap-2">
+                        <td className="hidden md:table-cell py-3 px-4 font-semibold text-gray-900 max-w-xs md:max-w-sm whitespace-normal">
+                          <div className="flex items-start gap-2">
                             <span
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1"
                               style={{ backgroundColor: task.category_color || '#3b82f6' }}
                             />
-                            <span className="truncate max-w-xs">{task.name}</span>
-                            {isDeletionPending && (
-                              <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold">
-                                Exclusão solicitada
-                              </span>
-                            )}
+                            <div className="flex flex-col min-w-0">
+                              <span className="line-clamp-2 leading-snug break-words">{task.name}</span>
+                              {isDeletionPending && (
+                                <span className="inline-block mt-1 px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold w-fit">
+                                  Exclusão solicitada
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="hidden md:table-cell py-3 px-4 text-gray-600 truncate max-w-[140px]">
@@ -987,27 +989,38 @@ export default function TasksPage() {
 
                     <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[120px]">
                       {dayTasks.map((task) => {
-                        const style = getStatusColor(task.status);
+                        let pillBg = 'bg-blue-600 hover:bg-blue-700';
+                        if (task.status === 'Concluída' || task.status === 'Aprovada') {
+                          pillBg = 'bg-emerald-600 hover:bg-emerald-700';
+                        } else if (isTaskOverdue(task)) {
+                          pillBg = 'bg-rose-600 hover:bg-rose-700';
+                        } else if (task.status === 'Em alteração') {
+                          pillBg = 'bg-orange-600 hover:bg-orange-700';
+                        } else if (task.status === 'Em aprovação') {
+                          pillBg = 'bg-amber-600 hover:bg-amber-700';
+                        }
+
                         return (
                           <div
                             key={task.id}
                             onClick={() => openTaskDetail(task.id)}
                             className={cn(
-                              'p-1.5 rounded-lg border text-left cursor-pointer transition-all hover:shadow-xs',
-                              style.bg,
-                              style.border
+                              'px-2 py-1 rounded-md sm:rounded-lg text-left cursor-pointer transition-all shadow-xs text-white flex flex-col gap-0.5',
+                              pillBg
                             )}
+                            title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
                           >
-                            <div className="mb-0.5">
-                              <span className={cn('text-[9px] font-bold px-1 py-0.2 rounded', style.badge)}>
+                            <div className="flex items-center gap-1.5 w-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                              <span className="text-[9px] font-bold text-white/90 uppercase tracking-wider truncate">
                                 {task.status}
                               </span>
                             </div>
-                            <p className="font-semibold text-[11px] text-gray-900 leading-tight line-clamp-1">
+                            <p className="font-bold text-[11px] text-white leading-tight line-clamp-2 break-words">
                               {task.name}
                             </p>
                             {task.client_name && (
-                              <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                              <p className="text-[10px] text-white/80 truncate">
                                 {task.client_name}
                               </p>
                             )}
@@ -1041,8 +1054,14 @@ export default function TasksPage() {
       {/* TASK DETAIL MODAL / DRAWER                               */}
       {/* ======================================================== */}
       {selectedTask && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <div
+          onClick={() => setSelectedTask(null)}
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300"
+          >
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50 sticky top-0 z-10">
               <div className="min-w-0 pr-4">
@@ -1060,28 +1079,20 @@ export default function TasksPage() {
                 )}
               </div>
 
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => openEditTask(selectedTask)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
-                  >
-                    <Edit2 size={13} /> EDITAR TAREFA
-                  </button>
-                  <button
-                    onClick={() => setSelectedTask(null)}
-                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                {/* Tag da tarefa posicionada abaixo do botão Editar Tarefa */}
+              <div className="flex items-center gap-2 shrink-0">
                 <span
-                  className="text-[10px] font-bold px-2.5 py-0.5 rounded-full text-white uppercase tracking-wider"
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-full text-white uppercase tracking-wider"
                   style={{ backgroundColor: selectedTask.category_color || '#3b82f6' }}
                 >
                   {selectedTask.category_name || 'Geral'}
                 </span>
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                  title="Fechar"
+                >
+                  <X size={20} />
+                </button>
               </div>
             </div>
 
@@ -1330,10 +1341,11 @@ export default function TasksPage() {
               </button>
 
               <button
-                onClick={() => setSelectedTask(null)}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-semibold"
+                onClick={() => openEditTask(selectedTask)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
               >
-                Fechar
+                <Edit2 size={14} />
+                <span>Editar Tarefa</span>
               </button>
             </div>
           </div>
@@ -1344,8 +1356,14 @@ export default function TasksPage() {
       {/* MODAL: SOLICITAR ALTERAÇÃO (Obrigatório descrever)       */}
       {/* ======================================================== */}
       {showChangeRequestModal && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div
+          onClick={() => setShowChangeRequestModal(false)}
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+          >
             <h3 className="text-base font-bold text-gray-900 mb-1">Solicitar Alteração</h3>
             <p className="text-xs text-gray-500 mb-4">
               Descreva detalhadamente o que a equipe da agência precisa ajustar.
@@ -1385,8 +1403,14 @@ export default function TasksPage() {
       {/* MODAL: ADICIONAR LINK DE MÍDIA                           */}
       {/* ======================================================== */}
       {showAddMediaModal && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div
+          onClick={() => setShowAddMediaModal(false)}
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+          >
             <h3 className="text-base font-bold text-gray-900 mb-1">Adicionar Link de Mídia</h3>
             <p className="text-xs text-gray-500 mb-4">
               Insira o link externo (YouTube, Google Drive, Dropbox, Vimeo, etc.).
@@ -1455,8 +1479,14 @@ export default function TasksPage() {
       {/* MODAL: CRIAR NOVA TAREFA                                 */}
       {/* ======================================================== */}
       {showCreateModal && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setShowCreateModal(false)}
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+          >
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-1"
@@ -1694,8 +1724,14 @@ export default function TasksPage() {
       {/* MODAL: EDITAR TAREFA                                      */}
       {/* ======================================================== */}
       {showEditTaskModal && selectedTask && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setShowEditTaskModal(false)}
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+          >
             <button
               onClick={() => setShowEditTaskModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"

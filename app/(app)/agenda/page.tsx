@@ -610,27 +610,23 @@ export default function AgendaPage() {
                           const isEvent = item.type === 'event';
                           const cal = customCalendars.find((c) => c.id === item.calendarId);
 
-                          // Cores e estilos por tipo e status
-                          let pillClasses = 'bg-blue-50 hover:bg-blue-100 border border-blue-200/90 text-blue-950';
-                          let dotColor = cal?.color || '#3b82f6';
-                          let timeColor = 'text-blue-700';
+                          // Cores e estilos por tipo e status - Texto sempre branco para máxima legibilidade
+                          let pillBg = 'bg-blue-600 hover:bg-blue-700';
 
                           if (!isEvent) {
-                            if (item.status === 'Concluída') {
-                              pillClasses = 'bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700';
-                              dotColor = '#9ca3af';
-                              timeColor = 'text-gray-600';
+                            if (item.status === 'Concluída' || item.status === 'Aprovada') {
+                              pillBg = 'bg-emerald-600 hover:bg-emerald-700';
                             } else if (item.raw.delivery_date && item.raw.delivery_date < todayStr) {
-                              pillClasses = 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-950';
-                              dotColor = '#ef4444';
-                              timeColor = 'text-rose-700';
+                              pillBg = 'bg-rose-600 hover:bg-rose-700';
+                            } else if (item.status === 'Em alteração') {
+                              pillBg = 'bg-orange-600 hover:bg-orange-700';
+                            } else if (item.status === 'Em aprovação') {
+                              pillBg = 'bg-amber-600 hover:bg-amber-700';
                             } else {
-                              pillClasses = 'bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-amber-950';
-                              dotColor = cal?.color || '#f59e0b';
-                              timeColor = 'text-amber-800';
+                              pillBg = 'bg-blue-600 hover:bg-blue-700';
                             }
                           } else if (cal?.color) {
-                            dotColor = cal.color;
+                            pillBg = '';
                           }
 
                           return (
@@ -639,9 +635,10 @@ export default function AgendaPage() {
                               onClick={() =>
                                 isEvent ? openEditModal(item.raw) : setSelectedTaskPreview(item.raw)
                               }
+                              style={isEvent && cal?.color ? { backgroundColor: cal.color } : undefined}
                               className={cn(
-                                'px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] cursor-pointer transition-all flex items-center gap-1 sm:gap-1.5 min-w-0 shadow-2xs group/pill',
-                                pillClasses
+                                'px-2 py-1 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] cursor-pointer transition-all flex flex-col items-start gap-0.5 min-w-0 shadow-xs group/pill text-white',
+                                pillBg
                               )}
                               title={
                                 isEvent
@@ -649,16 +646,20 @@ export default function AgendaPage() {
                                   : `Tarefa: ${item.title}${item.location ? ` (${item.location})` : ''}`
                               }
                             >
-                              <span
-                                className="w-1.5 h-1.5 rounded-full shrink-0"
-                                style={{ backgroundColor: dotColor }}
-                              />
-                              {item.startTime && (
-                                <span className={cn('font-bold text-[9px] sm:text-[10px] shrink-0 leading-none', timeColor)}>
-                                  {item.startTime}
-                                </span>
-                              )}
-                              <span className="font-semibold truncate flex-1 leading-tight">
+                              <div className="flex items-center gap-1.5 w-full">
+                                <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-white" />
+                                {item.startTime && (
+                                  <span className="font-bold text-[9px] sm:text-[10px] shrink-0 leading-none text-white/90">
+                                    {item.startTime}
+                                  </span>
+                                )}
+                                {!isEvent && (
+                                  <span className="text-[9px] font-semibold text-white/90 truncate">
+                                    {item.status}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="font-bold text-white line-clamp-2 break-words leading-tight w-full">
                                 {item.title}
                               </span>
                             </div>
@@ -760,8 +761,8 @@ export default function AgendaPage() {
 
       {/* CREATE EVENT MODAL */}
       {showCreateModal && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+        <div onClick={() => setShowCreateModal(false)} className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
@@ -953,8 +954,8 @@ export default function AgendaPage() {
       
       {/* Modal de Pré-visualização de Tarefa */}
       {selectedTaskPreview && (<ModalPortal>
-        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4">
-          <div className="bg-white sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-h-[90vh] max-w-md overflow-hidden flex flex-col">
+        <div onClick={() => setSelectedTaskPreview(null)} className="fixed inset-0 !m-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-h-[90vh] max-w-md overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex justify-between items-center sticky top-0 z-10">
               <h3 className="text-sm font-bold text-gray-900">Detalhes da Tarefa</h3>
               <button
@@ -1034,8 +1035,8 @@ export default function AgendaPage() {
       </ModalPortal>)}
 
       {selectedEvent && (<ModalPortal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+        <div onClick={() => setSelectedEvent(null)} className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setSelectedEvent(null)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
@@ -1232,8 +1233,8 @@ export default function AgendaPage() {
       {/* ======================================================== */}
       {showCalendarModal && (
         <ModalPortal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+          <div onClick={() => setShowCalendarModal(false)} className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div onClick={(e) => e.stopPropagation()} className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
               <button
                 type="button"
                 onClick={() => setShowCalendarModal(false)}

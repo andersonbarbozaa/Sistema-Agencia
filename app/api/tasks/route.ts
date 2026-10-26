@@ -216,9 +216,18 @@ export async function POST(request: Request) {
         )
         .run();
     } catch (insertError: any) {
-      if (insertError.message && insertError.message.includes('has no column')) {
+      const errMsg = (insertError?.message || '').toLowerCase();
+      if (
+        errMsg.includes('no such column') ||
+        errMsg.includes('has no column') ||
+        errMsg.includes('sqlite_error')
+      ) {
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN calendar_id TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN address TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN value REAL DEFAULT 0').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN notes TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN delivery_date TEXT').run(); } catch(e){}
         await db
           .prepare(`
             INSERT INTO tasks (id, name, description, status, client_id,

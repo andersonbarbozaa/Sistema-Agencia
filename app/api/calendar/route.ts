@@ -150,7 +150,12 @@ export async function POST(request: NextRequest) {
         )
         .run();
     } catch (dbError: any) {
-      if (dbError.message && dbError.message.includes('has no column')) {
+      const errMsg = (dbError?.message || '').toLowerCase();
+      if (
+        errMsg.includes('no such column') ||
+        errMsg.includes('has no column') ||
+        errMsg.includes('sqlite_error')
+      ) {
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN location TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}

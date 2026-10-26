@@ -26,8 +26,14 @@ export default function ConfirmModal({
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+      <div
+        onClick={onCancel}
+        className="fixed inset-0 !m-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200"
+        >
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
             {title}
           </h2>

@@ -22,9 +22,10 @@ import {
   Camera,
 } from 'lucide-react';
 import { Client } from '@/types';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import ConfirmModal from '@/components/ConfirmModal';
 import ProfileAvatarUpload from '@/components/ProfileAvatarUpload';
+import ModalPortal from '@/components/ModalPortal';
 
 async function compressClientImage(file: File, maxSize = 256): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -436,61 +437,69 @@ export default function ClientsPage() {
       {/* CLIENT DETAIL TABS MODAL (Requisito 37)                   */}
       {/* ======================================================== */}
       {selectedClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
-              <div className="flex items-center gap-3.5">
-                <ProfileAvatarUpload
-                  value={selectedClient.avatar_url}
-                  fallbackText={selectedClient.name}
-                  alt={selectedClient.name}
-                  size="md"
-                  onChange={async (dataUrl) => {
-                    try {
-                      const res = await fetch(`/api/clients/${selectedClient.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ avatar_url: dataUrl }),
-                      });
-                      if (res.ok) {
-                        setSelectedClient({ ...selectedClient, avatar_url: dataUrl });
-                        fetchClients();
+        <ModalPortal>
+          <div
+            onClick={() => setSelectedClient(null)}
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
+                <div className="flex items-center gap-3.5">
+                  <ProfileAvatarUpload
+                    value={selectedClient.avatar_url}
+                    fallbackText={selectedClient.name}
+                    alt={selectedClient.name}
+                    size="md"
+                    onChange={async (dataUrl) => {
+                      try {
+                        const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ avatar_url: dataUrl }),
+                        });
+                        if (res.ok) {
+                          setSelectedClient({ ...selectedClient, avatar_url: dataUrl });
+                          fetchClients();
+                        }
+                      } catch (err) {
+                        console.error('Erro ao atualizar foto do cliente:', err);
                       }
-                    } catch (err) {
-                      console.error('Erro ao atualizar foto do cliente:', err);
-                    }
-                  }}
-                />
-                <div>
-                  <div className="flex items-center gap-2">
+                    }}
+                  />
+                  <div>
                     <h3 className="text-xl font-bold text-gray-900">{selectedClient.name}</h3>
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">
-                      {selectedClient.status || 'Ativo'}
-                    </span>
+                    <p className="text-xs text-gray-500 mt-1">
+                      CNPJ/CPF: {selectedClient.document || 'Não informado'} • {selectedClient.city} - {selectedClient.state}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    CNPJ/CPF: {selectedClient.document || 'Não informado'} • {selectedClient.city} - {selectedClient.state}
-                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      'px-3 py-1 rounded-full text-xs font-bold capitalize',
+                      (selectedClient.status || 'Ativo').toLowerCase() === 'bloqueado'
+                        ? 'bg-red-100 text-red-800 border border-red-200'
+                        : (selectedClient.status || 'Ativo').toLowerCase() === 'inativo'
+                        ? 'bg-gray-100 text-gray-700 border border-gray-200'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    )}
+                  >
+                    {selectedClient.status || 'Ativo'}
+                  </span>
+                  <button
+                    onClick={() => setSelectedClient(null)}
+                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                    title="Fechar"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => openEditModal(selectedClient)}
-                  className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                >
-                  <Edit2 size={14} />
-                  Editar
-                </button>
-                <button
-                  onClick={() => setSelectedClient(null)}
-                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
 
             {/* Tabs */}
             <div className="flex border-b border-gray-200 px-6 gap-6 bg-white text-xs font-semibold">
@@ -629,24 +638,41 @@ export default function ClientsPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
               <button
+                type="button"
                 onClick={() => setSelectedClient(null)}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-semibold"
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-xs transition-colors"
               >
                 Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => openEditModal(selectedClient)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95"
+              >
+                <Edit2 size={15} />
+                <span>Editar Cliente</span>
               </button>
             </div>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* ======================================================== */}
       {/* MODAL: CRIAR NOVO CLIENTE                                */}
       {/* ======================================================== */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <ModalPortal>
+          <div
+            onClick={() => setShowCreateModal(false)}
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
@@ -758,14 +784,22 @@ export default function ClientsPage() {
             </form>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* ======================================================== */}
       {/* EDIT CLIENT MODAL                                         */}
       {/* ======================================================== */}
       {showEditModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <ModalPortal>
+          <div
+            onClick={() => setShowEditModal(false)}
+            className="fixed inset-0 !m-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            >
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Edit2 size={18} className="text-blue-600" />
@@ -949,6 +983,7 @@ export default function ClientsPage() {
             </form>
           </div>
         </div>
+      </ModalPortal>
       )}
 
       <ConfirmModal
