@@ -178,8 +178,7 @@ export default function CRMPage() {
   const [loadingInteractions, setLoadingInteractions] = useState(false);
 
   // New lead modal
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newLead, setNewLead] = useState({
+  const EMPTY_NEW_LEAD = {
     contact_name: '',
     company: '',
     phone: '',
@@ -195,7 +194,15 @@ export default function CRMPage() {
     social_links: [] as SocialLinkItem[],
     segment: '',
     description: '',
-  });
+  };
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newLead, setNewLead] = useState(EMPTY_NEW_LEAD);
+
+  // Unsaved changes prompt modal (when clicking outside or X with modified fields)
+  const [unsavedChangesModal, setUnsavedChangesModal] = useState<{
+    isOpen: boolean;
+    mode: 'edit' | 'create';
+  }>({ isOpen: false, mode: 'edit' });
 
   // New interaction form
   const [submittingInteraction, setSubmittingInteraction] = useState(false);
@@ -238,9 +245,10 @@ export default function CRMPage() {
     segment: '',
     description: '',
   });
+  const [initialEditLead, setInitialEditLead] = useState<typeof editLead | null>(null);
 
   const openEditLead = (lead: any) => {
-    setEditLead({
+    const initialData = {
       contact_name: lead.contact_name || '',
       company: lead.company || '',
       phone: lead.phone || '',
@@ -258,13 +266,43 @@ export default function CRMPage() {
       social_links: parseSocialLinks(lead),
       segment: lead.segment || '',
       description: lead.description || '',
-    });
+    };
+    setEditLead(initialData);
+    setInitialEditLead(JSON.parse(JSON.stringify(initialData)));
     setShowEditLeadModal(true);
   };
 
-  const handleUpdateLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead || !editLead.contact_name) return;
+  const hasEditLeadChanges = () => {
+    if (!initialEditLead) return false;
+    return JSON.stringify(editLead) !== JSON.stringify(initialEditLead);
+  };
+
+  const hasCreateLeadChanges = () => {
+    return JSON.stringify(newLead) !== JSON.stringify(EMPTY_NEW_LEAD);
+  };
+
+  const handleRequestCloseEditModal = () => {
+    if (hasEditLeadChanges()) {
+      setUnsavedChangesModal({ isOpen: true, mode: 'edit' });
+    } else {
+      setShowEditLeadModal(false);
+    }
+  };
+
+  const handleRequestCloseCreateModal = () => {
+    if (hasCreateLeadChanges()) {
+      setUnsavedChangesModal({ isOpen: true, mode: 'create' });
+    } else {
+      setShowCreateModal(false);
+    }
+  };
+
+  const saveEditLead = async () => {
+    if (!selectedLead) return false;
+    if (!editLead.contact_name.trim()) {
+      showToast('O nome do contato é obrigatório.', 'error');
+      return false;
+    }
 
     const cleanSocials = (editLead.social_links || [])
       .map((s) => ({ network: s.network || 'Instagram', value: (s.value || '').trim() }))
@@ -293,13 +331,22 @@ export default function CRMPage() {
         setSelectedLead(updatedData);
         setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, ...updatedData } : l)));
         fetchLeads();
+        showToast('Alterações salvas com sucesso!', 'success');
+        return true;
       } else {
         const err = await res.json();
         alert(err.error || 'Erro ao atualizar lead');
+        return false;
       }
     } catch (err) {
       console.error(err);
+      return false;
     }
+  };
+
+  const handleUpdateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveEditLead();
   };
 
   const handleDeleteLead = async () => {
@@ -393,9 +440,11 @@ export default function CRMPage() {
     }
   };
 
-  const handleCreateLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLead.contact_name) return;
+  const saveCreateLead = async () => {
+    if (!newLead.contact_name.trim()) {
+      showToast('Preencha o Nome do Contato para salvar o lead.', 'error');
+      return false;
+    }
 
     const cleanSocials = (newLead.social_links || [])
       .map((s) => ({ network: s.network || 'Instagram', value: (s.value || '').trim() }))
@@ -418,32 +467,25 @@ export default function CRMPage() {
       });
       if (res.ok) {
         setShowCreateModal(false);
-        setNewLead({
-          contact_name: '',
-          company: '',
-          phone: '',
-          whatsapp: '',
-          email: '',
-          city: '',
-          platform: 'WhatsApp',
-          notes: '',
-          website: '',
-          facebook: '',
-          linkedin: '',
-          instagram: '',
-          social_links: [],
-          segment: '',
-          description: '',
-        });
+        setNewLead(EMPTY_NEW_LEAD);
         fetchLeads();
+        showToast('Lead cadastrado com sucesso!', 'success');
+        return true;
       } else {
         const errorData = await res.json().catch(() => ({}));
         alert(errorData.error || 'Erro ao criar lead no CRM.');
+        return false;
       }
     } catch (err: any) {
       console.error(err);
       alert('Erro de conexão ao criar lead.');
+      return false;
     }
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveCreateLead();
   };
 
   const handleAddInteraction = async (e: React.FormEvent) => {
@@ -803,9 +845,15 @@ export default function CRMPage() {
 
       {/* LEAD DETAILS & TIMELINE MODAL (Requisito 35) */}
       {selectedLead && (
-        <div className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
+        <div
+          onClick={() => setSelectedLead(null)}
+          className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+          >
+            <div className="shrink-0 p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">{selectedLead.contact_name}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">{selectedLead.company || 'Pessoa Física'} • {selectedLead.city || 'Sem cidade'}</p>
@@ -1022,7 +1070,7 @@ export default function CRMPage() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+            <div className="shrink-0 p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
               <button
                 onClick={() => setSelectedLead(null)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-semibold text-xs"
@@ -1036,227 +1084,244 @@ export default function CRMPage() {
 
       {/* CREATE MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
-            <button
-              onClick={() => setShowCreateModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
-            >
-              <X size={20} />
-            </button>
-            <h3 className="text-lg font-bold text-gray-900 mb-1 pr-6">Cadastrar Lead</h3>
-            <p className="text-xs text-gray-500 mb-4">Adicione um novo prospecto ao funil de vendas com informações completas.</p>
-
-            <form onSubmit={handleCreateLead} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Dra. Carolina Lima"
-                    value={newLead.contact_name}
-                    onChange={(e) => setNewLead({ ...newLead, contact_name: e.target.value })}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Empresa / Negócio</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Clínica Sorriso & Estética"
-                    value={newLead.company}
-                    onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
-                  <input
-                    type="text"
-                    placeholder="(18) 99999-9999"
-                    value={newLead.whatsapp}
-                    onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    placeholder="contato@empresa.com"
-                    value={newLead.email}
-                    onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Araçatuba"
-                    value={newLead.city}
-                    onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
-                  <select
-                    value={newLead.platform}
-                    onChange={(e) => setNewLead({ ...newLead, platform: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Instagram">Instagram</option>
-                    <option value="Indicação">Indicação</option>
-                    <option value="Google">Google</option>
-                    <option value="LinkedIn">LinkedIn</option>
-                    <option value="Facebook">Facebook</option>
-                    <option value="Outro">Outro</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block font-semibold text-gray-700 mb-1">Ramo de Atuação</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Odontologia, Arquitetura, Varejo de Moda, etc."
-                    value={newLead.segment}
-                    onChange={(e) => setNewLead({ ...newLead, segment: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
+        <div
+          onClick={handleRequestCloseCreateModal}
+          className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-xl w-full shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+          >
+            <div className="shrink-0 px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Cadastrar Lead</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Adicione um novo prospecto ao funil de vendas com informações completas.</p>
               </div>
+              <button
+                type="button"
+                onClick={handleRequestCloseCreateModal}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-200/60 transition-colors"
+                title="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-              {/* Redes Sociais e Links */}
-              <div className="pt-2 border-t border-gray-100 space-y-3">
-                <span className="block font-bold text-gray-700">Links & Redes Sociais</span>
-
-                <div>
-                  <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                    <Globe size={12} className="text-blue-500" />
-                    Site (não precisa digitar http://)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: www.seusite.com.br ou seusite.com.br"
-                    value={newLead.website}
-                    onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-gray-600 font-semibold">Redes Sociais</label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setNewLead((prev) => ({
-                          ...prev,
-                          social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
-                        }))
-                      }
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold transition-colors"
-                    >
-                      <Plus size={13} />
-                      <span>Adicionar Rede Social</span>
-                    </button>
+            <form onSubmit={handleCreateLead} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Dra. Carolina Lima"
+                      value={newLead.contact_name}
+                      onChange={(e) => setNewLead({ ...newLead, contact_name: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
                   </div>
 
-                  {newLead.social_links.length === 0 ? (
-                    <p className="text-gray-400 italic text-[11px]">
-                      Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {newLead.social_links.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <select
-                            value={item.network}
-                            onChange={(e) => {
-                              const updated = [...newLead.social_links];
-                              updated[idx] = { ...updated[idx], network: e.target.value };
-                              setNewLead({ ...newLead, social_links: updated });
-                            }}
-                            className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                          >
-                            {SOCIAL_NETWORK_OPTIONS.map((net) => (
-                              <option key={net} value={net}>
-                                {net}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            placeholder="@usuario ou link da rede"
-                            value={item.value}
-                            onChange={(e) => {
-                              const updated = [...newLead.social_links];
-                              updated[idx] = { ...updated[idx], value: e.target.value };
-                              setNewLead({ ...newLead, social_links: updated });
-                            }}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = newLead.social_links.filter((_, i) => i !== idx);
-                              setNewLead({ ...newLead, social_links: updated });
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Remover rede social"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))}
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Empresa / Negócio</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Clínica Sorriso & Estética"
+                      value={newLead.company}
+                      onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
+                    <input
+                      type="text"
+                      placeholder="(18) 99999-9999"
+                      value={newLead.whatsapp}
+                      onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">E-mail</label>
+                    <input
+                      type="email"
+                      placeholder="contato@empresa.com"
+                      value={newLead.email}
+                      onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Araçatuba"
+                      value={newLead.city}
+                      onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
+                    <select
+                      value={newLead.platform}
+                      onChange={(e) => setNewLead({ ...newLead, platform: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="Indicação">Indicação</option>
+                      <option value="Google">Google</option>
+                      <option value="LinkedIn">LinkedIn</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold text-gray-700 mb-1">Ramo de Atuação</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Odontologia, Arquitetura, Varejo de Moda, etc."
+                      value={newLead.segment}
+                      onChange={(e) => setNewLead({ ...newLead, segment: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Redes Sociais e Links */}
+                <div className="pt-2 border-t border-gray-100 space-y-3">
+                  <span className="block font-bold text-gray-700">Links & Redes Sociais</span>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <Globe size={12} className="text-blue-500" />
+                      Site (não precisa digitar http://)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: www.seusite.com.br ou seusite.com.br"
+                      value={newLead.website}
+                      onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-gray-600 font-semibold">Redes Sociais</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewLead((prev) => ({
+                            ...prev,
+                            social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+                          }))
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold transition-colors"
+                      >
+                        <Plus size={13} />
+                        <span>Adicionar Rede Social</span>
+                      </button>
                     </div>
-                  )}
+
+                    {newLead.social_links.length === 0 ? (
+                      <p className="text-gray-400 italic text-[11px]">
+                        Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {newLead.social_links.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={item.network}
+                              onChange={(e) => {
+                                const updated = [...newLead.social_links];
+                                updated[idx] = { ...updated[idx], network: e.target.value };
+                                setNewLead({ ...newLead, social_links: updated });
+                              }}
+                              className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            >
+                              {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                                <option key={net} value={net}>
+                                  {net}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="@usuario ou link da rede"
+                              value={item.value}
+                              onChange={(e) => {
+                                const updated = [...newLead.social_links];
+                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                setNewLead({ ...newLead, social_links: updated });
+                              }}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = newLead.social_links.filter((_, i) => i !== idx);
+                                setNewLead({ ...newLead, social_links: updated });
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                              title="Remover rede social"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Descrição sobre o Cliente */}
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Descrição sobre o Cliente</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Descreva detalhes sobre o cliente, perfil, necessidades ou dores identificadas..."
+                    value={newLead.description}
+                    onChange={(e) => setNewLead({ ...newLead, description: e.target.value })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Observações Internas */}
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Observações Internas</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Anotações internas sobre o lead..."
+                    value={newLead.notes}
+                    onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
-              {/* Descrição sobre o Cliente */}
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Descrição sobre o Cliente</label>
-                <textarea
-                  rows={2}
-                  placeholder="Descreva detalhes sobre o cliente, perfil, necessidades ou dores identificadas..."
-                  value={newLead.description}
-                  onChange={(e) => setNewLead({ ...newLead, description: e.target.value })}
-                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Observações Internas */}
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Observações Internas</label>
-                <textarea
-                  rows={2}
-                  placeholder="Anotações internas sobre o lead..."
-                  value={newLead.notes}
-                  onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
-                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <div className="shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                  onClick={() => {
+                    setNewLead(EMPTY_NEW_LEAD);
+                    setShowCreateModal(false);
+                  }}
+                  className="px-4 py-2 font-semibold text-gray-600 hover:bg-gray-200/70 rounded-xl transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm"
+                  className="px-4 py-2 font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm transition-colors"
                 >
                   Cadastrar Lead
                 </button>
@@ -1268,241 +1333,254 @@ export default function CRMPage() {
 
       {/* EDIT LEAD MODAL */}
       {showEditLeadModal && (
-        <div className="fixed inset-0 !mt-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+        <div
+          onClick={handleRequestCloseEditModal}
+          className="fixed inset-0 !mt-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col overflow-hidden"
+          >
+            {/* Cabeçalho Fixo no Topo */}
+            <div className="shrink-0 px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Edit2 size={18} className="text-blue-600" />
                 Editar Lead
               </h3>
               <button
-                onClick={() => setShowEditLeadModal(false)}
-                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+                type="button"
+                onClick={handleRequestCloseEditModal}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-200/60 transition-colors"
+                title="Fechar"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateLead} className="mt-4 space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editLead.contact_name}
-                    onChange={(e) => setEditLead({ ...editLead, contact_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Empresa / Negócio</label>
-                  <input
-                    type="text"
-                    value={editLead.company}
-                    onChange={(e) => setEditLead({ ...editLead, company: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
-                  <input
-                    type="text"
-                    value={editLead.phone}
-                    onChange={(e) => setEditLead({ ...editLead, phone: e.target.value, whatsapp: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    value={editLead.email}
-                    onChange={(e) => setEditLead({ ...editLead, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Status do Funil</label>
-                  <select
-                    value={editLead.status}
-                    onChange={(e) => setEditLead({ ...editLead, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold"
-                  >
-                    {CRM_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
-                  <select
-                    value={editLead.platform}
-                    onChange={(e) => setEditLead({ ...editLead, platform: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Instagram">Instagram</option>
-                    <option value="Indicação">Indicação</option>
-                    <option value="Google">Google</option>
-                    <option value="LinkedIn">LinkedIn</option>
-                    <option value="Facebook">Facebook</option>
-                    <option value="Outro">Outro</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
-                  <input
-                    type="text"
-                    value={editLead.city}
-                    onChange={(e) => setEditLead({ ...editLead, city: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Ramo de Atuação</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Odontologia, Moda, etc."
-                    value={editLead.segment}
-                    onChange={(e) => setEditLead({ ...editLead, segment: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block font-semibold text-gray-700 mb-1">Valor Estimado (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editLead.estimated_value || ''}
-                    onChange={(e) => setEditLead({ ...editLead, estimated_value: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Redes Sociais e Links */}
-              <div className="pt-2 border-t border-gray-100 space-y-3">
-                <span className="block font-bold text-gray-700">Links & Redes Sociais</span>
-
-                <div>
-                  <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                    <Globe size={12} className="text-blue-500" />
-                    Site (não precisa digitar http://)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: www.seusite.com.br ou seusite.com.br"
-                    value={editLead.website}
-                    onChange={(e) => setEditLead({ ...editLead, website: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-gray-600 font-semibold">Redes Sociais</label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditLead((prev) => ({
-                          ...prev,
-                          social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
-                        }))
-                      }
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold transition-colors"
-                    >
-                      <Plus size={13} />
-                      <span>Adicionar Rede Social</span>
-                    </button>
+            <form onSubmit={handleUpdateLead} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+              {/* Conteúdo com Rolagem Independente (não sobrepõe cabeçalho nem rodapé) */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Nome do Contato *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editLead.contact_name}
+                      onChange={(e) => setEditLead({ ...editLead, contact_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
                   </div>
 
-                  {editLead.social_links.length === 0 ? (
-                    <p className="text-gray-400 italic text-[11px]">
-                      Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {editLead.social_links.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <select
-                            value={item.network}
-                            onChange={(e) => {
-                              const updated = [...editLead.social_links];
-                              updated[idx] = { ...updated[idx], network: e.target.value };
-                              setEditLead({ ...editLead, social_links: updated });
-                            }}
-                            className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                          >
-                            {SOCIAL_NETWORK_OPTIONS.map((net) => (
-                              <option key={net} value={net}>
-                                {net}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            placeholder="@usuario ou link da rede"
-                            value={item.value}
-                            onChange={(e) => {
-                              const updated = [...editLead.social_links];
-                              updated[idx] = { ...updated[idx], value: e.target.value };
-                              setEditLead({ ...editLead, social_links: updated });
-                            }}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = editLead.social_links.filter((_, i) => i !== idx);
-                              setEditLead({ ...editLead, social_links: updated });
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Remover rede social"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Empresa / Negócio</label>
+                    <input
+                      type="text"
+                      value={editLead.company}
+                      onChange={(e) => setEditLead({ ...editLead, company: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
+                    <input
+                      type="text"
+                      value={editLead.phone}
+                      onChange={(e) => setEditLead({ ...editLead, phone: e.target.value, whatsapp: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">E-mail</label>
+                    <input
+                      type="email"
+                      value={editLead.email}
+                      onChange={(e) => setEditLead({ ...editLead, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Status do Funil</label>
+                    <select
+                      value={editLead.status}
+                      onChange={(e) => setEditLead({ ...editLead, status: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold"
+                    >
+                      {CRM_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
+                    <select
+                      value={editLead.platform}
+                      onChange={(e) => setEditLead({ ...editLead, platform: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="Indicação">Indicação</option>
+                      <option value="Google">Google</option>
+                      <option value="LinkedIn">LinkedIn</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
+                    <input
+                      type="text"
+                      value={editLead.city}
+                      onChange={(e) => setEditLead({ ...editLead, city: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Ramo de Atuação</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Odontologia, Moda, etc."
+                      value={editLead.segment}
+                      onChange={(e) => setEditLead({ ...editLead, segment: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block font-semibold text-gray-700 mb-1">Valor Estimado (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editLead.estimated_value || ''}
+                      onChange={(e) => setEditLead({ ...editLead, estimated_value: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Redes Sociais e Links */}
+                <div className="pt-2 border-t border-gray-100 space-y-3">
+                  <span className="block font-bold text-gray-700">Links & Redes Sociais</span>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                      <Globe size={12} className="text-blue-500" />
+                      Site (não precisa digitar http://)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: www.seusite.com.br ou seusite.com.br"
+                      value={editLead.website}
+                      onChange={(e) => setEditLead({ ...editLead, website: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-gray-600 font-semibold">Redes Sociais</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditLead((prev) => ({
+                            ...prev,
+                            social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+                          }))
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold transition-colors"
+                      >
+                        <Plus size={13} />
+                        <span>Adicionar Rede Social</span>
+                      </button>
                     </div>
-                  )}
+
+                    {editLead.social_links.length === 0 ? (
+                      <p className="text-gray-400 italic text-[11px]">
+                        Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {editLead.social_links.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={item.network}
+                              onChange={(e) => {
+                                const updated = [...editLead.social_links];
+                                updated[idx] = { ...updated[idx], network: e.target.value };
+                                setEditLead({ ...editLead, social_links: updated });
+                              }}
+                              className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            >
+                              {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                                <option key={net} value={net}>
+                                  {net}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="@usuario ou link da rede"
+                              value={item.value}
+                              onChange={(e) => {
+                                const updated = [...editLead.social_links];
+                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                setEditLead({ ...editLead, social_links: updated });
+                              }}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = editLead.social_links.filter((_, i) => i !== idx);
+                                setEditLead({ ...editLead, social_links: updated });
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                              title="Remover rede social"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Descrição sobre o Cliente */}
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Descrição sobre o Cliente</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Descreva detalhes sobre o cliente, perfil, necessidades ou dores identificadas..."
+                    value={editLead.description}
+                    onChange={(e) => setEditLead({ ...editLead, description: e.target.value })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Observações Internas */}
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Observações Internas</label>
+                  <textarea
+                    rows={2}
+                    value={editLead.notes}
+                    onChange={(e) => setEditLead({ ...editLead, notes: e.target.value })}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
-              {/* Descrição sobre o Cliente */}
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Descrição sobre o Cliente</label>
-                <textarea
-                  rows={2}
-                  placeholder="Descreva detalhes sobre o cliente, perfil, necessidades ou dores identificadas..."
-                  value={editLead.description}
-                  onChange={(e) => setEditLead({ ...editLead, description: e.target.value })}
-                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Observações Internas */}
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Observações Internas</label>
-                <textarea
-                  rows={2}
-                  value={editLead.notes}
-                  onChange={(e) => setEditLead({ ...editLead, notes: e.target.value })}
-                  className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              {/* Rodapé Fixo na Base */}
+              <div className="shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={handleDeleteLead}
@@ -1516,7 +1594,7 @@ export default function CRMPage() {
                   <button
                     type="button"
                     onClick={() => setShowEditLeadModal(false)}
-                    className="px-4 py-2 font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                    className="px-4 py-2 font-semibold text-gray-600 hover:bg-gray-200/70 rounded-xl transition-colors"
                   >
                     Cancelar
                   </button>
@@ -1529,6 +1607,76 @@ export default function CRMPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE ALTERAÇÕES NÃO SALVAS */}
+      {unsavedChangesModal.isOpen && (
+        <div
+          onClick={() => setUnsavedChangesModal((prev) => ({ ...prev, isOpen: false }))}
+          className="fixed inset-0 !mt-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Alterações não salvas</h3>
+                  <p className="text-xs text-gray-500">Você modificou informações neste formulário.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUnsavedChangesModal((prev) => ({ ...prev, isOpen: false }))}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+                title="Continuar editando"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 mb-5 leading-relaxed">
+              Deseja salvar as alterações realizadas ou descartá-las antes de fechar?
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setUnsavedChangesModal({ isOpen: false, mode: 'edit' });
+                  if (unsavedChangesModal.mode === 'edit') {
+                    setShowEditLeadModal(false);
+                  } else {
+                    setNewLead(EMPTY_NEW_LEAD);
+                    setShowCreateModal(false);
+                  }
+                }}
+                className="px-4 py-2 font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
+              >
+                Descartar Alterações
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const mode = unsavedChangesModal.mode;
+                  setUnsavedChangesModal({ isOpen: false, mode: 'edit' });
+                  if (mode === 'edit') {
+                    await saveEditLead();
+                  } else {
+                    await saveCreateLead();
+                  }
+                }}
+                className="px-4 py-2 font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-sm transition-colors"
+              >
+                Salvar Alterações
+              </button>
+            </div>
           </div>
         </div>
       )}
