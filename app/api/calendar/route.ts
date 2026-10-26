@@ -26,29 +26,21 @@ export async function GET(request: NextRequest) {
     let taskWhere = "WHERE t.status != 'Concluída' AND (t.workspace_id = ? OR (t.workspace_id IS NULL AND ? = 'ws_default'))";
     const params: any[] = [wsId, wsId];
 
-    // Visibility filter for non-admin
-    if (user.role !== 'ADMINISTRADOR') {
+    // Role-based visibility filter
+    if (user.role === 'CLIENTE') {
+      where += " AND (e.client_id = ? OR e.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (e.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?)))";
+      params.push(user.client_id || '', user.email, user.client_name || user.name);
+    } else if (user.role === 'COLABORADOR') {
       where += " AND (e.visibility != 'private' OR e.visibility IS NULL OR e.created_by = ?)";
-      taskWhere += " AND (t.visibility != 'private' OR t.visibility IS NULL OR t.created_by = ?)";
       params.push(user.id);
+      where += ' AND (e.created_by = ? OR e.id IN (SELECT event_id FROM calendar_event_attendees WHERE user_id = ?))';
+      params.push(user.id, user.id);
     }
 
     // Custom calendar filter
     if (calendarId && calendarId !== 'all') {
       where += " AND e.calendar_id = ?";
-      taskWhere += " AND t.calendar_id = ?";
       params.push(calendarId);
-    }
-
-    if (user.role === 'CLIENTE') {
-      if (!user.client_id) return NextResponse.json({ data: [] });
-      where += ' AND e.client_id = ?';
-      taskWhere += ' AND t.client_id = ?';
-      params.push(user.client_id);
-    } else if (user.role === 'COLABORADOR') {
-      where += ' AND (e.created_by = ? OR e.id IN (SELECT event_id FROM calendar_event_attendees WHERE user_id = ?))';
-      taskWhere += ' AND (t.created_by = ? OR t.id IN (SELECT task_id FROM task_assignees WHERE user_id = ?))';
-      params.push(user.id, user.id);
     }
 
     if (dateFrom && dateTo) {

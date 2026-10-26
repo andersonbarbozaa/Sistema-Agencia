@@ -49,6 +49,8 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
   const [monthFilter, setMonthFilter] = useState<string>('todos');
   const [yearFilter, setYearFilter] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
 
   // Selected task detail modal
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -331,6 +333,92 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
     return { label: status || 'Pendente', bg: 'bg-gray-50 text-gray-700 border-gray-200', dot: 'bg-gray-400' };
   };
 
+
+  // Dynamic counts for client dashboard
+  const openTasksCount = useMemo(() => {
+    return tasks.filter((t) => {
+      const s = (t.status || '').toLowerCase();
+      return !s.includes('conclu') && !s.includes('aprovad');
+    }).length;
+  }, [tasks]);
+
+  const awaitingApprovalCount = useMemo(() => {
+    return tasks.filter((t) => {
+      const s = (t.status || '').toLowerCase();
+      return s.includes('aprova') && !s.includes('altera');
+    }).length;
+  }, [tasks]);
+
+  const overdueTasksCount = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter((t) => {
+      const s = (t.status || '').toLowerCase();
+      const notDone = !s.includes('conclu') && !s.includes('aprovad');
+      return notDone && t.delivery_date && t.delivery_date < today;
+    }).length;
+  }, [tasks]);
+
+  // Próximas Entregas (Demandas abertas com entrega mais próxima)
+  const upcomingDeliveries = useMemo(() => {
+    return tasks
+      .filter((t) => {
+        const s = (t.status || '').toLowerCase();
+        return !s.includes('conclu') && !s.includes('aprovad');
+      })
+      .sort((a, b) => {
+        if (!a.delivery_date) return 1;
+        if (!b.delivery_date) return -1;
+        return a.delivery_date.localeCompare(b.delivery_date);
+      })
+      .slice(0, 6);
+  }, [tasks]);
+
+  // Map of tasks by date for calendar dots
+  const tasksByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const t of tasks) {
+      if (t.delivery_date) {
+        const dateKey = t.delivery_date.split('T')[0];
+        if (!map[dateKey]) map[dateKey] = [];
+        map[dateKey].push(t);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  // Calendar days grid
+  const calendarYear = calendarDate.getFullYear();
+  const calendarMonth = calendarDate.getMonth();
+  const firstDayOfWeek = new Date(calendarYear, calendarMonth, 1).getDay();
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(calendarYear, calendarMonth, 0).getDate();
+
+  const calendarDaysList: Array<{ day: number; dateStr: string; isCurrentMonth: boolean }> = [];
+
+  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+    const d = daysInPrevMonth - i;
+    const prevMonthIdx = calendarMonth === 0 ? 11 : calendarMonth - 1;
+    const prevYear = calendarMonth === 0 ? calendarYear - 1 : calendarYear;
+    const dateStr = `${prevYear}-${String(prevMonthIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    calendarDaysList.push({ day: d, dateStr, isCurrentMonth: false });
+  }
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    calendarDaysList.push({ day: i, dateStr, isCurrentMonth: true });
+  }
+
+  const remainingCalendarDays = 35 - calendarDaysList.length > 0 ? 35 - calendarDaysList.length : 42 - calendarDaysList.length;
+  for (let i = 1; i <= remainingCalendarDays; i++) {
+    const nextMonthIdx = calendarMonth === 11 ? 0 : calendarMonth + 1;
+    const nextYear = calendarMonth === 11 ? calendarYear + 1 : calendarYear;
+    const dateStr = `${nextYear}-${String(nextMonthIdx + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    calendarDaysList.push({ day: i, dateStr, isCurrentMonth: false });
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const selectedDayTasks = selectedCalendarDay ? tasksByDate[selectedCalendarDay] || [] : [];
+
   // Helper to extract clean image or preview URL
   const getTaskCoverUrl = (task: any) => {
     if (task.cover_image_url) {
@@ -392,57 +480,290 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* Metric Cards (Total Abertas, Em Aprovação, Atrasadas) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Total de Tarefas Abertas */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === 'pendentes' ? 'todos' : 'pendentes')}
+          className={cn(
+            'p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group',
+            statusFilter === 'pendentes' ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50/30' : 'border-gray-200'
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
+              Tarefas Abertas
+            </span>
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+              <Clock size={20} />
+            </div>
+          </div>
+          <p className="text-3xl font-extrabold text-blue-600 mt-3">{openTasksCount}</p>
+          <p className="text-[11px] text-gray-400 mt-1">Total de demandas em andamento</p>
+        </div>
+
+        {/* Total em Aprovação */}
         <div
           onClick={() => setStatusFilter(statusFilter === 'para_aprovacao' ? 'todos' : 'para_aprovacao')}
           className={cn(
-            'p-5 rounded-2xl border transition-all cursor-pointer shadow-sm hover:shadow-md bg-white',
+            'p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group',
             statusFilter === 'para_aprovacao' ? 'ring-2 ring-amber-500 border-amber-300 bg-amber-50/30' : 'border-gray-200'
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Aguardando Sua Aprovação</span>
-            <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
+              Em Aprovação
+            </span>
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
               <FileCheck2 size={20} />
             </div>
           </div>
-          <p className="text-3xl font-extrabold text-amber-600 mt-3">{counts?.awaiting_approval || 0}</p>
+          <p className="text-3xl font-extrabold text-amber-600 mt-3">{awaitingApprovalCount}</p>
           <p className="text-[11px] text-gray-400 mt-1">Materiais prontos para sua revisão</p>
         </div>
 
+        {/* Total Atrasadas */}
         <div
-          onClick={() => setStatusFilter(statusFilter === 'em_producao' ? 'todos' : 'em_producao')}
+          onClick={() => {
+            const today = new Date().toISOString().split('T')[0];
+            setStatusFilter('todos');
+            setSearchQuery('');
+          }}
           className={cn(
-            'p-5 rounded-2xl border transition-all cursor-pointer shadow-sm hover:shadow-md bg-white',
-            statusFilter === 'em_producao' ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50/30' : 'border-gray-200'
+            'p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group border-gray-200 hover:border-red-300'
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Em Produção</span>
-            <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
-              <Clock size={20} />
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-red-600 transition-colors">
+              Atrasadas
+            </span>
+            <div className="p-2.5 bg-red-50 text-red-600 rounded-xl">
+              <AlertTriangle size={20} />
             </div>
           </div>
-          <p className="text-3xl font-extrabold text-blue-600 mt-3">{counts?.pending_tasks || 0}</p>
-          <p className="text-[11px] text-gray-400 mt-1">Demandas em criação pela equipe</p>
+          <p className="text-3xl font-extrabold text-red-600 mt-3">{overdueTasksCount}</p>
+          <p className="text-[11px] text-gray-400 mt-1">Entregas que requerem atenção</p>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* SEÇÃO PRINCIPAL: PRÓXIMAS ENTREGAS E CALENDÁRIO AO LADO     */}
+      {/* ======================================================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Coluna Esquerda: Próximas Entregas */}
+        <div className="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-6 border border-gray-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Clock size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Próximas Entregas</h3>
+                <p className="text-[11px] text-gray-400">Demandas agendadas com entrega mais próxima</p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
+              {upcomingDeliveries.length} entregas
+            </span>
+          </div>
+
+          {upcomingDeliveries.length === 0 ? (
+            <div className="py-12 text-center text-gray-400">
+              <CheckCircle2 size={36} className="mx-auto mb-2 text-emerald-500 opacity-80" />
+              <p className="text-xs font-semibold text-gray-600">Todas as entregas estão em dia!</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Nenhuma entrega pendente para os próximos dias.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {upcomingDeliveries.map((task) => {
+                const coverUrl = getTaskCoverUrl(task);
+                const isOverdue = task.delivery_date && task.delivery_date.split('T')[0] < todayStr;
+                const isToday = task.delivery_date && task.delivery_date.split('T')[0] === todayStr;
+                const badge = getStatusBadge(task.status);
+
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => openTask(task.id)}
+                    className="py-3 sm:py-3.5 flex items-center justify-between gap-3 group cursor-pointer hover:bg-gray-50/80 -mx-2 px-2 rounded-2xl transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Thumbnail ou Ícone */}
+                      <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 flex items-center justify-center">
+                        {coverUrl ? (
+                          <img src={coverUrl} alt={task.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        ) : (
+                          <ImageIcon size={18} className="text-gray-400" />
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0">
+                        <h4 className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                          {task.name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-gray-500">
+                          {task.category_name && (
+                            <span className="px-1.5 py-0.2 rounded bg-gray-100 text-gray-700 font-medium">
+                              {task.category_name}
+                            </span>
+                          )}
+                          <span
+                            className={cn(
+                              'font-semibold flex items-center gap-1',
+                              isOverdue ? 'text-red-600 font-bold' : isToday ? 'text-amber-600 font-bold' : 'text-gray-600'
+                            )}
+                          >
+                            <Calendar size={12} />
+                            {isOverdue ? 'Atrasada (' + formatDate(task.delivery_date) + ')' : isToday ? 'Entrega Hoje!' : formatDate(task.delivery_date)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className={cn('px-2.5 py-1 rounded-full text-[11px] font-bold border hidden sm:inline-block', badge.bg)}>
+                        {badge.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTask(task.id);
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0"
+                      >
+                        Ver Detalhes
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'concluidas' ? 'todos' : 'concluidas')}
-          className={cn(
-            'p-5 rounded-2xl border transition-all cursor-pointer shadow-sm hover:shadow-md bg-white',
-            statusFilter === 'concluidas' ? 'ring-2 ring-emerald-500 border-emerald-300 bg-emerald-50/30' : 'border-gray-200'
-          )}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Concluídas & Aprovadas</span>
-            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
-              <CheckSquare size={20} />
+        {/* Coluna Direita: Calendário de Entregas */}
+        <div className="lg:col-span-5 bg-white rounded-3xl p-5 sm:p-6 border border-gray-200 shadow-sm space-y-4">
+          {/* Header do Calendário */}
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-blue-600" />
+              <h3 className="text-sm font-bold text-gray-900 capitalize">
+                {calendarDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCalendarDate(new Date(calendarYear, calendarMonth - 1, 1))}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
+                title="Mês anterior"
+              >
+                <ChevronRight size={16} className="rotate-180" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarDate(new Date());
+                  setSelectedCalendarDay(todayStr);
+                }}
+                className="px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                Hoje
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarDate(new Date(calendarYear, calendarMonth + 1, 1))}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
+                title="Próximo mês"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
           </div>
-          <p className="text-3xl font-extrabold text-emerald-600 mt-3">{counts?.completed_tasks || 0}</p>
-          <p className="text-[11px] text-gray-400 mt-1">Histórico completo de entregas</p>
+
+          {/* Grid de Dias */}
+          <div>
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-gray-400 mb-1">
+              <span>D</span>
+              <span>S</span>
+              <span>T</span>
+              <span>Q</span>
+              <span>Q</span>
+              <span>S</span>
+              <span>S</span>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {calendarDaysList.map((cell, idx) => {
+                const dayTasks = tasksByDate[cell.dateStr] || [];
+                const hasTasks = dayTasks.length > 0;
+                const isSelected = selectedCalendarDay === cell.dateStr;
+                const isToday = cell.dateStr === todayStr;
+
+                // Color of indicator dot
+                const hasApproval = dayTasks.some((t) => (t.status || '').toLowerCase().includes('aprova'));
+                const hasOverdue = dayTasks.some((t) => (t.status || '').toLowerCase() !== 'concluída' && cell.dateStr < todayStr);
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedCalendarDay(isSelected ? null : cell.dateStr)}
+                    className={cn(
+                      'h-10 rounded-xl flex flex-col items-center justify-center relative transition-all text-xs font-semibold',
+                      !cell.isCurrentMonth ? 'text-gray-300' : 'text-gray-800',
+                      isToday ? 'border-2 border-blue-500 font-bold' : '',
+                      isSelected ? 'bg-blue-600 !text-white shadow-xs font-bold' : 'hover:bg-gray-50'
+                    )}
+                  >
+                    <span>{cell.day}</span>
+                    {hasTasks && (
+                      <span
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full mt-0.5',
+                          isSelected
+                            ? 'bg-white'
+                            : hasOverdue
+                            ? 'bg-red-500'
+                            : hasApproval
+                            ? 'bg-amber-500'
+                            : 'bg-blue-500'
+                        )}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detalhes do Dia Selecionado */}
+          {selectedCalendarDay && (
+            <div className="pt-3 border-t border-gray-100 animate-in fade-in duration-200">
+              <span className="text-[11px] font-bold text-gray-500 block mb-2">
+                Entregas em {formatDate(selectedCalendarDay)}:
+              </span>
+              {selectedDayTasks.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Nenhuma entrega programada para este dia.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {selectedDayTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => openTask(t.id)}
+                      className="p-2.5 rounded-xl bg-gray-50 hover:bg-blue-50 border border-gray-200 text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                    >
+                      <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                      <span className="text-[10px] font-bold text-blue-600 shrink-0">Ver &rarr;</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

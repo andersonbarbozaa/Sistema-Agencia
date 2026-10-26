@@ -27,6 +27,7 @@ export default function AgendaPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   // Custom Calendars State (Plano Corporativo)
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [customCalendars, setCustomCalendars] = useState<any[]>([]);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>('all');
   const [showCalendarModal, setShowCalendarModal] = useState(false);
@@ -83,12 +84,18 @@ export default function AgendaPage() {
     try {
       setLoading(true);
       const calQuery = selectedCalendarId && selectedCalendarId !== 'all' ? `?calendar_id=${selectedCalendarId}` : '';
-      const [evtRes, tasksRes, clientsRes, calRes] = await Promise.all([
+      const [userRes, evtRes, tasksRes, clientsRes, calRes] = await Promise.all([
+        fetch('/api/auth/me', { cache: 'no-store' }),
         fetch(`/api/calendar${calQuery}`, { cache: 'no-store' }),
         fetch('/api/tasks', { cache: 'no-store' }),
         fetch('/api/clients', { cache: 'no-store' }),
         fetch('/api/custom-calendars', { cache: 'no-store' }),
       ]);
+
+      if (userRes && userRes.ok) {
+        const ud = await userRes.json();
+        setCurrentUser(ud.user);
+      }
 
       if (evtRes.ok) {
         const d = await evtRes.json();
@@ -420,14 +427,16 @@ export default function AgendaPage() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateCalendarModal}
-          className="px-3.5 py-1.5 bg-gray-50 hover:bg-blue-50 text-blue-600 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Nova Agenda
-        </button>
+        {currentUser?.role !== 'CLIENTE' && (
+          <button
+            type="button"
+            onClick={openCreateCalendarModal}
+            className="px-3.5 py-1.5 bg-gray-50 hover:bg-blue-50 text-blue-600 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nova Agenda
+          </button>
+        )}
       </div>
 
       {/* Top Navigation & View Toolbar */}
@@ -1045,10 +1054,51 @@ export default function AgendaPage() {
             </button>
 
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Edit3 className="w-5 h-5 text-blue-600" />
-              Editar Compromisso
+              <CalendarIcon className="w-5 h-5 text-blue-600" />
+              {currentUser?.role === 'CLIENTE' ? 'Detalhes do Compromisso' : 'Editar Compromisso'}
             </h2>
 
+            {currentUser?.role === 'CLIENTE' ? (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <span className="text-gray-400 font-semibold block mb-0.5">Título:</span>
+                  <p className="text-sm font-bold text-gray-900">{selectedEvent.title}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-gray-400 font-semibold block mb-0.5">Data:</span>
+                    <p className="font-semibold text-gray-800">{formatDate(selectedEvent.event_date)}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-semibold block mb-0.5">Horário:</span>
+                    <p className="font-semibold text-gray-800">
+                      {selectedEvent.start_time || 'Horário flexível'} {selectedEvent.end_time ? `até ${selectedEvent.end_time}` : ''}
+                    </p>
+                  </div>
+                </div>
+                {selectedEvent.location && (
+                  <div>
+                    <span className="text-gray-400 font-semibold block mb-0.5">Local / Link:</span>
+                    <p className="text-gray-800 font-medium">{selectedEvent.location}</p>
+                  </div>
+                )}
+                {selectedEvent.description && (
+                  <div>
+                    <span className="text-gray-400 font-semibold block mb-0.5">Descrição:</span>
+                    <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-xl border border-gray-100">{selectedEvent.description}</p>
+                  </div>
+                )}
+                <div className="pt-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvent(null)}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleUpdateEvent} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -1224,6 +1274,7 @@ export default function AgendaPage() {
                 </div>
               </div>
             </form>
+            )}
           </div>
         </div>
       </ModalPortal>)}

@@ -90,7 +90,15 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
       {/* Barra de Navegação Inferior Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 md:hidden px-1 py-1 shadow-lg">
         <div className="flex items-center justify-around h-14">
-          {navItems.map((item, idx) => {
+          {navItems
+            .filter((item) => {
+              if (user.role === 'CLIENTE') {
+                if (item.isCenter) return false;
+                if (item.href === '/crm' || item.href === '/finance' || item.href === '/clients') return false;
+              }
+              return true;
+            })
+            .map((item, idx) => {
             if (item.isCenter) {
               return (
                 <div key={idx} className="relative flex justify-center items-center w-12 shrink-0">

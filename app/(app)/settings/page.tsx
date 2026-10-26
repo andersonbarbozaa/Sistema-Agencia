@@ -138,12 +138,21 @@ function SettingsContent() {
   const router = useRouter();
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const initialTab = searchParams.get('tab');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const isClientUser = currentUser?.role === 'CLIENTE';
 
   const [activeTab, setActiveTabState] = useState<SettingsTab>(
     initialTab && VALID_SETTINGS_TABS.includes(initialTab as any)
       ? (initialTab as SettingsTab)
       : 'overview'
   );
+
+  useEffect(() => {
+    if (isClientUser && ['users', 'categories', 'finance', 'ai', 'formatting', 'plans'].includes(activeTab)) {
+      setActiveTabState('company');
+    }
+  }, [isClientUser, activeTab]);
 
   const setActiveTab = (tab: SettingsTab) => {
     setActiveTabState(tab);
@@ -309,7 +318,6 @@ function SettingsContent() {
   };
 
   // Entities
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [taskCategories, setTaskCategories] = useState<TaskCategory[]>([]);
@@ -334,6 +342,17 @@ function SettingsContent() {
     company_name: 'PixelCraft Studio',
     company_description: '',
     company_logo: '',
+    corporate_name: '',
+    document: '',
+    company_email: '',
+    company_phone: '',
+    company_whatsapp: '',
+    company_address: '',
+    company_city: '',
+    company_state: '',
+    company_website: '',
+    company_instagram: '',
+    company_status: 'ativo',
     new_password: '',
     confirm_password: '',
   });
@@ -461,7 +480,8 @@ function SettingsContent() {
         const meData = await meRes.json();
         const me = meData.user;
         setCurrentUser(me);
-        setProfileForm({
+        setProfileForm((prev: any) => ({
+          ...prev,
           name: me.name || '',
           email: me.email || '',
           phone: me.phone || '',
@@ -472,7 +492,7 @@ function SettingsContent() {
           company_logo: me.workspace_logo || '',
           new_password: '',
           confirm_password: '',
-        });
+        }));
       }
 
       if (wsRes.ok) {
@@ -1281,6 +1301,7 @@ function SettingsContent() {
               </div>
 
               {/* Assinaturas & Planos */}
+              {!isClientUser && (
               <div
                 onClick={() => setActiveTab('plans')}
                 className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
@@ -1303,6 +1324,7 @@ function SettingsContent() {
                   <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
                 </div>
               </div>
+              )}
             </div>
           </div>
 
@@ -1334,6 +1356,7 @@ function SettingsContent() {
               </div>
 
               {/* Usuários & Cargos */}
+              {!isClientUser && (
               <div
                 onClick={() => setActiveTab('users')}
                 className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
@@ -1353,6 +1376,7 @@ function SettingsContent() {
                   <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
                 </div>
               </div>
+              )}
             </div>
           </div>
 
@@ -1384,50 +1408,55 @@ function SettingsContent() {
               </div>
 
               {/* Categorias do Sistema */}
-              <div
-                onClick={() => setActiveTab('categories')}
-                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <Layers className="w-5 h-5" />
+              {!isClientUser && (
+                <>
+                  <div
+                    onClick={() => setActiveTab('categories')}
+                    className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                        Categorias do Sistema
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 text-xs font-semibold">
+                        {taskCategories.length} categorias
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                    </div>
                   </div>
-                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                    Categorias do Sistema
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 text-xs font-semibold">
-                    {taskCategories.length} categorias
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
-                </div>
-              </div>
 
-              {/* Categoria Financeiro & Contas */}
-              <div
-                onClick={() => setActiveTab('finance')}
-                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <CreditCard className="w-5 h-5" />
+                  {/* Categoria Financeiro & Contas */}
+                  <div
+                    onClick={() => setActiveTab('finance')}
+                    className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                        Categoria Financeiro & Contas
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                        {financialCategories.length} categorias
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                    </div>
                   </div>
-                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                    Categoria Financeiro & Contas
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold">
-                    {financialCategories.length} categorias
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* GRUPO 4: Ferramentas & IA */}
+          {!isClientUser && (
           <div className="space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
               Ferramentas & IA
@@ -1476,6 +1505,7 @@ function SettingsContent() {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -1622,9 +1652,13 @@ function SettingsContent() {
             />
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-gray-900">Perfil da Empresa</h3>
+              <h3 className="text-base font-bold text-gray-900">
+                {isClientUser ? 'Perfil da Minha Empresa' : 'Perfil da Empresa'}
+              </h3>
               <p className="text-xs text-gray-500">
-                Configure a foto de perfil da empresa, nome da empresa e ramo de atuação exibidos no sistema.
+                {isClientUser
+                  ? 'Consulte e mantenha atualizados os dados cadastrais da sua empresa na agência.'
+                  : 'Configure a foto de perfil da empresa, nome da empresa e ramo de atuação exibidos no sistema.'}
               </p>
             </div>
           </div>
@@ -1636,93 +1670,265 @@ function SettingsContent() {
           )}
 
           <form onSubmit={handleUpdateCompany} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Nome da Empresa *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: PixelCraft Studio"
-                  value={profileForm.company_name}
-                  onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Ramo de Atuação / Descrição
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Audiovisual & Criativo"
-                  value={profileForm.company_description}
-                  onChange={(e) => setProfileForm({ ...profileForm, company_description: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Convite de Membros */}
-            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-gray-900">
-                    Convidar Novos Usuários para a Empresa
-                  </label>
-                  <p className="text-[11px] text-gray-500">
-                    Envie um convite por e-mail já com o cargo selecionado ou copie o link de convite.
-                  </p>
+            {isClientUser ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <span className="text-xs font-semibold text-gray-500">Status do Cadastro na Agência:</span>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {profileForm.company_status || 'Ativo'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInviteResult(null);
-                    setShowInviteModal(true);
-                  }}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs flex-shrink-0"
-                >
-                  <Mail size={14} /> Convidar por E-mail
-                </button>
-              </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-gray-200/80">
-                <div className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-600 font-mono select-all truncate">
-                  {typeof window !== 'undefined'
-                    ? `${window.location.origin}/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`
-                    : `/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Nome Fantasia / Empresa *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={profileForm.company_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Razão Social
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Razão Social completa"
+                      value={profileForm.corporate_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, corporate_name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      CNPJ / Documento
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="00.000.000/0000-00"
+                      value={profileForm.document}
+                      onChange={(e) => setProfileForm({ ...profileForm, document: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      E-mail Comercial
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="comercial@empresa.com"
+                      value={profileForm.company_email}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_email: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Telefone Fixo / Comercial
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="(00) 0000-0000"
+                      value={profileForm.company_phone}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_phone: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="(00) 90000-0000"
+                      value={profileForm.company_whatsapp}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_whatsapp: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Endereço Completo
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Rua, número, complemento, bairro"
+                      value={profileForm.company_address}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_address: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Cidade
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Cidade"
+                      value={profileForm.company_city}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_city: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Estado (UF)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="UF (ex: SP)"
+                      maxLength={2}
+                      value={profileForm.company_state}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_state: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Site / Portal
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://suaempresa.com.br"
+                      value={profileForm.company_website}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_website: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Instagram
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="@seu.perfil"
+                      value={profileForm.company_instagram}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_instagram: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Sobre a Empresa / Ramo de Atuação
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Informações sobre os serviços prestados, especialidades e perfil do negócio."
+                      value={profileForm.company_description}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_description: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      const url = `${window.location.origin}/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`;
-                      navigator.clipboard.writeText(url);
-                      setCopiedInvite(true);
-                      setTimeout(() => setCopiedInvite(false), 2500);
-                    }
-                  }}
-                  className={cn(
-                    'px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs flex-shrink-0',
-                    copiedInvite
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                  )}
-                >
-                  {copiedInvite ? (
-                    <>
-                      <Check size={14} /> Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={14} /> Copiar Link
-                    </>
-                  )}
-                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Nome da Empresa *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: PixelCraft Studio"
+                      value={profileForm.company_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Ramo de Atuação / Descrição
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Audiovisual & Criativo"
+                      value={profileForm.company_description}
+                      onChange={(e) => setProfileForm({ ...profileForm, company_description: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Convite de Membros */}
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-900">
+                        Convidar Novos Usuários para a Empresa
+                      </label>
+                      <p className="text-[11px] text-gray-500">
+                        Envie um convite por e-mail já com o cargo selecionado ou copie o link de convite.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInviteResult(null);
+                        setShowInviteModal(true);
+                      }}
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs flex-shrink-0"
+                    >
+                      <Mail size={14} /> Convidar por E-mail
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-200/80">
+                    <div className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-600 font-mono select-all truncate">
+                      {typeof window !== 'undefined'
+                        ? `${window.location.origin}/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`
+                        : `/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof window !== 'undefined') {
+                          const url = `${window.location.origin}/register?invite=${currentUser?.workspace_invite_code || currentUser?.workspace_id || ''}`;
+                          navigator.clipboard.writeText(url);
+                          setCopiedInvite(true);
+                          setTimeout(() => setCopiedInvite(false), 2500);
+                        }
+                      }}
+                      className={cn(
+                        'px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs flex-shrink-0',
+                        copiedInvite
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                      )}
+                    >
+                      {copiedInvite ? (
+                        <>
+                          <Check size={14} /> Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} /> Copiar Link
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="pt-4 flex justify-end">
               <button

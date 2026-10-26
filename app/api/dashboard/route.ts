@@ -13,12 +13,9 @@ export async function GET(request: Request) {
     const db = getDb();
     const today = new Date().toISOString().split('T')[0];
 
-    // IF CLIENT: Restricted dashboard data only
+        // IF CLIENT: Restricted dashboard data only
     if (isClient(user)) {
-      const clientId = user.client_id;
-      if (!clientId) {
-        return NextResponse.json({ error: 'Cliente nÃ£o vinculado.' }, { status: 400 });
-      }
+      const clientId = user.client_id || '';
 
       // Client's tasks with cover media and counts
       const tasksRes = await db
@@ -31,7 +28,8 @@ export async function GET(request: Request) {
           FROM tasks t
           LEFT JOIN task_categories tc ON t.category_id = tc.id
           LEFT JOIN projects p ON t.project_id = p.id
-          WHERE t.client_id = ?
+          LEFT JOIN clients c ON t.client_id = c.id
+          WHERE t.client_id = ? OR t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (t.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?))
           ORDER BY 
             CASE 
               WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1
@@ -42,38 +40,54 @@ export async function GET(request: Request) {
             END,
             t.delivery_date ASC
         `)
-        .bind(clientId)
+        .bind(clientId, user.email, user.client_name || user.name)
         .all();
 
-      // Counts
+      // Counts: Abertas, Em aprovação, Atrasadas
       const counts = await db
         .prepare(`
           SELECT 
-            COUNT(CASE WHEN LOWER(status) NOT LIKE '%conclu%' AND LOWER(status) NOT LIKE '%aprovad%' THEN 1 END) as pending_tasks,
-            COUNT(CASE WHEN LOWER(status) LIKE '%aprova%' AND LOWER(status) NOT LIKE '%altera%' THEN 1 END) as awaiting_approval,
-            COUNT(CASE WHEN LOWER(status) LIKE '%conclu%' OR LOWER(status) LIKE '%aprovad%' THEN 1 END) as completed_tasks
-          FROM tasks
-          WHERE client_id = ?
+            COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' THEN 1 END) as open_tasks,
+            COUNT(CASE WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1 END) as awaiting_approval,
+            COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND t.delivery_date IS NOT NULL AND date(t.delivery_date) < date('now') THEN 1 END) as overdue_tasks,
+            COUNT(CASE WHEN LOWER(t.status) LIKE '%conclu%' OR LOWER(t.status) LIKE '%aprovad%' THEN 1 END) as completed_tasks
+          FROM tasks t
+          LEFT JOIN clients c ON t.client_id = c.id
+          WHERE t.client_id = ? OR t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (t.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?))
         `)
-        .bind(clientId)
+        .bind(clientId, user.email, user.client_name || user.name)
         .first<any>();
 
-      // Client active projects
-      const projects = await db
+      // Client's calendar events
+      const eventsRes = await db
         .prepare(`
-          SELECT * FROM projects
-          WHERE client_id = ? AND status != 'Cancelado'
-          ORDER BY deadline ASC
-          LIMIT 5
+          SELECT e.id, e.title, e.description, e.event_date, e.start_time, e.end_time, e.location
+          FROM calendar_events e
+          LEFT JOIN clients c ON e.client_id = c.id
+          WHERE e.client_id = ? OR e.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (e.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?))
+          ORDER BY e.event_date ASC, e.start_time ASC
         `)
-        .bind(clientId)
+        .bind(clientId, user.email, user.client_name || user.name)
         .all();
 
       return NextResponse.json({
         role: 'CLIENTE',
-        counts: counts || { pending_tasks: 0, awaiting_approval: 0, completed_tasks: 0 },
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          client_id: user.client_id,
+          client_name: user.client_name,
+        },
+        counts: {
+          open_tasks: counts?.open_tasks || 0,
+          pending_tasks: counts?.open_tasks || 0,
+          awaiting_approval: counts?.awaiting_approval || 0,
+          overdue_tasks: counts?.overdue_tasks || 0,
+          completed_tasks: counts?.completed_tasks || 0,
+        },
         tasks: tasksRes.results || [],
-        projects: projects.results || [],
+        events: eventsRes.results || [],
       });
     }
 

@@ -74,6 +74,21 @@ export async function getSessionUser(): Promise<User | null> {
       .bind(payload.userId)
       .first<User>();
 
+    if (user && user.role === 'CLIENTE') {
+      if (payload?.clientId && payload.clientId !== user.client_id) {
+        user.client_id = payload.clientId;
+        const cRow = await db.prepare('SELECT name FROM clients WHERE id = ?').bind(payload.clientId).first<{ name: string }>();
+        if (cRow) user.client_name = cRow.name;
+      }
+      if (!user.client_id) {
+        const match = await db.prepare('SELECT id, name FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1').bind(user.email, user.id).first<any>();
+        if (match) {
+          user.client_id = match.id;
+          user.client_name = match.name;
+        }
+      }
+    }
+
     return user ? { ...user } : null;
   } catch (err) {
     return null;
@@ -122,6 +137,21 @@ export async function getApiUser(request: Request): Promise<User | null> {
       `)
       .bind(payload.userId)
       .first<User>();
+
+    if (user && user.role === 'CLIENTE') {
+      if (payload?.clientId && payload.clientId !== user.client_id) {
+        user.client_id = payload.clientId;
+        const cRow = await db.prepare('SELECT name FROM clients WHERE id = ?').bind(payload.clientId).first<{ name: string }>();
+        if (cRow) user.client_name = cRow.name;
+      }
+      if (!user.client_id) {
+        const match = await db.prepare('SELECT id, name FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1').bind(user.email, user.id).first<any>();
+        if (match) {
+          user.client_id = match.id;
+          user.client_name = match.name;
+        }
+      }
+    }
 
     return user;
   } catch (err) {

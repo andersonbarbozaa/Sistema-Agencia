@@ -35,6 +35,7 @@ import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
 import TaskTimeTracker from '@/components/TaskTimeTracker';
 import RichTextEditor from '@/components/RichTextEditor';
+import ClientPortalView from '@/components/ClientPortalView';
 
 const STATUS_COLUMNS: TaskStatus[] = [
   'Não iniciada',
@@ -512,6 +513,16 @@ export default function TasksPage() {
 
     return (a.name || '').localeCompare(b.name || '');
   });
+
+  if (currentUser?.role === 'CLIENTE') {
+    return (
+      <ClientPortalView
+        initialTasks={tasks}
+        user={currentUser}
+        onRefresh={fetchInitialData}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">

@@ -51,15 +51,15 @@ export async function GET(request: Request) {
     params.push(wsId, wsId);
 
     // Private tasks visibility (Plano Equipe Pro)
-    if (!isAdmin(user)) {
+    if (user.role === 'COLABORADOR') {
       conditions.push("(t.visibility != 'private' OR t.visibility IS NULL OR t.created_by = ?)");
       params.push(user.id);
     }
 
     // Role-based visibility
     if (user.role === 'CLIENTE') {
-      conditions.push('t.client_id = ?');
-      params.push(user.client_id);
+      conditions.push('(t.client_id = ? OR t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (t.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?)))');
+      params.push(user.client_id || '', user.email, user.client_name || user.name);
     }
 
     if (status) {

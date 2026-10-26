@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
   { href: '/crm', label: 'CRM', icon: TrendingUp, roles: ['ADMINISTRADOR', 'COLABORADOR'] },
   { href: '/finance', label: 'Financeiro', icon: DollarSign, roles: ['ADMINISTRADOR'] },
   { href: '/agenda', label: 'Agenda', icon: Calendar },
-  { href: '/settings', label: 'Configurações', icon: Settings, roles: ['ADMINISTRADOR'] },
+  { href: '/settings', label: 'Configurações', icon: Settings },
 ];
 
 const settingsSubItems: SubMenuItem[] = [
@@ -129,9 +129,19 @@ function SidebarInner({ user }: SidebarProps) {
     setMobileOpen(false);
   }, [pathname, currentTab]);
 
-  const visibleItems = navItems.filter(
-    (item) => !item.roles || item.roles.includes(liveUser.role)
-  );
+  const visibleItems = navItems.filter((item) => {
+    if (liveUser.role === 'CLIENTE') {
+      return ['/dashboard', '/tasks', '/agenda', '/settings'].includes(item.href);
+    }
+    return !item.roles || item.roles.includes(liveUser.role);
+  });
+
+  const visibleSubItems = settingsSubItems.filter((sub) => {
+    if (liveUser.role === 'CLIENTE') {
+      return ['company', 'profile', 'appearance'].includes(sub.tab);
+    }
+    return true;
+  });
 
   const handleLogout = async () => {
     try {
@@ -232,7 +242,7 @@ function SidebarInner({ user }: SidebarProps) {
 
                   {isSectionActive && (
                     <div className="ml-5 pl-2.5 border-l border-gray-200 space-y-1 py-1">
-                      {settingsSubItems.map((sub) => {
+                      {visibleSubItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = pathname.startsWith('/settings') && currentTab === sub.tab;
                         return (
@@ -377,7 +387,7 @@ function SidebarInner({ user }: SidebarProps) {
 
                   {!collapsed && isSectionActive && (
                     <div className="ml-4 pl-2.5 border-l border-gray-200 space-y-0.5 py-1">
-                      {settingsSubItems.map((sub) => {
+                      {visibleSubItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = pathname.startsWith('/settings') && currentTab === sub.tab;
                         return (
