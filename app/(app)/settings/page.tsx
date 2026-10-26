@@ -46,8 +46,6 @@ import {
   ChevronUp,
   Zap,
   Crown,
-  Eye,
-  EyeOff,
 } from 'lucide-react';
 import { Position, TaskCategory, FinancialCategory, BankAccount } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -428,11 +426,9 @@ function SettingsContent() {
 
   // AI SETTINGS
   const [aiSettings, setAiSettings] = useState({
-    gemini_api_key: '',
     ai_system_instructions: '',
     ai_require_confirmation: 'true',
   });
-  const [showApiKey, setShowApiKey] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiSuccess, setAiSuccess] = useState(false);
 
@@ -512,7 +508,6 @@ function SettingsContent() {
             exchange_rate_eur: d.settings.exchange_rate_eur || '6.00',
           });
           setAiSettings({
-            gemini_api_key: d.settings.gemini_api_key || '',
             ai_system_instructions: d.settings.ai_system_instructions || '',
             ai_require_confirmation: d.settings.ai_require_confirmation || 'true',
           });
@@ -2306,10 +2301,10 @@ function SettingsContent() {
               <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0" />
               <div className="text-xs text-blue-900">
                 <span className="font-bold">Status do Gemini: </span>
-                {settings.gemini_configured || !!aiSettings.gemini_api_key ? (
+                {settings.gemini_configured ? (
                   <span className="text-emerald-700 font-bold">Ativo & Conectado (Chave API configurada)</span>
                 ) : (
-                  <span className="text-amber-700 font-bold">Aguardando chave GEMINI_API_KEY</span>
+                  <span className="text-amber-700 font-bold">Aguardando chave GEMINI_API_KEY no arquivo .env</span>
                 )}
               </div>
             </div>
@@ -2327,33 +2322,6 @@ function SettingsContent() {
           )}
 
           <form onSubmit={handleSaveAiSettings} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center justify-between">
-                <span>Chave de API do Google Gemini (GEMINI_API_KEY)</span>
-                <span className="text-[10px] text-gray-400 font-normal">Sincronizada no banco e ambiente</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  placeholder="Cole sua chave GEMINI_API_KEY aqui..."
-                  value={aiSettings.gemini_api_key}
-                  onChange={(e) => setAiSettings({ ...aiSettings, gemini_api_key: e.target.value })}
-                  className="w-full pl-3 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                  title={showApiKey ? 'Ocultar chave' : 'Mostrar chave'}
-                >
-                  {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Utilizada pelo assistente de IA para interpretar comandos de voz/texto, criar tarefas, finanças e leads.
-              </p>
-            </div>
-
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Instruções Personalizadas do Sistema (System Prompt)

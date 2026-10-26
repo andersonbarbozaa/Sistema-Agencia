@@ -20,9 +20,7 @@ export async function GET(request: Request) {
     }
 
     const geminiKey = (settingsObj['gemini_api_key'] || process.env.GEMINI_API_KEY || getFallbackGeminiKey() || '').trim();
-    if (geminiKey && !settingsObj['gemini_api_key']) {
-      settingsObj['gemini_api_key'] = geminiKey;
-    }
+    delete settingsObj['gemini_api_key'];
 
     const isGeminiConfigured = !!geminiKey && geminiKey !== '';
 
