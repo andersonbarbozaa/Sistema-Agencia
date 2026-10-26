@@ -206,13 +206,49 @@ export default function ClientsPage() {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/clients');
-      if (res.ok) {
-        const data = await res.json();
-        setClients(data.clients || data.data || []);
+      // Fetch clients and users simultaneously to guarantee any client created in Usuários appears immediately
+      const [clientsRes, usersRes] = await Promise.all([
+        fetch('/api/clients').catch(() => null),
+        fetch('/api/users?role=CLIENTE').catch(() => null),
+      ]);
+
+      let clientList: any[] = [];
+      if (clientsRes && clientsRes.ok) {
+        const data = await clientsRes.json();
+        clientList = data.clients || data.data || [];
       }
+
+      if (usersRes && usersRes.ok) {
+        const uData = await usersRes.json();
+        const clientUsers = (uData.users || uData.data || []).filter(
+          (u: any) => String(u.role || '').toUpperCase() === 'CLIENTE'
+        );
+        for (const u of clientUsers) {
+          const alreadyInList = clientList.some(
+            (c) =>
+              (u.client_id && c.id === u.client_id) ||
+              (c.email && u.email && c.email.toLowerCase() === u.email.toLowerCase()) ||
+              (c.name && u.name && c.name.toLowerCase() === u.name.toLowerCase())
+          );
+          if (!alreadyInList) {
+            clientList.push({
+              id: u.client_id || ('cli_' + u.id.replace(/^usr_/, '')),
+              name: u.name,
+              email: u.email,
+              phone: u.phone,
+              whatsapp: u.phone,
+              avatar_url: u.avatar_url,
+              status: u.status || 'ativo',
+              created_at: u.created_at || new Date().toISOString(),
+              updated_at: u.updated_at || new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      setClients(clientList);
     } catch (err) {
-      console.error(err);
+      console.error('fetchClients error:', err);
     } finally {
       setLoading(false);
     }
@@ -567,89 +603,101 @@ export default function ClientsPage() {
       </div>
 
       {/* Clients Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredClients.map((client) => (
-          <div
-            key={client.id}
-            onClick={() => openClientDetails(client)}
-            className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-start justify-between gap-3 mb-2">
-                {client.avatar_url ? (
-                  <img
-                    src={client.avatar_url}
-                    alt={client.name}
-                    className="w-10 h-10 rounded-full object-cover border border-gray-200 flex-shrink-0 shadow-xs"
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base flex-shrink-0">
-                    {client.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                  client.status === 'inativo'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : client.status === 'arquivado'
-                    ? 'bg-gray-100 text-gray-600 border-gray-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                }`}>
-                  {client.status || 'Ativo'}
-                </span>
-              </div>
+      {loading ? (
+        <div className="p-12 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
+          <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          Carregando clientes...
+        </div>
+      ) : filteredClients.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-gray-200">
+          <Users size={36} className="mx-auto text-gray-400 mb-2" />
+          <h4 className="font-bold text-sm text-gray-800">Nenhum cliente cadastrado</h4>
+          <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+            Cadastre um novo cliente ou adicione usuários com perfil de Cliente em Usuários para exibi-los aqui.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredClients.map((client) => (
+            <div
+              key={client.id}
+              onClick={() => openClientDetails(client)}
+              className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  {client.avatar_url ? (
+                    <img
+                      src={client.avatar_url}
+                      alt={client.name}
+                      className="w-10 h-10 rounded-full object-cover border border-gray-200 flex-shrink-0 shadow-xs"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base flex-shrink-0">
+                      {client.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    client.status === 'inativo'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : client.status === 'arquivado'
+                      ? 'bg-gray-100 text-gray-600 border-gray-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}>
+                    {client.status || 'Ativo'}
+                  </span>
+                </div>
 
-              <h3 className="font-bold text-base text-gray-900 group-hover:text-blue-600 transition-colors">
-                {client.name}
-              </h3>
-              {client.corporate_name && (
-                <p className="text-xs text-gray-500 truncate mt-0.5">{client.corporate_name}</p>
-              )}
+                <h3 className="font-bold text-base text-gray-900 group-hover:text-blue-600 transition-colors">
+                  {client.name}
+                </h3>
+                {client.corporate_name && (
+                  <p className="text-xs text-gray-500 truncate mt-0.5">{client.corporate_name}</p>
+                )}
 
-              <div className="mt-4 space-y-1.5 text-xs text-gray-600">
-                {client.city && (
-                  <div className="flex items-center gap-2">
-                    <MapPin size={13} className="text-gray-400 flex-shrink-0" />
-                    <span>{client.city}{client.state ? ` - ${client.state}` : ''}</span>
-                  </div>
-                )}
-                {client.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone size={13} className="text-gray-400 flex-shrink-0" />
-                    <span>{client.phone}</span>
-                  </div>
-                )}
-                {client.whatsapp && (
-                  <div className="flex items-center gap-2">
-                    <MessageCircle size={13} className="text-emerald-500 flex-shrink-0" />
-                    <a
-                      href={getWhatsAppUrl(client.whatsapp)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:underline text-emerald-700 font-medium"
-                      title="Abrir WhatsApp para enviar mensagem"
-                    >
-                      {client.whatsapp}
-                    </a>
-                  </div>
-                )}
-                {client.email && (
-                  <div className="flex items-center gap-2">
-                    <Mail size={13} className="text-gray-400 flex-shrink-0" />
-                    <span className="truncate">{client.email}</span>
-                  </div>
-                )}
+                <div className="mt-4 space-y-1.5 text-xs text-gray-600">
+                  {client.city && (
+                    <div className="flex items-center gap-2">
+                      <MapPin size={13} className="text-gray-400 flex-shrink-0" />
+                      <span>{client.city}{client.state ? ` - ${client.state}` : ''}</span>
+                    </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={13} className="text-gray-400 flex-shrink-0" />
+                      <span>{client.phone}</span>
+                    </div>
+                  )}
+                  {client.whatsapp && (
+                    <div className="flex items-center gap-2">
+                      <MessageCircle size={13} className="text-emerald-500 flex-shrink-0" />
+                      <a
+                        href={getWhatsAppUrl(client.whatsapp)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline text-emerald-700 font-medium"
+                        title="Abrir WhatsApp para enviar mensagem"
+                      >
+                        {client.whatsapp}
+                      </a>
+                    </div>
+                  )}
+                  {client.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail size={13} className="text-gray-400 flex-shrink-0" />
+                      <span className="truncate">{client.email}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-
-
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* CLIENT DETAIL TABS MODAL (Requisito 37)                   */}

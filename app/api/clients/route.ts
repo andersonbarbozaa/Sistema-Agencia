@@ -28,26 +28,32 @@ export async function GET(request: Request) {
 
     const db = await getDb();
 
+    // Auto-heal D1 columns if missing
+    try {
+      await db.exec('ALTER TABLE clients ADD COLUMN avatar_url TEXT');
+    } catch {}
+    try {
+      await db.exec('ALTER TABLE clients ADD COLUMN social_links TEXT');
+    } catch {}
+
     // Auto-sync: Ensure all users with role 'CLIENTE' exist as clients in clients table
     try {
       const clientUsers = await db
         .prepare(`
           SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.status, u.client_id, u.workspace_id, u.created_at, u.updated_at
           FROM users u
-          WHERE u.role = 'CLIENTE'
-            AND (u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))
+          WHERE UPPER(u.role) = 'CLIENTE'
         `)
-        .bind(wsId, wsId)
         .all();
 
       const userRows = (clientUsers.results || []) as any[];
       for (const u of userRows) {
         let existingClient: any = null;
         if (u.client_id) {
-          existingClient = await db.prepare('SELECT id FROM clients WHERE id = ?').bind(u.client_id).first();
+          existingClient = await db.prepare('SELECT id, name FROM clients WHERE id = ?').bind(u.client_id).first();
         }
         if (!existingClient && u.email) {
-          existingClient = await db.prepare('SELECT id FROM clients WHERE lower(email) = lower(?)').bind(u.email).first();
+          existingClient = await db.prepare('SELECT id, name FROM clients WHERE lower(email) = lower(?)').bind(u.email).first();
           if (existingClient) {
             await db.prepare('UPDATE users SET client_id = ? WHERE id = ?').bind(existingClient.id, u.id).run();
           }
@@ -55,22 +61,42 @@ export async function GET(request: Request) {
         if (!existingClient) {
           const newClientId = u.client_id || ('cli_' + u.id.replace(/^usr_/, ''));
           const nowStr = new Date().toISOString();
-          await db.prepare(`
-            INSERT INTO clients (
-              id, name, email, phone, whatsapp, avatar_url, status, workspace_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(
-            newClientId,
-            u.name || 'Cliente',
-            u.email || null,
-            u.phone || null,
-            u.phone || null,
-            u.avatar_url || null,
-            u.status || 'ativo',
-            u.workspace_id || wsId,
-            u.created_at || nowStr,
-            u.updated_at || nowStr
-          ).run();
+          const targetWs = u.workspace_id || wsId || 'ws_default';
+
+          try {
+            await db.prepare(`
+              INSERT INTO clients (
+                id, name, email, phone, whatsapp, avatar_url, status, workspace_id, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              newClientId,
+              u.name || 'Cliente',
+              u.email || null,
+              u.phone || null,
+              u.phone || null,
+              u.avatar_url || null,
+              u.status || 'ativo',
+              targetWs,
+              u.created_at || nowStr,
+              u.updated_at || nowStr
+            ).run();
+          } catch {
+            await db.prepare(`
+              INSERT INTO clients (
+                id, name, email, phone, whatsapp, status, workspace_id, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              newClientId,
+              u.name || 'Cliente',
+              u.email || null,
+              u.phone || null,
+              u.phone || null,
+              u.status || 'ativo',
+              targetWs,
+              u.created_at || nowStr,
+              u.updated_at || nowStr
+            ).run();
+          }
 
           await db.prepare('UPDATE users SET client_id = ? WHERE id = ?').bind(newClientId, u.id).run();
         }
@@ -83,12 +109,13 @@ export async function GET(request: Request) {
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
-    conditions.push("(c.workspace_id = ? OR (c.workspace_id IS NULL AND ? = 'ws_default'))");
+    // Allow matching current workspace, null workspace, empty workspace, or ws_default
+    conditions.push("(c.workspace_id = ? OR c.workspace_id IS NULL OR c.workspace_id = '' OR ? = 'ws_default')");
     params.push(wsId, wsId);
 
     if (search) {
-      conditions.push('(c.name LIKE ? OR c.trade_name LIKE ? OR c.document LIKE ?)');
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      conditions.push('(c.name LIKE ? OR c.trade_name LIKE ? OR c.document LIKE ? OR c.email LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     if (status) {
@@ -103,42 +130,42 @@ export async function GET(request: Request) {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    // Fetch limit + 1 to determine if there is a next page
     params.push(limit + 1);
 
-    const rows = await db
-      .prepare(
-        `SELECT
-           c.id,
-           c.name,
-           c.corporate_name,
-           c.trade_name,
-           c.avatar_url,
-           c.document,
-           c.city,
-           c.state,
-           c.email,
-           c.phone,
-           c.whatsapp,
-           c.address,
-           c.website,
-           c.instagram,
-           c.social_links,
-           c.responsible_user_id,
-           u.name AS responsible_name,
-           c.status,
-           c.created_at
-         FROM clients c
-         LEFT JOIN users u ON u.id = c.responsible_user_id
-         ${where}
-         ORDER BY c.created_at DESC
-         LIMIT ?`
-      )
-      .bind(...params)
-      .all();
+    let clients: Record<string, unknown>[] = [];
+    try {
+      const rows = await db
+        .prepare(
+          `SELECT
+             c.*,
+             u.name AS responsible_name
+           FROM clients c
+           LEFT JOIN users u ON u.id = c.responsible_user_id
+           ${where}
+           ORDER BY c.created_at DESC
+           LIMIT ?`
+        )
+        .bind(...params)
+        .all();
 
-    const clients = rows.results as Record<string, unknown>[];
+      clients = (rows.results || []) as Record<string, unknown>[];
+    } catch (queryErr) {
+      console.error('[GET /api/clients] Primary query error, falling back:', queryErr);
+      try {
+        const rows = await db
+          .prepare(
+            `SELECT c.* FROM clients c ${where} ORDER BY c.created_at DESC LIMIT ?`
+          )
+          .bind(...params)
+          .all();
+        clients = (rows.results || []) as Record<string, unknown>[];
+      } catch (fallbackErr) {
+        console.error('[GET /api/clients] Fallback query error:', fallbackErr);
+        const rows = await db.prepare('SELECT * FROM clients LIMIT ?').bind(limit + 1).all();
+        clients = (rows.results || []) as Record<string, unknown>[];
+      }
+    }
+
     const hasNextPage = clients.length > limit;
     if (hasNextPage) clients.pop();
 
@@ -149,6 +176,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       data: clients,
+      clients: clients,
       pagination: {
         limit,
         hasNextPage,
