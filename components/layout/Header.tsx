@@ -11,6 +11,7 @@ import {
   User as UserIcon,
   Settings,
   LogOut,
+  Plus,
   CheckSquare,
   Users,
   Calendar,
@@ -77,6 +78,78 @@ export default function Header({ user }: HeaderProps) {
     const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Linked clients for switching company in profile dropdown
+  const [linkedClients, setLinkedClients] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadLinkedClients() {
+      try {
+        const res = await fetch('/api/auth/switch-client');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.clients && json.clients.length > 1) {
+            setLinkedClients(json.clients);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading linked clients in header:', err);
+      }
+    }
+    loadLinkedClients();
+  }, []);
+
+  // Creation button config before notification icon
+  const getCreateButtonConfig = () => {
+    if (user?.role === 'CLIENTE') return null;
+    if (pathname.startsWith('/settings')) return null;
+
+    if (pathname.startsWith('/tasks')) {
+      return {
+        label: 'Nova Tarefa',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-task')),
+      };
+    }
+    if (pathname.startsWith('/crm')) {
+      return {
+        label: 'Novo Lead',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-lead')),
+      };
+    }
+    if (pathname.startsWith('/clients')) {
+      return {
+        label: 'Novo Cliente',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-client')),
+      };
+    }
+    if (pathname.startsWith('/agenda')) {
+      return {
+        label: 'Novo Compromisso',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-event')),
+      };
+    }
+    if (pathname.startsWith('/finance')) {
+      return {
+        label: 'Nova Transação',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-transaction')),
+      };
+    }
+    if (pathname.startsWith('/projects')) {
+      return {
+        label: 'Novo Projeto',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-project')),
+      };
+    }
+    if (pathname === '/dashboard') {
+      return {
+        label: 'Nova Tarefa',
+        action: () => router.push('/tasks?new=true'),
+      };
+    }
+    return null;
+  };
+
+  const createConfig = getCreateButtonConfig();
 
   // Search Handler with Debounce
   useEffect(() => {
@@ -644,6 +717,61 @@ export default function Header({ user }: HeaderProps) {
                   {user.job_title || user.role}
                 </span>
               </div>
+
+              {/* Seção de Trocar de Empresa/Conta (quando há mais de uma conta no mesmo email) */}
+              {linkedClients.length > 1 && (
+                <div className="border-b border-gray-100 dark:border-gray-700 py-1.5 bg-gray-50/70 dark:bg-gray-800/80">
+                  <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    Minhas Empresas ({linkedClients.length})
+                  </p>
+                  <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                    {linkedClients.map((client) => {
+                      const isCurrent = client.id === user.client_id;
+                      return (
+                        <button
+                          key={client.id}
+                          type="button"
+                          onClick={async () => {
+                            if (isCurrent) return;
+                            try {
+                              await fetch('/api/auth/switch-client', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ client_id: client.id }),
+                              });
+                              window.location.reload();
+                            } catch (err) {
+                              console.error('Error switching client:', err);
+                            }
+                          }}
+                          className={cn(
+                            'w-full flex items-center justify-between px-4 py-2 text-xs transition-colors text-left group/item',
+                            isCurrent
+                              ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-750'
+                          )}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] shrink-0 overflow-hidden font-bold">
+                              {client.avatar_url ? (
+                                <img src={client.avatar_url} alt={client.name} className="w-full h-full object-cover" />
+                              ) : (
+                                (client.name || 'C').charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <span className="truncate">{client.name}</span>
+                          </div>
+                          {isCurrent ? (
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 shrink-0">Ativo</span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 group-hover/item:text-blue-600 shrink-0 font-medium">Trocar &rarr;</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="py-1">
                 <Link

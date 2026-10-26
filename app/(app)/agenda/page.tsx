@@ -202,6 +202,12 @@ export default function AgendaPage() {
     });
   };
 
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('open-new-event', handler);
+    return () => window.removeEventListener('open-new-event', handler);
+  }, []);
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEvent.title || !newEvent.event_date || !newEvent.start_time) return;

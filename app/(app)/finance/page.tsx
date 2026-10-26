@@ -54,6 +54,12 @@ export default function FinancePage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
   const [searchQuery, setSearchQuery] = useState('');
 
+  useEffect(() => {
+    const handler = () => setShowTransModal(true);
+    window.addEventListener('open-new-transaction', handler);
+    return () => window.removeEventListener('open-new-transaction', handler);
+  }, []);
+
   // New Transaction Modal
   const [showTransModal, setShowTransModal] = useState(false);
   const [newTrans, setNewTrans] = useState({

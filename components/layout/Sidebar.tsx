@@ -432,68 +432,7 @@ function SidebarInner({ user }: SidebarProps) {
           })}
         </nav>
 
-        {/* User profile at bottom-left: Área 2 - Dados do Utilizador */}
-        <div className="border-t border-gray-200 p-3 bg-gray-50">
-          {collapsed ? (
-            <div className="flex flex-col items-center gap-2">
-              <div
-                title={`${liveUser.name} (${userRoleDisplay})`}
-                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold overflow-hidden"
-              >
-                {liveUser.avatar_url ? (
-                  <img src={liveUser.avatar_url} alt={liveUser.name} className="w-8 h-8 rounded-full object-cover" />
-                ) : (
-                  liveUser.name.charAt(0).toUpperCase()
-                )}
-              </div>
-              <button
-                onClick={handleLogout}
-                title="Sair do sistema"
-                className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <LogOut size={14} />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-2">
-              <Link
-                href="/settings?tab=profile"
-                className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-gray-100 transition-colors group"
-                title="Configurar meu perfil"
-              >
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ring-2 ring-blue-500/20 overflow-hidden">
-                  {liveUser.avatar_url ? (
-                    <img src={liveUser.avatar_url} alt={liveUser.name} className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    liveUser.name.charAt(0).toUpperCase()
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-gray-900 text-xs truncate group-hover:text-blue-600 transition-colors">
-                    <strong className="font-bold">{userFirstName}</strong>
-                    {userRestName ? ` ${userRestName}` : ''}
-                  </p>
-                  <p className="text-gray-500 text-[10px] truncate flex items-center gap-1">
-                    <span>{userRoleDisplay}</span>
-                    {liveUser.is_partner === 1 && (
-                      <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.2 rounded font-semibold">
-                        Sócio
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </Link>
 
-              <button
-                onClick={handleLogout}
-                title="Sair do sistema"
-                className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Collapse toggle */}
         <button

@@ -232,6 +232,12 @@ export default function CRMPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newLead, setNewLead] = useState(EMPTY_NEW_LEAD);
 
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('open-new-lead', handler);
+    return () => window.removeEventListener('open-new-lead', handler);
+  }, []);
+
   // Unsaved changes prompt modal (when clicking outside or X with modified fields)
   const [unsavedChangesModal, setUnsavedChangesModal] = useState<{
     isOpen: boolean;

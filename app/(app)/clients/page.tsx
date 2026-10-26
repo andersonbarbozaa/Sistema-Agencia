@@ -183,6 +183,12 @@ export default function ClientsPage() {
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc'>('name_asc');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'inativo' | 'arquivado'>('todos');
 
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('open-new-client', handler);
+    return () => window.removeEventListener('open-new-client', handler);
+  }, []);
+
   // New Client Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newClient, setNewClient] = useState({

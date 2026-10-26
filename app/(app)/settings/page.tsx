@@ -1310,6 +1310,15 @@ function SettingsContent() {
     });
   };
 
+  if (loading || !currentUser) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto py-16 text-center">
+        <div className="w-9 h-9 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Carregando configurações...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* ======================================================== */}

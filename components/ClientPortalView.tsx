@@ -45,10 +45,31 @@ interface ClientPortalViewProps {
   mode?: 'dashboard' | 'tasks';
 }
 
+function InstagramIcon({ size = 15, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
 export default function ClientPortalView({ initialTasks = [], user, counts, mode = 'tasks' }: ClientPortalViewProps) {
   const [tasks, setTasks] = useState<any[]>(initialTasks);
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'feed'>('list');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [periodFilter, setPeriodFilter] = useState<'todos' | 'semana' | 'mes'>('todos');
   const [monthFilter, setMonthFilter] = useState<string>('todos');
   const [yearFilter, setYearFilter] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -294,6 +315,27 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
   // Derived filtered tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      // Period Filter (Semana, Mês)
+      if (periodFilter === 'semana') {
+        if (!task.delivery_date) return false;
+        const d = new Date(task.delivery_date);
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        if (d < startOfWeek || d > endOfWeek) return false;
+      } else if (periodFilter === 'mes') {
+        if (!task.delivery_date) return false;
+        const d = new Date(task.delivery_date);
+        const now = new Date();
+        if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) {
+          return false;
+        }
+      }
+
       // 1. Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -869,12 +911,42 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
                 <Kanban size={15} />
                 <span>Kanban</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('feed')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all',
+                  viewMode === 'feed'
+                    ? 'bg-white text-pink-600 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                )}
+                title="Visualização em Feed Instagram (Formato 4x5)"
+              >
+                <InstagramIcon size={15} className={viewMode === 'feed' ? 'text-pink-600' : ''} />
+                <span>Feed Instagram</span>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Dropdown Filters: Status, Mês, Ano */}
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 text-xs">
+          {/* Filtro Período: Semana, Mês */}
+          <div className="flex items-center gap-1.5">
+            <Calendar size={13} className="text-gray-400" />
+            <span className="text-gray-500 font-semibold">Período:</span>
+            <select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value as any)}
+              className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-xl font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="todos">Todos os períodos</option>
+              <option value="semana">Esta Semana</option>
+              <option value="mes">Este Mês</option>
+            </select>
+          </div>
+
           <div className="flex items-center gap-1.5">
             <Filter size={13} className="text-gray-400" />
             <span className="text-gray-500 font-semibold">Status:</span>
@@ -929,10 +1001,11 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
             </select>
           </div>
 
-          {(statusFilter !== 'todos' || monthFilter !== 'todos' || yearFilter !== 'todos' || searchQuery) && (
+          {(statusFilter !== 'todos' || periodFilter !== 'todos' || monthFilter !== 'todos' || yearFilter !== 'todos' || searchQuery) && (
             <button
               onClick={() => {
                 setStatusFilter('todos');
+                setPeriodFilter('todos');
                 setMonthFilter('todos');
                 setYearFilter('todos');
                 setSearchQuery('');
@@ -1063,7 +1136,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
             })}
           </div>
         </div>
-      ) : (
+      ) : viewMode === 'kanban' ? (
         /* ======================================================== */
         /* VISUALIZAÇÃO KANBAN POR ETAPAS DE STATUS                  */
         /* ======================================================== */
@@ -1243,6 +1316,98 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
               );
             })}
           </div>
+        </div>
+      ) : (
+        /* ======================================================== */
+        /* VISUALIZAÇÃO EM FEED INSTAGRAM (Formato 4x5, 3 por linha) */
+        /* ======================================================== */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTasks.map((task) => {
+            const badge = getStatusBadge(task.status);
+            const coverUrl = getTaskCoverUrl(task);
+            const isAwaitingApproval = (task.status || '').toLowerCase().includes('aprova') && !(task.status || '').toLowerCase().includes('altera');
+            const isOverdue = task.delivery_date && task.delivery_date.split('T')[0] < todayStr;
+
+            return (
+              <div
+                key={task.id}
+                onClick={() => openTask(task.id)}
+                className={cn(
+                  'relative w-full aspect-[4/5] rounded-3xl overflow-hidden shadow-lg border bg-[#0b1329] group cursor-pointer hover:shadow-2xl hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between',
+                  isAwaitingApproval ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-gray-200 dark:border-slate-800'
+                )}
+              >
+                {/* Imagem do Post (Inserida por link na tarefa) */}
+                {coverUrl ? (
+                  <img
+                    src={coverUrl}
+                    alt={task.name}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 text-center"
+                    style={{
+                      background: `linear-gradient(135deg, ${task.category_color || '#1e3a8a'} 0%, #0b1329 100%)`,
+                    }}
+                  >
+                    <ImageIcon size={48} className="text-white/40 mb-3" />
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">
+                      {task.category_name || 'Arte do Post'}
+                    </span>
+                  </div>
+                )}
+
+                {/* TOPO: Degradê Azul Marinho com Nome da Tarefa */}
+                <div className="relative z-10 p-4 pt-5 bg-gradient-to-b from-[#0b1329]/95 via-[#0b1329]/75 to-transparent space-y-1.5 pointer-events-none">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white backdrop-blur-md">
+                      {task.category_name || 'Post'}
+                    </span>
+                    {task.comments_count ? (
+                      <span className="flex items-center gap-1 text-[11px] font-semibold text-white/90 bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-md">
+                        <MessageSquare size={12} /> {task.comments_count}
+                      </span>
+                    ) : null}
+                  </div>
+                  <h4 className="text-sm sm:text-base font-bold text-white line-clamp-2 leading-tight drop-shadow-md">
+                    {task.name}
+                  </h4>
+                </div>
+
+                {/* BASE: Degradê Azul Marinho com Status e Data Final do Post */}
+                <div className="relative z-10 p-4 pb-5 bg-gradient-to-t from-[#0b1329]/95 via-[#0b1329]/80 to-transparent space-y-2 pointer-events-none">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn('px-2.5 py-1 rounded-full text-[11px] font-bold border backdrop-blur-md shadow-xs', badge.bg)}>
+                      {badge.label}
+                    </span>
+                    <span className={cn('flex items-center gap-1.5 text-xs font-bold drop-shadow-sm', isOverdue ? 'text-red-400' : 'text-white/90')}>
+                      <Calendar size={13} className={isOverdue ? 'text-red-400' : 'text-blue-300'} />
+                      {formatDate(task.delivery_date)}
+                    </span>
+                  </div>
+
+                  {isAwaitingApproval ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openTask(task.id);
+                      }}
+                      className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md pointer-events-auto transition-colors"
+                    >
+                      <FileCheck2 size={14} />
+                      <span>Revisar & Aprovar</span>
+                    </button>
+                  ) : (
+                    <div className="text-[11px] text-blue-200/90 font-medium text-center pointer-events-none group-hover:text-white transition-colors">
+                      Clique para visualizar e comentar
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
         </>

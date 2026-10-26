@@ -60,6 +60,12 @@ export default function TasksPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customCalendars, setCustomCalendars] = useState<any[]>([]);
 
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('open-new-task', handler);
+    return () => window.removeEventListener('open-new-task', handler);
+  }, []);
+
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
   const [clientFilter, setClientFilter] = useState('');
