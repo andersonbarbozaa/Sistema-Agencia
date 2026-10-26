@@ -20,6 +20,16 @@ import {
   Archive,
   TrendingUp,
   Camera,
+  Key,
+  ShieldCheck,
+  Copy,
+  Check,
+  Share2,
+  Send,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Lock,
 } from 'lucide-react';
 import { Client } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
@@ -60,7 +70,21 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'finance'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'finance' | 'portal'>('overview');
+  const [showPortalUserModal, setShowPortalUserModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [savingPortalUser, setSavingPortalUser] = useState(false);
+  const [portalUserForm, setPortalUserForm] = useState({
+    client_id: '',
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+  });
+  const [createdPortalUser, setCreatedPortalUser] = useState<any | null>(null);
+  const [portalUsers, setPortalUsers] = useState<Record<string, any[]>>({});
+  const [loadingPortalUsers, setLoadingPortalUsers] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
   const [clientSummary, setClientSummary] = useState<any | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
@@ -116,9 +140,87 @@ export default function ClientsPage() {
     return () => window.removeEventListener('open-create-client', handleOpenCreate);
   }, []);
 
+  const fetchPortalUsers = async (clientId: string) => {
+    try {
+      setLoadingPortalUsers(true);
+      const res = await fetch('/api/clients/portal-user?client_id=' + clientId);
+      if (res.ok) {
+        const json = await res.json();
+        setPortalUsers((prev) => ({ ...prev, [clientId]: json.users || [] }));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPortalUsers(false);
+    }
+  };
+
+  const openCreatePortalUserModal = (clientId?: string) => {
+    const targetClient = clientId
+      ? clients.find((c) => c.id === clientId)
+      : (selectedClient || (clients.length > 0 ? clients[0] : null));
+    const randomPass = Math.random().toString(36).slice(-8) + 'A1!';
+    setPortalUserForm({
+      client_id: targetClient?.id || '',
+      name: targetClient?.name ? 'Contato - ' + targetClient.name : '',
+      email: targetClient?.email || '',
+      password: randomPass,
+      phone: targetClient?.whatsapp || targetClient?.phone || '',
+    });
+    setShowPassword(false);
+    setShowPortalUserModal(true);
+  };
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%';
+    let pwd = '';
+    for (let i = 0; i < 10; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPortalUserForm((prev) => ({ ...prev, password: pwd }));
+  };
+
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(label);
+    setTimeout(() => setCopiedText(null), 2500);
+  };
+
+  const handleCreatePortalUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!portalUserForm.client_id || !portalUserForm.email || !portalUserForm.password) {
+      alert('Preencha o cliente, e-mail e senha.');
+      return;
+    }
+    try {
+      setSavingPortalUser(true);
+      const res = await fetch('/api/clients/portal-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(portalUserForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Erro ao criar acesso de cliente.');
+        return;
+      }
+      setCreatedPortalUser(data);
+      setShowPortalUserModal(false);
+      if (portalUserForm.client_id) {
+        fetchPortalUsers(portalUserForm.client_id);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao processar requisição.');
+    } finally {
+      setSavingPortalUser(false);
+    }
+  };
+
   const openClientDetails = async (client: Client) => {
     setSelectedClient(client);
     setActiveTab('overview');
+    fetchPortalUsers(client.id);
     try {
       setLoadingSummary(true);
       const res = await fetch(`/api/clients/${client.id}/summary`);
@@ -625,6 +727,102 @@ export default function ClientsPage() {
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* TAB 4: ACESSO AO PORTAL */}
+              {activeTab === 'portal' && (
+                <div className="space-y-5">
+                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-indigo-600 text-white rounded-lg">
+                          <ShieldCheck size={16} />
+                        </span>
+                        <h4 className="font-bold text-sm text-gray-900">Portal Exclusivo do Cliente</h4>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1 max-w-xl">
+                        Os usuários cadastrados abaixo possuem login próprio e permissão restrita para visualizar, aprovar, reprovar, solicitar alterações e comentar nas tarefas vinculadas a <strong>{selectedClient.name}</strong>.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openCreatePortalUserModal(selectedClient.id)}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex-shrink-0"
+                    >
+                      <Plus size={14} />
+                      <span>Novo Acesso</span>
+                    </button>
+                  </div>
+
+                  {loadingPortalUsers ? (
+                    <div className="p-8 text-center text-xs text-gray-500">
+                      <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      Carregando acessos do portal...
+                    </div>
+                  ) : !portalUsers[selectedClient.id] || portalUsers[selectedClient.id].length === 0 ? (
+                    <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-8 text-center">
+                      <Key size={32} className="mx-auto text-gray-400 mb-2" />
+                      <h5 className="font-bold text-sm text-gray-800">Nenhum acesso criado ainda</h5>
+                      <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                        Crie um login com e-mail e senha para que seu cliente possa acompanhar entregas e aprovar conteúdos diretamente pelo portal.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => openCreatePortalUserModal(selectedClient.id)}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all"
+                      >
+                        <Plus size={14} />
+                        <span>Cadastrar Primeiro Acesso</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Usuários com Acesso ({portalUsers[selectedClient.id].length})
+                        </span>
+                      </div>
+
+                      <div className="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                        {portalUsers[selectedClient.id].map((user: any) => (
+                          <div key={user.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                                {user.name?.charAt(0).toUpperCase() || 'C'}
+                              </div>
+                              <div>
+                                <h5 className="font-bold text-sm text-gray-900">{user.name}</h5>
+                                <p className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+                                  <span>{user.email}</span>
+                                  {user.phone && <span>• {user.phone}</span>}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end sm:self-center">
+                              <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full text-[10px] font-bold">
+                                CLIENTE (Portal)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const url = window.location.origin + '/login?email=' + encodeURIComponent(user.email);
+                                  handleCopy(url, 'link-' + user.id);
+                                }}
+                                className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                                title="Copiar link direto de login"
+                              >
+                                {copiedText === ('link-' + user.id) ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                <span>{copiedText === ('link-' + user.id) ? 'Copiado!' : 'Copiar Link'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

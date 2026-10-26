@@ -20,24 +20,27 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Cliente nÃ£o vinculado.' }, { status: 400 });
       }
 
-      // Client's tasks
+      // Client's tasks with cover media and counts
       const tasksRes = await db
         .prepare(`
-          SELECT t.*, tc.name as category_name, tc.color as category_color, p.name as project_name
+          SELECT t.*, tc.name as category_name, tc.color as category_color, p.name as project_name,
+                 (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
+                 (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
+                 (SELECT url FROM task_media_links WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) as cover_image_url,
+                 (SELECT media_type FROM task_media_links WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) as cover_media_type
           FROM tasks t
           LEFT JOIN task_categories tc ON t.category_id = tc.id
           LEFT JOIN projects p ON t.project_id = p.id
           WHERE t.client_id = ?
           ORDER BY 
             CASE 
-              WHEN t.status = 'Em aprovaÃ§Ã£o' THEN 1
-              WHEN t.status = 'Em produÃ§Ã£o' THEN 2
-              WHEN t.status = 'Em alteraÃ§Ã£o' THEN 3
-              WHEN t.status = 'NÃ£o iniciada' THEN 4
+              WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1
+              WHEN LOWER(t.status) LIKE '%produ%' THEN 2
+              WHEN LOWER(t.status) LIKE '%altera%' THEN 3
+              WHEN LOWER(t.status) LIKE '%iniciada%' OR LOWER(t.status) LIKE '%pendente%' THEN 4
               ELSE 5
             END,
             t.delivery_date ASC
-          LIMIT 5
         `)
         .bind(clientId)
         .all();

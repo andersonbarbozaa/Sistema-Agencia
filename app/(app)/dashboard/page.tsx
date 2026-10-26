@@ -26,6 +26,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import MediaViewer from '@/components/MediaViewer';
 import ConfirmModal from '@/components/ConfirmModal';
 import FinancialSummaryDashboard from '@/components/finance/FinancialSummaryDashboard';
+import ClientPortalView from '@/components/ClientPortalView';
 import { TaskMediaLink } from '@/types';
 
 export default function DashboardPage() {
@@ -253,100 +254,15 @@ export default function DashboardPage() {
   // ==========================================
   if (data.role === 'CLIENTE') {
     return (
-      <div className="space-y-6 max-w-7xl mx-auto">
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Aguardando Sua Aprovação</span>
-              <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
-                <FileCheck2 size={20} />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-amber-600 mt-3">{data.counts?.awaiting_approval || 0}</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Em Produção</span>
-              <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
-                <Clock size={20} />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-blue-600 mt-3">{data.counts?.pending_tasks || 0}</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Concluídas</span>
-              <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
-                <CheckSquare size={20} />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-emerald-600 mt-3">{data.counts?.completed_tasks || 0}</p>
-          </div>
-        </div>
-
-        {/* Client tasks list */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-bold text-base text-gray-900">Tarefas e Entregas Recentes</h3>
-            <Link href="/tasks" className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
-              Ver todas <ArrowRight size={14} />
-            </Link>
-          </div>
-
-          <div className="divide-y divide-gray-100">
-            {data.tasks?.length === 0 ? (
-              <div className="p-8 text-center text-sm text-gray-400">
-                Nenhuma tarefa ativa no momento.
-              </div>
-            ) : (
-              data.tasks.map((task: any) => (
-                <div key={task.id} className="p-4 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: task.category_color || '#3b82f6' }}
-                      />
-                      <h4 className="font-semibold text-sm text-gray-900 truncate">{task.name}</h4>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {task.category_name ? `Categoria: ${task.category_name} • ` : ''}
-                      Prazo: <span className="font-medium text-gray-700">{formatDate(task.delivery_date)}</span>
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className={cn(
-                      'px-2.5 py-1 rounded-full text-xs font-semibold',
-                      task.status === 'Concluída' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' :
-                      task.status === 'Aprovada' ? 'bg-teal-100 text-teal-800 border border-teal-200' :
-                      task.status === 'Em alteração' ? 'bg-orange-100 text-orange-800 border border-orange-200' :
-                      task.status === 'Em aprovação' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                      task.status === 'Em produção' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                      'bg-slate-100 text-slate-700 border border-slate-200'
-                    )}>
-                      {task.status}
-                    </span>
-                    <Link
-                      href={`/tasks?id=${task.id}`}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                    >
-                      Detalhes
-                    </Link>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
+      <ClientPortalView
+        initialTasks={data.tasks || []}
+        user={data.user}
+        counts={data.counts}
+        onRefresh={fetchDashboard}
+      />
     );
   }
 
-  // ==========================================
   // ADMINISTRATOR / COLLABORATOR VIEW
   // ==========================================
   const { task_stats, urgent_tasks, upcoming_events, recent_leads, financial, partner_expenses } = data;

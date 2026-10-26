@@ -96,6 +96,64 @@ export async function POST(request: Request, { params }: RouteParams) {
       }
 
       return NextResponse.json({ success: true, status: newStatus });
+    } else if (action === 'reject') {
+      const newStatus = 'Em alteração';
+
+      await db
+        .prepare(`UPDATE tasks SET status = ?, updated_at = datetime('now') WHERE id = ?`)
+        .bind(newStatus, taskId)
+        .run();
+
+      const reason = (description && description.trim()) ? description.trim() : 'Tarefa reprovada pelo cliente.';
+
+      // Add comment
+      const commentId = generateId('com');
+      await db
+        .prepare(`
+          INSERT INTO task_comments (id, task_id, user_id, content, type, created_at)
+          VALUES (?, ?, ?, ?, 'rejection', datetime('now'))
+        `)
+        .bind(commentId, taskId, user.id, `[REPROVADA] ${reason}`)
+        .run();
+
+      // Status history
+      const histId = generateId('thist');
+      await db
+        .prepare(`
+          INSERT INTO task_status_history (id, task_id, user_id, previous_status, new_status, comment, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        `)
+        .bind(histId, taskId, user.id, prevStatus, newStatus, `Reprovada pelo cliente: ${reason}`)
+        .run();
+
+      // Audit
+      await logAudit({
+        userId: user.id,
+        action: 'REJECTION',
+        module: 'TASKS',
+        recordId: taskId,
+        beforeData: { status: prevStatus },
+        afterData: { status: newStatus, reason },
+      });
+
+      // Notify assignees and admins
+      const assignees = await db
+        .prepare('SELECT user_id FROM task_assignees WHERE task_id = ?')
+        .bind(taskId)
+        .all();
+
+      for (const a of (assignees.results || [])) {
+        await createNotification({
+          userId: a.user_id,
+          title: 'Tarefa Reprovada pelo Cliente',
+          message: `${user.name} reprovou a tarefa "${task.name}": "${reason.substring(0, 100)}"`,
+          type: 'client_rejection',
+          referenceModule: 'tasks',
+          referenceId: taskId,
+        });
+      }
+
+      return NextResponse.json({ success: true, status: newStatus });
     } else if (action === 'approve') {
       const newStatus = 'Aprovada';
 

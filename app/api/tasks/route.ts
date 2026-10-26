@@ -31,6 +31,8 @@ export async function GET(request: Request) {
              tc.name as category_name, tc.color as category_color,
              u.name as created_by_name,
              (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
+             (SELECT url FROM task_media_links WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) as cover_image_url,
+             (SELECT media_type FROM task_media_links WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) as cover_media_type,
              (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
              (SELECT status FROM task_deletion_requests WHERE task_id = t.id AND status = 'pending' LIMIT 1) as deletion_request_status,
              (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
