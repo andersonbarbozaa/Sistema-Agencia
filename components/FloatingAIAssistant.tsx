@@ -210,6 +210,8 @@ export default function FloatingAIAssistant({ user }: FloatingAIAssistantProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           interpretation_id: interp.id,
+          action: interp.detected_action,
+          detected_action: interp.detected_action,
           payload: interp.structured_payload,
         }),
       });

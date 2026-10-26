@@ -21,7 +21,7 @@ AÇÕES RECONHECIDAS:
 2. TRANSACTION: Lançamento financeiro. Campos: description (obrigatório), amount (número obrigatório), type ('Entrada' ou 'Saída', obrigatório), category_name, bank_account_name, client_name, due_date (YYYY-MM-DD), status ('Pendente' ou 'Pago'), partner_name.
 3. CLIENT: Cadastro de cliente. Campos: name (obrigatório), phone, email, city, notes. NUNCA invente campos ausentes.
 4. PROJECT: Criação de projeto. Campos: name (obrigatório), client_name, deadline, value.
-5. CRM_LEAD: Cadastro de lead. Campos: contact_name (obrigatório), company, phone, email, city, platform.
+5. CRM_LEAD: Cadastro de lead. Campos: contact_name (obrigatório), company, phone, email, city, platform, segment (ramo de atuação), website, instagram, facebook, linkedin, description.
 6. CRM_INTERACTION: Registro de histórico de contato. Campos: contact_name ou company (obrigatório), platform ('WhatsApp', 'Ligação', 'E-mail', etc.), message (resumo do que ocorreu), notes.
 7. CALENDAR_EVENT: Compromisso ou reunião na agenda. Campos: title (obrigatório), client_name, event_date (YYYY-MM-DD), start_time (HH:MM), end_time (HH:MM), location, description.
 8. COMMENT: Comentário em tarefa.

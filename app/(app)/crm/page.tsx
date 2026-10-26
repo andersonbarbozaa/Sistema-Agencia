@@ -241,10 +241,14 @@ export default function CRMPage() {
     fetchLeads();
     const handleOpenCreate = () => setShowCreateModal(true);
     window.addEventListener('open-create-lead', handleOpenCreate);
+    window.addEventListener('ai-action-completed', fetchLeads);
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === 'true') {
       setShowCreateModal(true);
     }
-    return () => window.removeEventListener('open-create-lead', handleOpenCreate);
+    return () => {
+      window.removeEventListener('open-create-lead', handleOpenCreate);
+      window.removeEventListener('ai-action-completed', fetchLeads);
+    };
   }, []);
 
   const openLeadDetails = async (lead: CRMLead) => {

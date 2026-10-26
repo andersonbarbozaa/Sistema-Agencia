@@ -1,10 +1,8 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { generateId } from '@/lib/utils';
-import { notifyAdmins } from '@/lib/notifications';
 
 export async function POST(request: Request) {
   try {
@@ -17,10 +15,12 @@ export async function POST(request: Request) {
     const { interpretation_id, action, payload } = body;
 
     const db = getDb();
+    const wsId = user.workspace_id || 'ws_default';
 
     // Verify interpretation if id provided
+    let interp: any = null;
     if (interpretation_id) {
-      const interp = await db
+      interp = await db
         .prepare('SELECT * FROM ai_interpretations WHERE id = ?')
         .bind(interpretation_id)
         .first<any>();
@@ -30,8 +30,18 @@ export async function POST(request: Request) {
       }
     }
 
-    const detectedAction = action || body.detected_action;
-    const data = payload || body.structured_payload || {};
+    let parsedInterpPayload: any = {};
+    if (interp?.structured_payload) {
+      try {
+        parsedInterpPayload =
+          typeof interp.structured_payload === 'string'
+            ? JSON.parse(interp.structured_payload)
+            : interp.structured_payload;
+      } catch {}
+    }
+
+    const detectedAction = action || body.detected_action || interp?.detected_action;
+    const data = payload || body.structured_payload || parsedInterpPayload || {};
 
     let createdId = null;
 
@@ -49,34 +59,66 @@ export async function POST(request: Request) {
           if (clientRow) clientId = clientRow.id;
         }
         if (!clientId) {
-          const firstClient = await db.prepare('SELECT id FROM clients LIMIT 1').first<any>();
+          const firstClient = await db
+            .prepare('SELECT id FROM clients WHERE workspace_id = ? OR workspace_id IS NULL LIMIT 1')
+            .bind(wsId)
+            .first<any>();
           clientId = firstClient?.id || 'cli_santacasa';
         }
 
         // Resolve delivery date
         let deliveryDate = data.delivery_date;
-        if (!deliveryDate || deliveryDate.includes('sexta') || deliveryDate.includes('hoje') || deliveryDate.includes('amanhã')) {
+        if (
+          !deliveryDate ||
+          !String(deliveryDate).match(/^\d{4}-\d{2}-\d{2}$/)
+        ) {
           const d = new Date();
-          d.setDate(d.getDate() + 5);
+          const lowerDate = String(deliveryDate || '').toLowerCase();
+          if (lowerDate.includes('hoje')) {
+            // hoje
+          } else if (lowerDate.includes('amanh')) {
+            d.setDate(d.getDate() + 1);
+          } else {
+            d.setDate(d.getDate() + 5);
+          }
           deliveryDate = d.toISOString().split('T')[0];
         }
 
         const taskId = generateId('task');
-        await db
-          .prepare(`
-            INSERT INTO tasks (id, name, description, client_id, delivery_date, value, status, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'Não iniciada', ?, datetime('now'), datetime('now'))
-          `)
-          .bind(
-            taskId,
-            taskName,
-            data.description || null,
-            clientId,
-            deliveryDate,
-            Number(data.value) || 0,
-            user.id
-          )
-          .run();
+        try {
+          await db
+            .prepare(`
+              INSERT INTO tasks (id, name, description, client_id, delivery_date, value, status, created_by, workspace_id, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, 'Não iniciada', ?, ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              taskId,
+              taskName,
+              data.description || null,
+              clientId,
+              deliveryDate,
+              Number(data.value) || 0,
+              user.id,
+              wsId
+            )
+            .run();
+        } catch {
+          await db
+            .prepare(`
+              INSERT INTO tasks (id, name, description, client_id, delivery_date, value, status, created_by, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, 'Não iniciada', ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              taskId,
+              taskName,
+              data.description || null,
+              clientId,
+              deliveryDate,
+              Number(data.value) || 0,
+              user.id
+            )
+            .run();
+        }
 
         // Assignee if matched
         if (data.assignee_name) {
@@ -127,31 +169,58 @@ export async function POST(request: Request) {
         }
 
         const transId = generateId('tra');
-        const dueDate = data.due_date || new Date().toISOString().split('T')[0];
+        const dueDate = data.due_date && String(data.due_date).match(/^\d{4}-\d{2}-\d{2}$/)
+          ? data.due_date
+          : new Date().toISOString().split('T')[0];
         const status = data.status || 'Pendente';
         const paidAt = status === 'Pago' ? (data.paid_at || new Date().toISOString().split('T')[0]) : null;
 
-        await db
-          .prepare(`
-            INSERT INTO financial_transactions (
-              id, description, amount, type, category_id, bank_account_id, created_by, due_date, paid_at, status, notes, created_at, updated_at
+        try {
+          await db
+            .prepare(`
+              INSERT INTO financial_transactions (
+                id, description, amount, type, category_id, bank_account_id, created_by, workspace_id, due_date, paid_at, status, notes, created_at, updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              transId,
+              desc,
+              amount,
+              type,
+              categoryId,
+              bankId,
+              user.id,
+              wsId,
+              dueDate,
+              paidAt,
+              status,
+              data.notes || 'Criado via confirmação de IA'
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `)
-          .bind(
-            transId,
-            desc,
-            amount,
-            type,
-            categoryId,
-            bankId,
-            user.id,
-            dueDate,
-            paidAt,
-            status,
-            data.notes || 'Criado via confirmação de IA'
-          )
-          .run();
+            .run();
+        } catch {
+          await db
+            .prepare(`
+              INSERT INTO financial_transactions (
+                id, description, amount, type, category_id, bank_account_id, created_by, due_date, paid_at, status, notes, created_at, updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              transId,
+              desc,
+              amount,
+              type,
+              categoryId,
+              bankId,
+              user.id,
+              dueDate,
+              paidAt,
+              status,
+              data.notes || 'Criado via confirmação de IA'
+            )
+            .run();
+        }
 
         createdId = transId;
         break;
@@ -161,40 +230,113 @@ export async function POST(request: Request) {
         const clientName = data.name || 'Novo Cliente';
         const clientId = generateId('cli');
 
-        await db
-          .prepare(`
-            INSERT INTO clients (id, name, phone, city, notes, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
-          `)
-          .bind(clientId, clientName, data.phone || null, data.city || null, data.notes || 'Cadastrado via IA')
-          .run();
+        try {
+          await db
+            .prepare(`
+              INSERT INTO clients (id, name, email, phone, whatsapp, city, notes, status, workspace_id, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'ativo', ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              clientId,
+              clientName,
+              data.email || null,
+              data.phone || null,
+              data.whatsapp || data.phone || null,
+              data.city || null,
+              data.notes || 'Cadastrado via IA',
+              wsId
+            )
+            .run();
+        } catch {
+          await db
+            .prepare(`
+              INSERT INTO clients (id, name, phone, city, notes, status, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, 'ativo', datetime('now'), datetime('now'))
+            `)
+            .bind(clientId, clientName, data.phone || null, data.city || null, data.notes || 'Cadastrado via IA')
+            .run();
+        }
 
         createdId = clientId;
         break;
       }
 
+      case 'PROJECT': {
+        const projectName = data.name || 'Novo Projeto';
+        const projectId = generateId('prj');
+        let clientId = data.client_id || null;
+        if (!clientId && data.client_name) {
+          const clientRow = await db
+            .prepare('SELECT id FROM clients WHERE lower(name) LIKE lower(?) LIMIT 1')
+            .bind(`%${data.client_name}%`)
+            .first<any>();
+          if (clientRow) clientId = clientRow.id;
+        }
+
+        try {
+          await db
+            .prepare(`
+              INSERT INTO projects (id, name, client_id, status, deadline, value, workspace_id, created_at, updated_at)
+              VALUES (?, ?, ?, 'Em andamento', ?, ?, ?, datetime('now'), datetime('now'))
+            `)
+            .bind(projectId, projectName, clientId, data.deadline || null, Number(data.value) || 0, wsId)
+            .run();
+        } catch {
+          await db
+            .prepare(`
+              INSERT INTO projects (id, name, client_id, status, created_at, updated_at)
+              VALUES (?, ?, ?, 'Em andamento', datetime('now'), datetime('now'))
+            `)
+            .bind(projectId, projectName, clientId)
+            .run();
+        }
+
+        createdId = projectId;
+        break;
+      }
+
       case 'CALENDAR_EVENT': {
         const eventId = generateId('cal');
-        const eventDate = data.event_date && data.event_date.match(/^\d{4}-\d{2}-\d{2}$/)
+        const eventDate = data.event_date && String(data.event_date).match(/^\d{4}-\d{2}-\d{2}$/)
           ? data.event_date
           : new Date().toISOString().split('T')[0];
 
-        await db
-          .prepare(`
-            INSERT INTO calendar_events (id, title, description, event_date, start_time, end_time, location, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          `)
-          .bind(
-            eventId,
-            data.title || 'Compromisso',
-            data.description || null,
-            eventDate,
-            data.start_time || '14:00',
-            data.end_time || '15:00',
-            data.location || null,
-            user.id
-          )
-          .run();
+        try {
+          await db
+            .prepare(`
+              INSERT INTO calendar_events (id, title, description, event_date, start_time, end_time, location, created_by, workspace_id, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              eventId,
+              data.title || 'Compromisso',
+              data.description || null,
+              eventDate,
+              data.start_time || '14:00',
+              data.end_time || '15:00',
+              data.location || null,
+              user.id,
+              wsId
+            )
+            .run();
+        } catch {
+          await db
+            .prepare(`
+              INSERT INTO calendar_events (id, title, description, event_date, start_time, end_time, location, created_by, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `)
+            .bind(
+              eventId,
+              data.title || 'Compromisso',
+              data.description || null,
+              eventDate,
+              data.start_time || '14:00',
+              data.end_time || '15:00',
+              data.location || null,
+              user.id
+            )
+            .run();
+        }
 
         createdId = eventId;
         break;
@@ -202,23 +344,62 @@ export async function POST(request: Request) {
 
       case 'CRM_LEAD': {
         const leadId = generateId('lead');
-        await db
-          .prepare(`
-            INSERT INTO crm_leads (id, contact_name, company, phone, email, city, first_contact_date, platform, status, notes, last_activity_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, datetime('now'), datetime('now'), datetime('now'))
-          `)
-          .bind(
-            leadId,
-            data.contact_name || 'Contato',
-            data.company || null,
-            data.phone || null,
-            data.email || null,
-            data.city || null,
-            new Date().toISOString().split('T')[0],
-            data.platform || 'WhatsApp',
-            data.notes || null
-          )
-          .run();
+        const phoneVal = data.phone || data.whatsapp || null;
+        const whatsappVal = data.whatsapp || data.phone || null;
+        const platformVal = data.platform || data.source || 'WhatsApp';
+        const firstContact = new Date().toISOString().split('T')[0];
+
+        try {
+          await db
+            .prepare(`
+              INSERT INTO crm_leads (
+                id, contact_name, company, phone, whatsapp, email, city, first_contact_date,
+                platform, source, status, notes, workspace_id, website, facebook, linkedin,
+                instagram, segment, description, last_activity_at, created_at, updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+            `)
+            .bind(
+              leadId,
+              data.contact_name || 'Contato',
+              data.company || null,
+              phoneVal,
+              whatsappVal,
+              data.email || null,
+              data.city || null,
+              firstContact,
+              platformVal,
+              platformVal,
+              data.notes || null,
+              wsId,
+              data.website || null,
+              data.facebook || null,
+              data.linkedin || null,
+              data.instagram || null,
+              data.segment || null,
+              data.description || null
+            )
+            .run();
+        } catch {
+          await db
+            .prepare(`
+              INSERT INTO crm_leads (id, contact_name, company, phone, email, city, first_contact_date, platform, status, notes, workspace_id, last_activity_at, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Novo', ?, ?, datetime('now'), datetime('now'), datetime('now'))
+            `)
+            .bind(
+              leadId,
+              data.contact_name || 'Contato',
+              data.company || null,
+              phoneVal,
+              data.email || null,
+              data.city || null,
+              firstContact,
+              platformVal,
+              data.notes || null,
+              wsId
+            )
+            .run();
+        }
 
         createdId = leadId;
         break;
