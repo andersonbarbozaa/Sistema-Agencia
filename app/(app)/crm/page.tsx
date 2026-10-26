@@ -164,6 +164,27 @@ function buildSocialUrl(network: string, rawValue: string): string {
   return `https://${val}`;
 }
 
+function getFullAddress(lead: { address?: string | null; city?: string | null } | null | undefined): string {
+  if (!lead) return '';
+  const parts: string[] = [];
+  if (lead.address && lead.address.trim()) parts.push(lead.address.trim());
+  if (lead.city && lead.city.trim()) {
+    const cityTrimmed = lead.city.trim();
+    if (!lead.address || !lead.address.toLowerCase().includes(cityTrimmed.toLowerCase())) {
+      parts.push(cityTrimmed);
+    }
+  }
+  return parts.join(', ');
+}
+
+function getGoogleMapsUrl(query: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function getWazeUrl(query: string): string {
+  return `https://waze.com/ul?q=${encodeURIComponent(query)}&navigate=yes`;
+}
+
 export default function CRMPage() {
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
@@ -196,6 +217,7 @@ export default function CRMPage() {
     whatsapp: '',
     email: '',
     city: '',
+    address: '',
     platform: 'WhatsApp',
     notes: '',
     website: '',
@@ -244,6 +266,7 @@ export default function CRMPage() {
     whatsapp: '',
     email: '',
     city: '',
+    address: '',
     platform: 'WhatsApp',
     status: 'Novo',
     estimated_value: 0,
@@ -266,6 +289,7 @@ export default function CRMPage() {
       whatsapp: lead.whatsapp || lead.phone || '',
       email: lead.email || '',
       city: lead.city || '',
+      address: lead.address || '',
       platform: lead.platform || lead.source || 'WhatsApp',
       status: lead.status || 'Novo',
       estimated_value: lead.estimated_value || 0,
@@ -712,7 +736,21 @@ export default function CRMPage() {
 
                         <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
                           <span>{lead.platform || 'WhatsApp'}</span>
-                          <span>{lead.city || ''}</span>
+                          {getFullAddress(lead) ? (
+                            <a
+                              href={getGoogleMapsUrl(getFullAddress(lead))}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5 truncate max-w-[140px]"
+                              title={`Abrir no Google Maps: ${getFullAddress(lead)}`}
+                            >
+                              <MapPin size={10} className="shrink-0" />
+                              <span className="truncate">{lead.address || lead.city}</span>
+                            </a>
+                          ) : (
+                            <span>{lead.city || ''}</span>
+                          )}
                         </div>
                       </div>
                     );
@@ -793,7 +831,7 @@ export default function CRMPage() {
                     className="py-3.5 px-4 cursor-pointer hover:text-gray-900 transition-colors"
                   >
                     <div className="flex items-center gap-1">
-                      <span>Cidade</span>
+                      <span>Endereço / Cidade</span>
                       {sortField === 'city' ? (
                         sortDirection === 'asc' ? <ChevronUp size={14} className="text-blue-600" /> : <ChevronDown size={14} className="text-blue-600" />
                       ) : (
@@ -841,7 +879,39 @@ export default function CRMPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-gray-700 font-medium">
-                      {l.city || '-'}
+                      {(() => {
+                        const fullAddr = getFullAddress(l);
+                        if (!fullAddr) return '-';
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="truncate max-w-[200px]" title={fullAddr}>
+                              {l.address ? `${l.address}${l.city ? ` (${l.city})` : ''}` : l.city}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a
+                                href={getGoogleMapsUrl(fullAddr)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                                title="Abrir no Google Maps"
+                              >
+                                <MapPin size={13} />
+                              </a>
+                              <a
+                                href={getWazeUrl(fullAddr)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded transition-colors"
+                                title="Abrir no Waze"
+                              >
+                                Waze
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-4 text-gray-500">
                       {formatDate(l.last_activity_at)}
@@ -925,9 +995,50 @@ export default function CRMPage() {
                   <span className="text-gray-400">Origem / Plataforma:</span>
                   <p className="font-semibold text-gray-800 mt-1">{selectedLead.platform || selectedLead.source || '-'}</p>
                 </div>
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <span className="text-gray-400">Cidade:</span>
-                  <p className="font-semibold text-gray-800 mt-1">{selectedLead.city || '-'}</p>
+                <div className="p-3 bg-gray-50 rounded-xl sm:col-span-2">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-gray-400 font-semibold flex items-center gap-1">
+                      <MapPin size={12} className="text-blue-600" />
+                      Endereço & Localização:
+                    </span>
+                    {getFullAddress(selectedLead) && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <a
+                          href={getGoogleMapsUrl(getFullAddress(selectedLead))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 rounded-md text-[10px] font-bold shadow-2xs transition-colors"
+                          title="Abrir no Google Maps"
+                        >
+                          <MapPin size={10} />
+                          <span>Google Maps</span>
+                          <ExternalLink size={9} />
+                        </a>
+                        <a
+                          href={getWazeUrl(getFullAddress(selectedLead))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-cyan-200 text-cyan-800 hover:bg-cyan-50 rounded-md text-[10px] font-bold shadow-2xs transition-colors"
+                          title="Abrir no Waze"
+                        >
+                          <span>Waze</span>
+                          <ExternalLink size={9} />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  <p className="font-semibold text-gray-800">
+                    {selectedLead.address ? (
+                      <>
+                        <span>{selectedLead.address}</span>
+                        {selectedLead.city && (
+                          <span className="text-gray-500 font-normal"> • {selectedLead.city}</span>
+                        )}
+                      </>
+                    ) : (
+                      selectedLead.city || '-'
+                    )}
+                  </p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-400">Ramo de Atuação:</span>
@@ -1176,11 +1287,25 @@ export default function CRMPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                      <MapPin size={13} className="text-blue-500" />
+                      Endereço
+                    </label>
                     <input
                       type="text"
-                      placeholder="Ex: Araçatuba"
+                      placeholder="Ex: Av. Paulista, 1000 - Bela Vista"
+                      value={newLead.address}
+                      onChange={(e) => setNewLead({ ...newLead, address: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Cidade / Estado</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Araçatuba - SP"
                       value={newLead.city}
                       onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -1455,10 +1580,25 @@ export default function CRMPage() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Cidade</label>
+                  <div className="md:col-span-2">
+                    <label className="block font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                      <MapPin size={13} className="text-blue-500" />
+                      Endereço
+                    </label>
                     <input
                       type="text"
+                      placeholder="Ex: Av. Paulista, 1000 - Bela Vista"
+                      value={editLead.address}
+                      onChange={(e) => setEditLead({ ...editLead, address: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Cidade / Estado</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Araçatuba - SP"
                       value={editLead.city}
                       onChange={(e) => setEditLead({ ...editLead, city: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"

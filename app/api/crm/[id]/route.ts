@@ -88,6 +88,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     try {
       await db.prepare('ALTER TABLE crm_leads ADD COLUMN social_links TEXT').run();
     } catch {}
+    try {
+      await db.prepare('ALTER TABLE crm_leads ADD COLUMN address TEXT').run();
+    } catch {}
 
     const allowedFields = [
       'contact_name',
@@ -96,6 +99,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       'phone',
       'whatsapp',
       'city',
+      'address',
       'platform',
       'source',
       'status',

@@ -148,6 +148,7 @@ function getLocalDatabase(): D1DatabaseInterface {
         ALTER TABLE crm_leads ADD COLUMN segment TEXT;
         ALTER TABLE crm_leads ADD COLUMN description TEXT;
         ALTER TABLE crm_leads ADD COLUMN social_links TEXT;
+        ALTER TABLE crm_leads ADD COLUMN address TEXT;
 
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,

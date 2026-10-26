@@ -17,6 +17,7 @@ async function ensureCrmLeadsSchema(db: any) {
           phone TEXT,
           whatsapp TEXT,
           city TEXT,
+          address TEXT,
           platform TEXT,
           source TEXT,
           status TEXT NOT NULL DEFAULT 'Novo',
@@ -55,6 +56,7 @@ async function ensureCrmLeadsSchema(db: any) {
     'ALTER TABLE crm_leads ADD COLUMN segment TEXT',
     'ALTER TABLE crm_leads ADD COLUMN description TEXT',
     'ALTER TABLE crm_leads ADD COLUMN social_links TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN address TEXT',
   ];
   for (const sql of alters) {
     try {
@@ -160,6 +162,7 @@ export async function POST(request: NextRequest) {
     const phone = body.phone || body.whatsapp || null;
     const whatsapp = body.whatsapp || body.phone || null;
     const city = body.city ?? null;
+    const address = body.address ?? null;
     const platform = body.platform || body.source || 'WhatsApp';
     const source = body.source || body.platform || 'WhatsApp';
     const status = body.status ?? 'Novo';
@@ -192,8 +195,8 @@ export async function POST(request: NextRequest) {
       await db
         .prepare(
           `INSERT INTO crm_leads
-            (id, contact_name, company, email, phone, whatsapp, city, platform, source, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, contact_name, company, email, phone, whatsapp, city, address, platform, source, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -203,6 +206,7 @@ export async function POST(request: NextRequest) {
           phone,
           whatsapp,
           city,
+          address,
           platform,
           source,
           status,

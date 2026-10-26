@@ -270,6 +270,7 @@ export interface CRMLead {
   whatsapp?: string | null;
   email?: string | null;
   city?: string | null;
+  address?: string | null;
   first_contact_date?: string;
   platform?: string | null;
   source?: string | null;
