@@ -659,10 +659,16 @@ export default function ClientsPage() {
                 )}
 
                 <div className="mt-4 space-y-1.5 text-xs text-gray-600">
-                  {client.city && (
+                  {client.document && (
                     <div className="flex items-center gap-2">
-                      <MapPin size={13} className="text-gray-400 flex-shrink-0" />
-                      <span>{client.city}{client.state ? ` - ${client.state}` : ''}</span>
+                      <FileText size={13} className="text-gray-400 flex-shrink-0" />
+                      <span className="font-medium text-gray-700">CNPJ: {client.document}</span>
+                    </div>
+                  )}
+                  {client.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail size={13} className="text-gray-400 flex-shrink-0" />
+                      <span className="truncate">{client.email}</span>
                     </div>
                   )}
                   {client.phone && (
@@ -686,13 +692,50 @@ export default function ClientsPage() {
                       </a>
                     </div>
                   )}
-                  {client.email && (
+                  {(client.address || client.city) && (
+                    <div className="flex items-start gap-2">
+                      <MapPin size={13} className="text-gray-400 flex-shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">
+                        {client.address ? `${client.address}${client.city ? ` - ${client.city}` : ''}${client.state ? ` (${client.state})` : ''}` : `${client.city}${client.state ? ` - ${client.state}` : ''}`}
+                      </span>
+                    </div>
+                  )}
+                  {client.website && (
                     <div className="flex items-center gap-2">
-                      <Mail size={13} className="text-gray-400 flex-shrink-0" />
-                      <span className="truncate">{client.email}</span>
+                      <ExternalLink size={13} className="text-blue-500 flex-shrink-0" />
+                      <a
+                        href={client.website.startsWith('http') ? client.website : `https://${client.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="truncate text-blue-600 hover:underline font-medium"
+                        title="Acessar site do cliente"
+                      >
+                        {client.website.replace(/^https?:\/\//, '')}
+                      </a>
+                    </div>
+                  )}
+                  {client.instagram && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-pink-600 flex-shrink-0">IG:</span>
+                      <a
+                        href={`https://instagram.com/${client.instagram.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-pink-600 hover:underline font-medium truncate"
+                      >
+                        {client.instagram.startsWith('@') ? client.instagram : `@${client.instagram}`}
+                      </a>
                     </div>
                   )}
                 </div>
+
+                {client.notes && (
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 text-[11px] text-gray-500 line-clamp-2 italic">
+                    {client.notes}
+                  </div>
+                )}
               </div>
             </div>
           ))}

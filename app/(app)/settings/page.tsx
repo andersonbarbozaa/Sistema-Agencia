@@ -476,8 +476,10 @@ function SettingsContent() {
         fetch('/api/workspaces/current'),
       ]);
 
+      let fetchedMe = null;
       if (meRes.ok) {
         const meData = await meRes.json();
+        fetchedMe = meData.user;
         const me = meData.user;
         setCurrentUser(me);
         setProfileForm((prev: any) => ({
@@ -497,7 +499,27 @@ function SettingsContent() {
 
       if (wsRes.ok) {
         const wsData = await wsRes.json();
-        setWorkspaceData(wsData.workspace || null);
+        const ws = wsData.workspace || null;
+        setWorkspaceData(ws);
+        if (ws && (fetchedMe?.role === 'CLIENTE' || ws.is_client_company)) {
+          setProfileForm((prev: any) => ({
+            ...prev,
+            company_name: ws.name || '',
+            corporate_name: ws.corporate_name || '',
+            document: ws.document || '',
+            company_email: ws.email || '',
+            company_phone: ws.phone || '',
+            company_whatsapp: ws.whatsapp || '',
+            company_address: ws.address || '',
+            company_city: ws.city || '',
+            company_state: ws.state || '',
+            company_website: ws.website || '',
+            company_instagram: ws.instagram || '',
+            company_description: ws.description || ws.notes || '',
+            company_logo: ws.logo_url || '',
+            company_status: ws.status || 'ativo',
+          }));
+        }
       }
 
       if (uRes.ok) {
@@ -604,6 +626,21 @@ function SettingsContent() {
 
   const handleCompanyLogoChange = async (dataUrl: string) => {
     setProfileForm((prev) => ({ ...prev, company_logo: dataUrl }));
+    if (currentUser?.role === 'CLIENTE') {
+      try {
+        await fetch('/api/workspaces/current', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ logo_url: dataUrl }),
+        });
+        setCompanySuccess(true);
+        setTimeout(() => setCompanySuccess(false), 3000);
+        await fetchData();
+      } catch (err) {
+        console.error('Erro ao salvar logo da empresa do cliente:', err);
+      }
+      return;
+    }
     if (currentUser?.role === 'ADMINISTRADOR') {
       try {
         const companyName = profileForm.company_name?.trim() || currentUser.workspace_name || 'Empresa';
@@ -692,7 +729,8 @@ function SettingsContent() {
   // Update Company Profile (Workspace)
   const handleUpdateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || currentUser.role !== 'ADMINISTRADOR') return;
+    if (!currentUser) return;
+    if (currentUser.role !== 'ADMINISTRADOR' && currentUser.role !== 'CLIENTE') return;
 
     if (!profileForm.company_name?.trim()) {
       alert('O Nome da Empresa é obrigatório.');
@@ -701,6 +739,36 @@ function SettingsContent() {
 
     try {
       setCompanySaving(true);
+      if (currentUser.role === 'CLIENTE') {
+        const res = await fetch('/api/workspaces/current', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: profileForm.company_name.trim(),
+            corporate_name: profileForm.corporate_name ? profileForm.corporate_name.trim() : '',
+            document: profileForm.document ? profileForm.document.trim() : '',
+            email: profileForm.company_email ? profileForm.company_email.trim() : '',
+            phone: profileForm.company_phone ? profileForm.company_phone.trim() : '',
+            whatsapp: profileForm.company_whatsapp ? profileForm.company_whatsapp.trim() : '',
+            address: profileForm.company_address ? profileForm.company_address.trim() : '',
+            city: profileForm.company_city ? profileForm.company_city.trim() : '',
+            state: profileForm.company_state ? profileForm.company_state.trim() : '',
+            website: profileForm.company_website ? profileForm.company_website.trim() : '',
+            instagram: profileForm.company_instagram ? profileForm.company_instagram.trim() : '',
+            notes: profileForm.company_description ? profileForm.company_description.trim() : '',
+            logo_url: profileForm.company_logo || null,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(err.error || 'Erro ao atualizar dados da empresa.');
+          return;
+        }
+        setCompanySuccess(true);
+        setTimeout(() => setCompanySuccess(false), 3000);
+        await fetchData();
+        return;
+      }
       const cleanName = profileForm.company_name.trim();
       const cleanDesc = profileForm.company_description ? profileForm.company_description.trim() : null;
       const cleanLogo = profileForm.company_logo || null;
@@ -1524,8 +1592,8 @@ function SettingsContent() {
             />
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-gray-900">Meu Perfil Pessoal</h3>
-              <p className="text-xs text-gray-500">
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Meu Perfil Pessoal</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Atualize suas informações pessoais, cargo, telefone e senha de acesso.
               </p>
             </div>
@@ -1539,7 +1607,7 @@ function SettingsContent() {
 
           <form onSubmit={handleUpdateProfile} className="space-y-6">
             <div className="space-y-4">
-              <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-gray-900 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
                 <User size={15} className="text-blue-600" /> Dados Pessoais & Cargo
               </h4>
 
@@ -1594,7 +1662,7 @@ function SettingsContent() {
 
             {/* Alterar Senha */}
             <div className="pt-4 border-t border-gray-200">
-              <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Lock size={14} className="text-blue-600" /> Alterar Senha (Opcional)
               </h4>
 
@@ -1652,10 +1720,10 @@ function SettingsContent() {
             />
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-gray-900">
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
                 {isClientUser ? 'Perfil da Minha Empresa' : 'Perfil da Empresa'}
               </h3>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {isClientUser
                   ? 'Consulte e mantenha atualizados os dados cadastrais da sua empresa na agência.'
                   : 'Configure a foto de perfil da empresa, nome da empresa e ramo de atuação exibidos no sistema.'}
@@ -1674,7 +1742,7 @@ function SettingsContent() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500">Status do Cadastro na Agência:</span>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                     {profileForm.company_status || 'Ativo'}
                   </span>
                 </div>

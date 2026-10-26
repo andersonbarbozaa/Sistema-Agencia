@@ -82,14 +82,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // Password change: requires current_password verification
+      // Password change: allows updating password when authenticated
       if (body.new_password) {
-        if (!body.current_password) {
-          return NextResponse.json({ error: 'current_password is required to change password' }, { status: 400 });
-        }
-        const isValid = await verifyPassword(body.current_password, existing.password_hash as string);
-        if (!isValid) {
-          return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 });
+        if (body.current_password) {
+          const isValid = await verifyPassword(body.current_password, existing.password_hash as string);
+          if (!isValid) {
+            return NextResponse.json({ error: 'Senha atual incorreta' }, { status: 400 });
+          }
         }
         const hashedNew = await hashPassword(body.new_password);
         updates.push('password_hash = ?');

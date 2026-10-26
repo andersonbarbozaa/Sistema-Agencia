@@ -10,6 +10,7 @@ import {
   Filter,
   LayoutList,
   LayoutGrid,
+  Kanban,
   Calendar,
   MessageSquare,
   Send,
@@ -44,7 +45,7 @@ interface ClientPortalViewProps {
 
 export default function ClientPortalView({ initialTasks = [], user, counts }: ClientPortalViewProps) {
   const [tasks, setTasks] = useState<any[]>(initialTasks);
-  const [viewMode, setViewMode] = useState<'list' | 'cards'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [monthFilter, setMonthFilter] = useState<string>('todos');
   const [yearFilter, setYearFilter] = useState<string>('todos');
@@ -782,7 +783,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
             />
           </div>
 
-          {/* Toggle View: Lista vs Cards (Estilo Trello) */}
+          {/* Toggle View: Lista vs Kanban */}
           <div className="flex items-center gap-2 self-end lg:self-auto">
             <span className="text-xs text-gray-400 font-medium hidden sm:inline">Visualização:</span>
             <div className="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200/60">
@@ -802,17 +803,17 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('cards')}
+                onClick={() => setViewMode('kanban')}
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all',
-                  viewMode === 'cards'
+                  viewMode === 'kanban'
                     ? 'bg-white text-blue-600 shadow-xs'
                     : 'text-gray-500 hover:text-gray-800'
                 )}
-                title="Visualização em Cards (Estilo Trello)"
+                title="Visualização em Kanban"
               >
-                <LayoutGrid size={15} />
-                <span>Cards</span>
+                <Kanban size={15} />
+                <span>Kanban</span>
               </button>
             </div>
           </div>
@@ -1010,90 +1011,184 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
         </div>
       ) : (
         /* ======================================================== */
-        /* VISUALIZAÇÃO EM CARDS (Estilo Trello)                     */
+        /* VISUALIZAÇÃO KANBAN POR ETAPAS DE STATUS                  */
         /* ======================================================== */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {filteredTasks.map((task) => {
-            const badge = getStatusBadge(task.status);
-            const coverUrl = getTaskCoverUrl(task);
-            const isAwaitingApproval = (task.status || '').toLowerCase().includes('aprova') && !(task.status || '').toLowerCase().includes('altera');
+        <div className="overflow-x-auto pb-6">
+          <div className="flex items-start gap-4 min-w-[1100px]">
+            {[
+              {
+                id: 'nao_iniciada',
+                title: 'Não Iniciadas',
+                filter: (st: string) => {
+                  const s = (st || '').toLowerCase();
+                  return s.includes('não') || s.includes('pendente');
+                },
+                badge: 'bg-gray-100 text-gray-700 border-gray-200',
+                dot: 'bg-gray-400',
+              },
+              {
+                id: 'em_producao',
+                title: 'Em Produção',
+                filter: (st: string) => {
+                  const s = (st || '').toLowerCase();
+                  return s.includes('produ') && !s.includes('aprova');
+                },
+                badge: 'bg-blue-50 text-blue-700 border-blue-200',
+                dot: 'bg-blue-500',
+              },
+              {
+                id: 'em_aprovacao',
+                title: 'Aguardando Aprovação',
+                filter: (st: string) => {
+                  const s = (st || '').toLowerCase();
+                  return s.includes('aprova') && !s.includes('altera') && !s.includes('conclu') && !s.includes('aprovad');
+                },
+                badge: 'bg-amber-50 text-amber-800 border-amber-300 font-bold shadow-xs',
+                dot: 'bg-amber-500 animate-pulse',
+                highlight: true,
+              },
+              {
+                id: 'em_alteracao',
+                title: 'Em Alteração',
+                filter: (st: string) => {
+                  const s = (st || '').toLowerCase();
+                  return s.includes('altera');
+                },
+                badge: 'bg-purple-50 text-purple-700 border-purple-200',
+                dot: 'bg-purple-500',
+              },
+              {
+                id: 'concluida',
+                title: 'Concluídas / Aprovadas',
+                filter: (st: string) => {
+                  const s = (st || '').toLowerCase();
+                  return s.includes('conclu') || s.includes('aprovad');
+                },
+                badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                dot: 'bg-emerald-500',
+              },
+            ].map((column) => {
+              const colTasks = filteredTasks.filter((t) => column.filter(t.status));
 
-            return (
-              <div
-                key={task.id}
-                onClick={() => openTask(task.id)}
-                className={cn(
-                  'bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col overflow-hidden group hover:-translate-y-1',
-                  isAwaitingApproval ? 'ring-2 ring-amber-400' : ''
-                )}
-              >
-                {/* Imagem / Capa de Vídeo em Destaque */}
-                <div className="w-full h-44 bg-gray-100 relative overflow-hidden border-b border-gray-100">
-                  {coverUrl ? (
-                    <img
-                      src={coverUrl}
-                      alt={task.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full flex flex-col items-center justify-center text-white p-4 text-center"
-                      style={{ backgroundColor: task.category_color || '#3b82f6' }}
-                    >
-                      <ImageIcon size={36} className="opacity-60 mb-2" />
-                      <span className="text-xs font-bold uppercase tracking-wider opacity-90">
-                        {task.category_name || 'Arte Criativa'}
-                      </span>
-                    </div>
+              return (
+                <div
+                  key={column.id}
+                  className={cn(
+                    'w-72 shrink-0 rounded-2xl p-3.5 border flex flex-col max-h-[80vh] transition-all',
+                    column.highlight
+                      ? 'bg-amber-50/40 border-amber-200 ring-1 ring-amber-300/50'
+                      : 'bg-gray-50/70 border-gray-200/80'
                   )}
-
-                  {/* Top Overlay Badge */}
-                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-black/60 text-white backdrop-blur-md">
-                      {task.category_name || 'Geral'}
-                    </span>
-                    <span className={cn('px-2.5 py-1 rounded-lg text-[10px] font-bold border backdrop-blur-md shadow-sm', badge.bg)}>
-                      {badge.label}
+                >
+                  {/* Column Header */}
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200/70">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={cn('w-2 h-2 rounded-full shrink-0', column.dot)} />
+                      <h4 className="font-bold text-xs text-gray-800 truncate">{column.title}</h4>
+                    </div>
+                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0', column.badge)}>
+                      {colTasks.length}
                     </span>
                   </div>
-                </div>
 
-                {/* Card Body */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <h4 className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
-                      {task.name}
-                    </h4>
-                    {task.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2 mt-1 leading-relaxed">
-                        {task.description}
-                      </p>
+                  {/* Column Task Cards */}
+                  <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+                    {colTasks.length === 0 ? (
+                      <div className="p-6 text-center rounded-xl border border-dashed border-gray-200/90 text-gray-400 text-xs italic bg-white/40">
+                        Nenhuma tarefa
+                      </div>
+                    ) : (
+                      colTasks.map((task) => {
+                        const coverUrl = getTaskCoverUrl(task);
+                        const isAwaitingApproval = column.id === 'em_aprovacao';
+                        const isOverdue = task.delivery_date && task.delivery_date.split('T')[0] < todayStr;
+                        const isToday = task.delivery_date && task.delivery_date.split('T')[0] === todayStr;
+
+                        return (
+                          <div
+                            key={task.id}
+                            onClick={() => openTask(task.id)}
+                            className={cn(
+                              'bg-white rounded-xl border p-3 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col group hover:-translate-y-0.5',
+                              isAwaitingApproval ? 'border-amber-300 ring-1 ring-amber-400/40 bg-amber-50/10' : 'border-gray-200'
+                            )}
+                          >
+                            {/* Card Media Preview */}
+                            {coverUrl ? (
+                              <div className="w-full h-32 rounded-lg overflow-hidden mb-2.5 bg-gray-100 border border-gray-100 relative">
+                                <img
+                                  src={coverUrl}
+                                  alt={task.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                {task.category_name && (
+                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-black/60 text-white backdrop-blur-md">
+                                    {task.category_name}
+                                  </span>
+                                )}
+                              </div>
+                            ) : null}
+
+                            {/* Category Tag */}
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: task.category_color || '#3b82f6' }}
+                              />
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider truncate">
+                                {task.category_name || 'Geral'}
+                              </span>
+                            </div>
+
+                            {/* Title */}
+                            <h5 className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug mb-2">
+                              {task.name}
+                            </h5>
+
+                            {/* Footer: Date & Comments & Action */}
+                            <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                              <span
+                                className={cn(
+                                  'flex items-center gap-1 font-semibold',
+                                  isOverdue ? 'text-red-600' : isToday ? 'text-amber-600' : 'text-gray-500'
+                                )}
+                              >
+                                <Calendar size={11} />
+                                {isOverdue ? 'Atrasada (' + formatDate(task.delivery_date) + ')' : isToday ? 'Entrega Hoje!' : formatDate(task.delivery_date)}
+                              </span>
+
+                              <div className="flex items-center gap-2">
+                                {task.comments_count ? (
+                                  <span className="flex items-center gap-0.5 text-gray-400 font-medium text-[10px]">
+                                    <MessageSquare size={11} /> {task.comments_count}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {/* Action Button */}
+                            {isAwaitingApproval && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openTask(task.id);
+                                }}
+                                className="mt-2.5 w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <FileCheck2 size={13} />
+                                <span>Revisar & Aprovar</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
-
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                    <span className="flex items-center gap-1 font-medium text-gray-700">
-                      <Calendar size={13} className="text-gray-400" />
-                      {formatDate(task.delivery_date)}
-                    </span>
-
-                    <div className="flex items-center gap-2">
-                      {task.media_links_count ? (
-                        <span className="flex items-center gap-0.5 text-blue-600 font-bold text-[11px]" title="Mídias anexadas">
-                          <Paperclip size={12} /> {task.media_links_count}
-                        </span>
-                      ) : null}
-                      {task.comments_count ? (
-                        <span className="flex items-center gap-0.5 text-gray-400 font-medium text-[11px]" title="Comentários">
-                          <MessageSquare size={12} /> {task.comments_count}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
