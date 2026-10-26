@@ -289,6 +289,7 @@ export default function ClientsPage() {
 
   // Edit Client Modal
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [editClient, setEditClient] = useState({
     name: '',
     corporate_name: '',
@@ -296,6 +297,7 @@ export default function ClientsPage() {
     avatar_url: '',
     document: '',
     email: '',
+    password: '',
     phone: '',
     whatsapp: '',
     address: '',
@@ -315,6 +317,7 @@ export default function ClientsPage() {
       avatar_url: client.avatar_url || '',
       document: client.document || '',
       email: client.email || '',
+      password: '',
       phone: client.phone || '',
       whatsapp: client.whatsapp || '',
       address: client.address || '',
@@ -325,6 +328,7 @@ export default function ClientsPage() {
       status: client.status || 'ativo',
       notes: client.notes || '',
     });
+    setShowEditPassword(false);
     setShowEditModal(true);
   };
 
@@ -527,10 +531,7 @@ export default function ClientsPage() {
               </div>
             </div>
 
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-blue-600 font-semibold">
-              <span>Abrir Ficha do Cliente</span>
-              <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-            </div>
+
           </div>
         ))}
       </div>
@@ -580,7 +581,21 @@ export default function ClientsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  {selectedClient.email && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = window.location.origin + '/login?email=' + encodeURIComponent(selectedClient.email || '');
+                        handleCopy(url, 'modalLoginLink');
+                      }}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      title="Copiar link direto para o cliente fazer login no portal"
+                    >
+                      <Key size={13} />
+                      <span>{copiedText === 'modalLoginLink' ? 'Link Copiado!' : 'Link de Login'}</span>
+                    </button>
+                  )}
                   <span
                     className={cn(
                       'px-3 py-1 rounded-full text-xs font-bold capitalize',
@@ -1071,13 +1086,50 @@ export default function ClientsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail Principal</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail de Login do Cliente</label>
                   <input
                     type="email"
                     value={editClient.email}
                     onChange={(e) => setEditClient({ ...editClient, email: e.target.value })}
+                    placeholder="email@cliente.com"
                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">Utilizado para login no portal e listado em Usuários & Cargos.</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">Senha de Acesso ao Portal</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pass = Math.random().toString(36).slice(-8) + 'A1!';
+                        setEditClient((prev) => ({ ...prev, password: pass }));
+                        setShowEditPassword(true);
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                    >
+                      <RefreshCw size={11} />
+                      <span>Gerar Senha</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editClient.password}
+                      onChange={(e) => setEditClient({ ...editClient, password: e.target.value })}
+                      placeholder="Deixe em branco para manter a atual ou digite nova senha"
+                      className="w-full pl-3 pr-10 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                    >
+                      {showEditPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">Ao definir senha, ela é sincronizada automaticamente em Usuários & Cargos.</p>
                 </div>
 
                 <div>

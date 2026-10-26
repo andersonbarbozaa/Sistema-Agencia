@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Loader2,
   Building,
+  ArrowLeftRight,
   User as UserIcon,
 } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
@@ -57,6 +58,9 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
   // Comments
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [linkedClients, setLinkedClients] = useState<any[]>([]);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [switchingClient, setSwitchingClient] = useState(false);
 
   // Approval / Rejection / Change prompt
   const [actionModal, setActionModal] = useState<{
@@ -95,6 +99,46 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
   useEffect(() => {
     refreshTasks();
   }, []);
+
+  // Load linked clients sharing the user's email
+  useEffect(() => {
+    async function loadLinkedClients() {
+      try {
+        const res = await fetch('/api/auth/switch-client');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.clients && json.clients.length > 1) {
+            setLinkedClients(json.clients);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading linked clients:', err);
+      }
+    }
+    loadLinkedClients();
+  }, []);
+
+  const handleSwitchClient = async (clientId: string) => {
+    try {
+      setSwitchingClient(true);
+      const res = await fetch('/api/auth/switch-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const json = await res.json();
+        showToast(json.error || 'Erro ao trocar de empresa.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao comunicar com o servidor.', 'error');
+    } finally {
+      setSwitchingClient(false);
+    }
+  };
 
   // Fetch full task details when selected
   const openTask = async (id: string) => {
@@ -322,7 +366,19 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {linkedClients.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setShowSwitchModal(true)}
+                className="px-3.5 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-2xl text-xs font-bold border border-white/25 backdrop-blur-sm transition-all active:scale-95 flex items-center gap-2 shadow-sm"
+                title="Trocar de empresa ou conta vinculada"
+              >
+                <ArrowLeftRight size={15} />
+                <span>Trocar Empresa ({linkedClients.length})</span>
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setStatusFilter('para_aprovacao');
@@ -1095,6 +1151,91 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
           {toast.type === 'success' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
           <span>{toast.message}</span>
         </div>
+      )}
+      {/* ======================================================== */}
+      {/* MODAL: TROCAR DE EMPRESA / CONTA                          */}
+      {/* ======================================================== */}
+      {showSwitchModal && (
+        <ModalPortal>
+          <div
+            onClick={() => setShowSwitchModal(false)}
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+            >
+              <button
+                onClick={() => setShowSwitchModal(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                  <ArrowLeftRight size={22} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Trocar de Empresa / Conta</h3>
+                <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                  Seu e-mail está vinculado a múltiplas empresas. Selecione qual conta deseja gerenciar agora:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 my-4 max-h-[60vh] overflow-y-auto p-1">
+                {linkedClients.map((c) => {
+                  const isActive = c.id === user.client_id || c.name === user.client_name;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={switchingClient}
+                      onClick={() => handleSwitchClient(c.id)}
+                      className={`flex flex-col items-center p-3.5 rounded-2xl border-2 transition-all group text-center relative active:scale-95 ${
+                        isActive
+                          ? 'border-indigo-600 bg-indigo-50/60 shadow-sm'
+                          : 'border-gray-100 hover:border-indigo-300 hover:bg-gray-50 bg-white'
+                      }`}
+                    >
+                      {isActive && (
+                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-600" title="Conta ativa" />
+                      )}
+                      <div className={`w-16 h-16 rounded-full overflow-hidden border-2 mb-2 flex items-center justify-center shadow-xs transition-colors ${
+                        isActive ? 'border-indigo-600 bg-indigo-100' : 'border-gray-200 group-hover:border-indigo-400 bg-gray-100'
+                      }`}>
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xl font-bold text-indigo-700">
+                            {c.name?.charAt(0).toUpperCase() || 'C'}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-700 line-clamp-2 leading-tight">
+                        {c.name}
+                      </span>
+                      {isActive && (
+                        <span className="text-[10px] font-semibold text-indigo-700 mt-1 bg-indigo-100 px-2 py-0.2 rounded-full">
+                          Ativa
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowSwitchModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

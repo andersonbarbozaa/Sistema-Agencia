@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getApiUser, isAdmin } from '@/lib/auth';
+import { getApiUser, isAdmin, hashPassword } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -125,6 +125,57 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       resourceId: id,
       details:    `Client "${id}" updated`,
     });
+
+    // Synchronize client user in users table
+    try {
+      const clientEmail = (body.email || existing.email)?.trim()?.toLowerCase();
+      const clientName = body.name || existing.name;
+      const clientAvatar = body.avatar_url !== undefined ? body.avatar_url : existing.avatar_url;
+      const clientPhone = body.whatsapp || body.phone || existing.whatsapp || existing.phone;
+      const clientStatus = (body.status || existing.status) === 'inativo' ? 'inativo' : 'ativo';
+
+      if (clientEmail) {
+        const existingUser = await db
+          .prepare('SELECT id, email FROM users WHERE client_id = ? OR lower(email) = lower(?)')
+          .bind(id, clientEmail)
+          .first();
+
+        if (existingUser) {
+          if (body.password && typeof body.password === 'string' && body.password.trim()) {
+            const newHash = await hashPassword(body.password.trim());
+            await db
+              .prepare(
+                'UPDATE users SET name = ?, email = ?, avatar_url = ?, phone = ?, status = ?, password_hash = ?, client_id = ?, updated_at = ? WHERE id = ?'
+              )
+              .bind(clientName, clientEmail, clientAvatar || null, clientPhone || null, clientStatus, newHash, id, now, existingUser.id)
+              .run();
+          } else {
+            await db
+              .prepare(
+                'UPDATE users SET name = ?, email = ?, avatar_url = ?, phone = ?, status = ?, client_id = ?, updated_at = ? WHERE id = ?'
+              )
+              .bind(clientName, clientEmail, clientAvatar || null, clientPhone || null, clientStatus, id, now, existingUser.id)
+              .run();
+          }
+        } else {
+          const pass = (body.password && typeof body.password === 'string' && body.password.trim())
+            ? body.password.trim()
+            : 'cliente123';
+          const passHash = await hashPassword(pass);
+          const newUserId = 'usr_' + id.replace(/^cli_/, '');
+          const wsId = user.workspace_id || 'ws_default';
+
+          await db
+            .prepare(
+              'INSERT INTO users (id, name, email, password_hash, role, client_id, workspace_id, avatar_url, phone, status) VALUES (?, ?, ?, ?, \'CLIENTE\', ?, ?, ?, ?, ?)'
+            )
+            .bind(newUserId, clientName, clientEmail, passHash, id, wsId, clientAvatar || null, clientPhone || null, clientStatus)
+            .run();
+        }
+      }
+    } catch (syncErr) {
+      console.error('Error synchronizing client user on PATCH:', syncErr);
+    }
 
     const updated = await db
       .prepare('SELECT * FROM clients WHERE id = ?')

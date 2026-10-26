@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Users, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +11,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [clientOptions, setClientOptions] = useState<any[] | null>(null);
+  const [selectingClient, setSelectingClient] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -39,12 +41,34 @@ export default function LoginPage() {
         return;
       }
 
+      // If multiple client companies are tied to this email, display profile selector
+      if (data.multipleClients && data.multipleClients.length > 1) {
+        setClientOptions(data.multipleClients);
+        return;
+      }
+
       // Redirecionamento completo para garantir cookies e invalidar cache RSC
       window.location.href = '/dashboard';
     } catch (err) {
       setError('Erro de conexão. Tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectClient = async (clientId: string) => {
+    try {
+      setSelectingClient(true);
+      await fetch('/api/auth/switch-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      window.location.href = '/dashboard';
+    } catch {
+      window.location.href = '/dashboard';
+    } finally {
+      setSelectingClient(false);
     }
   };
 
@@ -60,11 +84,61 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm mt-1">Sistema de Gestão Criativa</p>
         </div>
 
-        {/* Form */}
+        {/* Form or Account Selector */}
         <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-lg">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Entrar na sua conta</h2>
+          {clientOptions && clientOptions.length > 1 ? (
+            <div className="animate-in fade-in duration-200">
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto mb-2 shadow-inner">
+                  <Users size={24} />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">Selecione sua Conta</h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Identificamos mais de uma empresa vinculada ao seu e-mail. Escolha qual deseja acessar:
+                </p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3.5 my-5">
+                {clientOptions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={selectingClient}
+                    onClick={() => handleSelectClient(c.id)}
+                    className="flex flex-col items-center p-4 rounded-2xl border-2 border-gray-100 hover:border-indigo-600 hover:bg-indigo-50/50 bg-white transition-all group text-center shadow-xs active:scale-95"
+                  >
+                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 group-hover:border-indigo-600 shadow-sm flex items-center justify-center bg-gray-50 mb-2.5 transition-colors">
+                      {c.avatar_url ? (
+                        <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xl font-bold text-indigo-600">
+                          {c.name?.charAt(0).toUpperCase() || 'C'}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-700 line-clamp-2 leading-tight">
+                      {c.name}
+                    </span>
+                    {c.corporate_name && (
+                      <span className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{c.corporate_name}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setClientOptions(null)}
+                className="w-full text-xs text-gray-400 hover:text-gray-600 font-semibold py-2 transition-colors text-center"
+              >
+                Voltar e entrar com outro e-mail
+              </button>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Entrar na sua conta</h2>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 E-mail
@@ -130,6 +204,8 @@ export default function LoginPage() {
               </a>
             </p>
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

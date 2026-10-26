@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getApiUser, isAdmin } from '@/lib/auth';
+import { getApiUser, isAdmin, hashPassword } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 // ─── GET /api/clients ────────────────────────────────────────────────────────
@@ -201,6 +201,33 @@ export async function POST(request: Request) {
       resourceId: id,
       details:    `Client "${name.trim()}" created`,
     });
+
+    // Auto-create client user in users table if email is provided
+    if (email) {
+      try {
+        const clientEmail = email.trim().toLowerCase();
+        const existingUser = await db
+          .prepare('SELECT id FROM users WHERE lower(email) = lower(?) OR client_id = ?')
+          .bind(clientEmail, id)
+          .first();
+
+        if (!existingUser) {
+          const pass = (body.password && typeof body.password === 'string' && body.password.trim())
+            ? body.password.trim()
+            : 'cliente123';
+          const passHash = await hashPassword(pass);
+          const newUserId = 'usr_' + id.replace(/^cli_/, '');
+          await db
+            .prepare(
+              'INSERT INTO users (id, name, email, password_hash, role, client_id, workspace_id, avatar_url, phone, status) VALUES (?, ?, ?, ?, \'CLIENTE\', ?, ?, ?, ?, ?)'
+            )
+            .bind(newUserId, name.trim(), clientEmail, passHash, id, wsId, avatar_url || null, whatsapp || phone || null, status || 'ativo')
+            .run();
+        }
+      } catch (uErr) {
+        console.error('Error auto-creating client user on POST:', uErr);
+      }
+    }
 
     const created = await db
       .prepare('SELECT * FROM clients WHERE id = ?')

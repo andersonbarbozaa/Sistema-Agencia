@@ -56,10 +56,28 @@ export async function POST(request: Request) {
     // Remove sensitive password hash
     const { password_hash, ...safeUser } = user;
 
+    // Check if multiple clients share this email (Multi-client profile switcher)
+    let multipleClients = [];
+    if (user.role === 'CLIENTE' || user.client_id) {
+      const matched = await db
+        .prepare(`
+          SELECT id, name, corporate_name, trade_name, avatar_url, email, status
+          FROM clients
+          WHERE (lower(email) = lower(?) OR id = ?) AND status != 'arquivado'
+          ORDER BY name ASC
+        `)
+        .bind(user.email, user.client_id || '')
+        .all();
+      if (matched.results && matched.results.length > 1) {
+        multipleClients = matched.results;
+      }
+    }
+
     const response = NextResponse.json({
       success: true,
       user: safeUser,
       token,
+      multipleClients: multipleClients.length > 1 ? multipleClients : undefined,
     });
 
     // Set secure HTTP-only cookie
