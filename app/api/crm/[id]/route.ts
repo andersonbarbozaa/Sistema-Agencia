@@ -81,6 +81,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ('phone' in payload && !('whatsapp' in payload)) payload.whatsapp = payload.phone;
     if ('platform' in payload && !('source' in payload)) payload.source = payload.platform;
     if ('source' in payload && !('platform' in payload)) payload.platform = payload.source;
+    if ('social_links' in payload && payload.social_links && typeof payload.social_links !== 'string') {
+      payload.social_links = JSON.stringify(payload.social_links);
+    }
+
+    try {
+      await db.prepare('ALTER TABLE crm_leads ADD COLUMN social_links TEXT').run();
+    } catch {}
 
     const allowedFields = [
       'contact_name',
@@ -100,7 +107,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       'linkedin',
       'instagram',
       'segment',
-      'description'
+      'description',
+      'social_links'
     ];
     const updates: string[] = [];
     const values: unknown[] = [];

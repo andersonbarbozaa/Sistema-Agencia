@@ -72,6 +72,98 @@ const CRM_STATUSES: CRMLeadStatus[] = [
   'Finalizado negativo',
 ];
 
+const SOCIAL_NETWORK_OPTIONS = [
+  'Instagram',
+  'Facebook',
+  'LinkedIn',
+  'TikTok',
+  'YouTube',
+  'Threads',
+  'X / Twitter',
+  'Pinterest',
+  'Behance',
+  'WhatsApp',
+  'Outro',
+];
+
+interface SocialLinkItem {
+  network: string;
+  value: string;
+}
+
+function normalizeWebsiteUrl(raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function parseSocialLinks(lead: any): SocialLinkItem[] {
+  if (!lead) return [];
+  if (lead.social_links) {
+    try {
+      const parsed = typeof lead.social_links === 'string' ? JSON.parse(lead.social_links) : lead.social_links;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((item: any) => item && item.value && String(item.value).trim());
+      }
+    } catch {
+      // ignore invalid JSON and fallback to legacy columns
+    }
+  }
+  const legacy: SocialLinkItem[] = [];
+  if (lead.instagram && String(lead.instagram).trim()) {
+    legacy.push({ network: 'Instagram', value: String(lead.instagram).trim() });
+  }
+  if (lead.facebook && String(lead.facebook).trim()) {
+    legacy.push({ network: 'Facebook', value: String(lead.facebook).trim() });
+  }
+  if (lead.linkedin && String(lead.linkedin).trim()) {
+    legacy.push({ network: 'LinkedIn', value: String(lead.linkedin).trim() });
+  }
+  return legacy;
+}
+
+function buildSocialUrl(network: string, rawValue: string): string {
+  const val = (rawValue || '').trim();
+  if (!val) return '#';
+  if (/^https?:\/\//i.test(val)) return val;
+  const cleanHandle = val.replace(/^@/, '');
+  const net = (network || '').toLowerCase();
+
+  if (net.includes('instagram')) {
+    return val.includes('instagram.com') ? `https://${val}` : `https://instagram.com/${cleanHandle}`;
+  }
+  if (net.includes('facebook')) {
+    return val.includes('facebook.com') ? `https://${val}` : `https://facebook.com/${cleanHandle}`;
+  }
+  if (net.includes('linkedin')) {
+    return val.includes('linkedin.com') ? `https://${val}` : `https://linkedin.com/in/${cleanHandle}`;
+  }
+  if (net.includes('tiktok')) {
+    return val.includes('tiktok.com') ? `https://${val}` : `https://tiktok.com/@${cleanHandle}`;
+  }
+  if (net.includes('youtube')) {
+    return val.includes('youtube.com') ? `https://${val}` : `https://youtube.com/@${cleanHandle}`;
+  }
+  if (net.includes('threads')) {
+    return val.includes('threads.net') ? `https://${val}` : `https://threads.net/@${cleanHandle}`;
+  }
+  if (net.includes('twitter') || net.startsWith('x ')) {
+    return val.includes('x.com') || val.includes('twitter.com') ? `https://${val}` : `https://x.com/${cleanHandle}`;
+  }
+  if (net.includes('pinterest')) {
+    return val.includes('pinterest.com') ? `https://${val}` : `https://pinterest.com/${cleanHandle}`;
+  }
+  if (net.includes('behance')) {
+    return val.includes('behance.net') ? `https://${val}` : `https://behance.net/${cleanHandle}`;
+  }
+  if (net.includes('whatsapp')) {
+    const digits = val.replace(/\D/g, '');
+    return digits ? `https://wa.me/${digits}` : `https://${val}`;
+  }
+  return `https://${val}`;
+}
+
 export default function CRMPage() {
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
@@ -100,6 +192,7 @@ export default function CRMPage() {
     facebook: '',
     linkedin: '',
     instagram: '',
+    social_links: [] as SocialLinkItem[],
     segment: '',
     description: '',
   });
@@ -141,6 +234,7 @@ export default function CRMPage() {
     facebook: '',
     linkedin: '',
     instagram: '',
+    social_links: [] as SocialLinkItem[],
     segment: '',
     description: '',
   });
@@ -161,6 +255,7 @@ export default function CRMPage() {
       facebook: lead.facebook || '',
       linkedin: lead.linkedin || '',
       instagram: lead.instagram || '',
+      social_links: parseSocialLinks(lead),
       segment: lead.segment || '',
       description: lead.description || '',
     });
@@ -171,17 +266,30 @@ export default function CRMPage() {
     e.preventDefault();
     if (!selectedLead || !editLead.contact_name) return;
 
+    const cleanSocials = (editLead.social_links || [])
+      .map((s) => ({ network: s.network || 'Instagram', value: (s.value || '').trim() }))
+      .filter((s) => s.value.length > 0);
+
+    const payload = {
+      ...editLead,
+      website: normalizeWebsiteUrl(editLead.website),
+      social_links: JSON.stringify(cleanSocials),
+      instagram: cleanSocials.find((s) => s.network === 'Instagram')?.value || '',
+      facebook: cleanSocials.find((s) => s.network === 'Facebook')?.value || '',
+      linkedin: cleanSocials.find((s) => s.network === 'LinkedIn')?.value || '',
+    };
+
     try {
       const res = await fetch(`/api/crm/${selectedLead.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editLead),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setShowEditLeadModal(false);
         const updated = await res.json();
-        const updatedData = updated.data || { ...selectedLead, ...editLead };
+        const updatedData = updated.data || { ...selectedLead, ...payload };
         setSelectedLead(updatedData);
         setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? { ...l, ...updatedData } : l)));
         fetchLeads();
@@ -289,11 +397,24 @@ export default function CRMPage() {
     e.preventDefault();
     if (!newLead.contact_name) return;
 
+    const cleanSocials = (newLead.social_links || [])
+      .map((s) => ({ network: s.network || 'Instagram', value: (s.value || '').trim() }))
+      .filter((s) => s.value.length > 0);
+
+    const payload = {
+      ...newLead,
+      website: normalizeWebsiteUrl(newLead.website),
+      social_links: JSON.stringify(cleanSocials),
+      instagram: cleanSocials.find((s) => s.network === 'Instagram')?.value || '',
+      facebook: cleanSocials.find((s) => s.network === 'Facebook')?.value || '',
+      linkedin: cleanSocials.find((s) => s.network === 'LinkedIn')?.value || '',
+    };
+
     try {
       const res = await fetch('/api/crm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLead),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setShowCreateModal(false);
@@ -310,6 +431,7 @@ export default function CRMPage() {
           facebook: '',
           linkedin: '',
           instagram: '',
+          social_links: [],
           segment: '',
           description: '',
         });
@@ -681,8 +803,8 @@ export default function CRMPage() {
 
       {/* LEAD DETAILS & TIMELINE MODAL (Requisito 35) */}
       {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-sm p-0 animate-in fade-in duration-200">
-          <div className="w-full max-w-xl h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-200 bg-gray-50 flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">{selectedLead.contact_name}</h3>
@@ -751,58 +873,63 @@ export default function CRMPage() {
               </div>
 
               {/* Social and Web Links */}
-              {(selectedLead.website || selectedLead.instagram || selectedLead.facebook || selectedLead.linkedin) && (
+              {(selectedLead.website || parseSocialLinks(selectedLead).length > 0) && (
                 <div className="p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-400 block mb-2 font-semibold">Links & Redes Sociais:</span>
                   <div className="flex flex-wrap gap-2">
                     {selectedLead.website && (
                       <a
-                        href={selectedLead.website.startsWith('http') ? selectedLead.website : `https://${selectedLead.website}`}
+                        href={normalizeWebsiteUrl(selectedLead.website)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-blue-600 hover:text-blue-700 hover:border-blue-300 font-medium transition-colors"
                       >
                         <Globe size={13} />
-                        <span>Website</span>
+                        <span>{selectedLead.website.replace(/^https?:\/\//i, '')}</span>
                         <ExternalLink size={10} className="text-gray-400" />
                       </a>
                     )}
-                    {selectedLead.instagram && (
-                      <a
-                        href={selectedLead.instagram.startsWith('http') ? selectedLead.instagram : `https://instagram.com/${selectedLead.instagram.replace(/^@/, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-pink-600 hover:text-pink-700 hover:border-pink-300 font-medium transition-colors"
-                      >
-                        <InstagramIcon size={13} />
-                        <span>{selectedLead.instagram.startsWith('@') ? selectedLead.instagram : 'Instagram'}</span>
-                        <ExternalLink size={10} className="text-gray-400" />
-                      </a>
-                    )}
-                    {selectedLead.facebook && (
-                      <a
-                        href={selectedLead.facebook.startsWith('http') ? selectedLead.facebook : `https://facebook.com/${selectedLead.facebook}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-blue-700 hover:text-blue-800 hover:border-blue-400 font-medium transition-colors"
-                      >
-                        <FacebookIcon size={13} />
-                        <span>Facebook</span>
-                        <ExternalLink size={10} className="text-gray-400" />
-                      </a>
-                    )}
-                    {selectedLead.linkedin && (
-                      <a
-                        href={selectedLead.linkedin.startsWith('http') ? selectedLead.linkedin : `https://linkedin.com/in/${selectedLead.linkedin}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sky-700 hover:text-sky-800 hover:border-sky-400 font-medium transition-colors"
-                      >
-                        <LinkedinIcon size={13} />
-                        <span>LinkedIn</span>
-                        <ExternalLink size={10} className="text-gray-400" />
-                      </a>
-                    )}
+                    {parseSocialLinks(selectedLead).map((item, idx) => {
+                      const net = (item.network || '').toLowerCase();
+                      const isIg = net.includes('instagram');
+                      const isFb = net.includes('facebook');
+                      const isIn = net.includes('linkedin');
+                      const colorClasses = isIg
+                        ? 'text-pink-600 hover:text-pink-700 hover:border-pink-300'
+                        : isFb
+                        ? 'text-blue-700 hover:text-blue-800 hover:border-blue-400'
+                        : isIn
+                        ? 'text-sky-700 hover:text-sky-800 hover:border-sky-400'
+                        : 'text-gray-700 hover:text-gray-900 hover:border-gray-300';
+                      const label = item.value.startsWith('@')
+                        ? `${item.network}: ${item.value}`
+                        : `${item.network} (${item.value.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0]})`;
+
+                      return (
+                        <a
+                          key={`${item.network}-${idx}`}
+                          href={buildSocialUrl(item.network, item.value)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg font-medium transition-colors',
+                            colorClasses
+                          )}
+                        >
+                          {isIg ? (
+                            <InstagramIcon size={13} />
+                          ) : isFb ? (
+                            <FacebookIcon size={13} />
+                          ) : isIn ? (
+                            <LinkedinIcon size={13} />
+                          ) : (
+                            <Globe size={13} />
+                          )}
+                          <span>{label}</span>
+                          <ExternalLink size={10} className="text-gray-400" />
+                        </a>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -909,8 +1036,8 @@ export default function CRMPage() {
 
       {/* CREATE MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 !mt-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
@@ -1008,64 +1135,90 @@ export default function CRMPage() {
               </div>
 
               {/* Redes Sociais e Links */}
-              <div className="pt-2 border-t border-gray-100">
-                <span className="block font-bold text-gray-700 mb-2">Links & Redes Sociais</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <Globe size={12} className="text-blue-500" />
-                      Link do Site
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://exemplo.com.br"
-                      value={newLead.website}
-                      onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
+              <div className="pt-2 border-t border-gray-100 space-y-3">
+                <span className="block font-bold text-gray-700">Links & Redes Sociais</span>
+
+                <div>
+                  <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                    <Globe size={12} className="text-blue-500" />
+                    Site (não precisa digitar http://)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: www.seusite.com.br ou seusite.com.br"
+                    value={newLead.website}
+                    onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-gray-600 font-semibold">Redes Sociais</label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewLead((prev) => ({
+                          ...prev,
+                          social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+                        }))
+                      }
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold transition-colors"
+                    >
+                      <Plus size={13} />
+                      <span>Adicionar Rede Social</span>
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <InstagramIcon size={12} className="text-pink-500" />
-                      Instagram
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="@perfil ou link"
-                      value={newLead.instagram}
-                      onChange={(e) => setNewLead({ ...newLead, instagram: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <FacebookIcon size={12} className="text-blue-600" />
-                      Facebook
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Link da página ou perfil"
-                      value={newLead.facebook}
-                      onChange={(e) => setNewLead({ ...newLead, facebook: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <LinkedinIcon size={12} className="text-sky-600" />
-                      LinkedIn
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Link do perfil ou empresa"
-                      value={newLead.linkedin}
-                      onChange={(e) => setNewLead({ ...newLead, linkedin: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
+                  {newLead.social_links.length === 0 ? (
+                    <p className="text-gray-400 italic text-[11px]">
+                      Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {newLead.social_links.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <select
+                            value={item.network}
+                            onChange={(e) => {
+                              const updated = [...newLead.social_links];
+                              updated[idx] = { ...updated[idx], network: e.target.value };
+                              setNewLead({ ...newLead, social_links: updated });
+                            }}
+                            className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                              <option key={net} value={net}>
+                                {net}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="@usuario ou link da rede"
+                            value={item.value}
+                            onChange={(e) => {
+                              const updated = [...newLead.social_links];
+                              updated[idx] = { ...updated[idx], value: e.target.value };
+                              setNewLead({ ...newLead, social_links: updated });
+                            }}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = newLead.social_links.filter((_, i) => i !== idx);
+                              setNewLead({ ...newLead, social_links: updated });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Remover rede social"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1115,7 +1268,7 @@ export default function CRMPage() {
 
       {/* EDIT LEAD MODAL */}
       {showEditLeadModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 !mt-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -1239,64 +1392,90 @@ export default function CRMPage() {
               </div>
 
               {/* Redes Sociais e Links */}
-              <div className="pt-2 border-t border-gray-100">
-                <span className="block font-bold text-gray-700 mb-2">Links & Redes Sociais</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <Globe size={12} className="text-blue-500" />
-                      Link do Site
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://exemplo.com.br"
-                      value={editLead.website}
-                      onChange={(e) => setEditLead({ ...editLead, website: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
+              <div className="pt-2 border-t border-gray-100 space-y-3">
+                <span className="block font-bold text-gray-700">Links & Redes Sociais</span>
+
+                <div>
+                  <label className="block text-gray-600 mb-1 flex items-center gap-1">
+                    <Globe size={12} className="text-blue-500" />
+                    Site (não precisa digitar http://)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: www.seusite.com.br ou seusite.com.br"
+                    value={editLead.website}
+                    onChange={(e) => setEditLead({ ...editLead, website: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-gray-600 font-semibold">Redes Sociais</label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditLead((prev) => ({
+                          ...prev,
+                          social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+                        }))
+                      }
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold transition-colors"
+                    >
+                      <Plus size={13} />
+                      <span>Adicionar Rede Social</span>
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <InstagramIcon size={12} className="text-pink-500" />
-                      Instagram
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="@perfil ou link"
-                      value={editLead.instagram}
-                      onChange={(e) => setEditLead({ ...editLead, instagram: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <FacebookIcon size={12} className="text-blue-600" />
-                      Facebook
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Link da página ou perfil"
-                      value={editLead.facebook}
-                      onChange={(e) => setEditLead({ ...editLead, facebook: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-600 mb-1 flex items-center gap-1">
-                      <LinkedinIcon size={12} className="text-sky-600" />
-                      LinkedIn
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Link do perfil ou empresa"
-                      value={editLead.linkedin}
-                      onChange={(e) => setEditLead({ ...editLead, linkedin: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
+                  {editLead.social_links.length === 0 ? (
+                    <p className="text-gray-400 italic text-[11px]">
+                      Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {editLead.social_links.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <select
+                            value={item.network}
+                            onChange={(e) => {
+                              const updated = [...editLead.social_links];
+                              updated[idx] = { ...updated[idx], network: e.target.value };
+                              setEditLead({ ...editLead, social_links: updated });
+                            }}
+                            className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                              <option key={net} value={net}>
+                                {net}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="@usuario ou link da rede"
+                            value={item.value}
+                            onChange={(e) => {
+                              const updated = [...editLead.social_links];
+                              updated[idx] = { ...updated[idx], value: e.target.value };
+                              setEditLead({ ...editLead, social_links: updated });
+                            }}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = editLead.social_links.filter((_, i) => i !== idx);
+                              setEditLead({ ...editLead, social_links: updated });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Remover rede social"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

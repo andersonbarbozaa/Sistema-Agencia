@@ -284,6 +284,7 @@ export interface CRMLead {
   instagram?: string | null;
   segment?: string | null;
   description?: string | null;
+  social_links?: string | null;
   last_activity_at: string;
   is_inactive?: boolean; // True se last_activity_at > 7 dias
   created_at: string;

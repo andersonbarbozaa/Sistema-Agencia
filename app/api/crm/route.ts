@@ -31,6 +31,7 @@ async function ensureCrmLeadsSchema(db: any) {
           instagram TEXT,
           segment TEXT,
           description TEXT,
+          social_links TEXT,
           last_activity_at TEXT NOT NULL DEFAULT (datetime('now')),
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -53,6 +54,7 @@ async function ensureCrmLeadsSchema(db: any) {
     'ALTER TABLE crm_leads ADD COLUMN instagram TEXT',
     'ALTER TABLE crm_leads ADD COLUMN segment TEXT',
     'ALTER TABLE crm_leads ADD COLUMN description TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN social_links TEXT',
   ];
   for (const sql of alters) {
     try {
@@ -170,6 +172,9 @@ export async function POST(request: NextRequest) {
     const instagram = body.instagram ?? null;
     const segment = body.segment ?? null;
     const description = body.description ?? null;
+    const social_links = body.social_links
+      ? (typeof body.social_links === 'string' ? body.social_links : JSON.stringify(body.social_links))
+      : null;
 
     if (!contact_name) {
       return NextResponse.json({ error: 'contact_name is required' }, { status: 400 });
@@ -187,8 +192,8 @@ export async function POST(request: NextRequest) {
       await db
         .prepare(
           `INSERT INTO crm_leads
-            (id, contact_name, company, email, phone, whatsapp, city, platform, source, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, last_activity_at, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, contact_name, company, email, phone, whatsapp, city, platform, source, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -212,6 +217,7 @@ export async function POST(request: NextRequest) {
           instagram,
           segment,
           description,
+          social_links,
           now,
           now,
           now

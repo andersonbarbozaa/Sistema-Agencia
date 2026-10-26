@@ -84,7 +84,8 @@ export async function GET() {
     'ALTER TABLE crm_leads ADD COLUMN linkedin TEXT',
     'ALTER TABLE crm_leads ADD COLUMN instagram TEXT',
     'ALTER TABLE crm_leads ADD COLUMN segment TEXT',
-    'ALTER TABLE crm_leads ADD COLUMN description TEXT'
+    'ALTER TABLE crm_leads ADD COLUMN description TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN social_links TEXT'
   ];
 
   for (const stmt of alterStatements) {
