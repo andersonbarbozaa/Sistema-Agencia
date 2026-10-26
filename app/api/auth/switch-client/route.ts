@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
     // Query clients that have the same email as user or match user.client_id
     const clientsQuery = await db
       .prepare(`
-        SELECT id, name, corporate_name, trade_name, avatar_url, email, status
+        SELECT id, name, company_name, corporate_name, trade_name, avatar_url, email, status
         FROM clients
         WHERE (lower(email) = lower(?) OR id = ?) AND status != 'arquivado'
-        ORDER BY name ASC
+        ORDER BY COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) ASC
       `)
       .bind(user.email, user.client_id || '')
       .all();
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Verify that the requested client belongs to user's email or workspace
     const targetClient = await db
-      .prepare('SELECT id, name, corporate_name, trade_name, avatar_url, email FROM clients WHERE id = ?')
+      .prepare('SELECT id, name, company_name, corporate_name, trade_name, avatar_url, email FROM clients WHERE id = ?')
       .bind(client_id)
       .first<any>();
 

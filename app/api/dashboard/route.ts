@@ -16,11 +16,21 @@ export async function GET(request: Request) {
         // IF CLIENT: Restricted dashboard data only
     if (isClient(user)) {
       const clientId = user.client_id || '';
+      const clientWhereTasks = clientId
+        ? 't.client_id = ?'
+        : 't.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?))';
+      const clientParamTasks = clientId ? clientId : user.email;
+
+      const clientWhereEvents = clientId
+        ? 'e.client_id = ?'
+        : 'e.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?))';
+      const clientParamEvents = clientId ? clientId : user.email;
 
       // Client's tasks with cover media and counts
       const tasksRes = await db
         .prepare(`
           SELECT t.*, tc.name as category_name, tc.color as category_color, p.name as project_name,
+                 COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name,
                  (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
                  (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
                  (SELECT url FROM task_media_links WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) as cover_image_url,
@@ -29,7 +39,7 @@ export async function GET(request: Request) {
           LEFT JOIN task_categories tc ON t.category_id = tc.id
           LEFT JOIN projects p ON t.project_id = p.id
           LEFT JOIN clients c ON t.client_id = c.id
-          WHERE t.client_id = ? OR t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (t.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?))
+          WHERE ${clientWhereTasks}
           ORDER BY 
             CASE 
               WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1
@@ -40,7 +50,7 @@ export async function GET(request: Request) {
             END,
             t.delivery_date ASC
         `)
-        .bind(clientId, user.email, user.client_name || user.name)
+        .bind(clientParamTasks)
         .all();
 
       // Counts: Abertas, Em aprovação, Atrasadas
@@ -53,9 +63,9 @@ export async function GET(request: Request) {
             COUNT(CASE WHEN LOWER(t.status) LIKE '%conclu%' OR LOWER(t.status) LIKE '%aprovad%' THEN 1 END) as completed_tasks
           FROM tasks t
           LEFT JOIN clients c ON t.client_id = c.id
-          WHERE t.client_id = ? OR t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (t.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?))
+          WHERE ${clientWhereTasks}
         `)
-        .bind(clientId, user.email, user.client_name || user.name)
+        .bind(clientParamTasks)
         .first<any>();
 
       // Client's calendar events
@@ -64,10 +74,10 @@ export async function GET(request: Request) {
           SELECT e.id, e.title, e.description, e.event_date, e.start_time, e.end_time, e.location
           FROM calendar_events e
           LEFT JOIN clients c ON e.client_id = c.id
-          WHERE e.client_id = ? OR e.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (e.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?))
+          WHERE ${clientWhereEvents}
           ORDER BY e.event_date ASC, e.start_time ASC
         `)
-        .bind(clientId, user.email, user.client_name || user.name)
+        .bind(clientParamEvents)
         .all();
 
       return NextResponse.json({

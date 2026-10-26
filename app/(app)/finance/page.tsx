@@ -1501,7 +1501,7 @@ export default function FinancePage() {
                     <option value="">Nenhum Cliente</option>
                     {clients.map((cli) => (
                       <option key={cli.id} value={cli.id}>
-                        {cli.name}
+                        {cli.company_name || cli.trade_name || cli.corporate_name || cli.name}
                       </option>
                     ))}
                   </select>
@@ -1735,7 +1735,7 @@ export default function FinancePage() {
                     <option value="">Nenhum Cliente</option>
                     {clients.map((cli) => (
                       <option key={cli.id} value={cli.id}>
-                        {cli.name}
+                        {cli.company_name || cli.trade_name || cli.corporate_name || cli.name}
                       </option>
                     ))}
                   </select>

@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const taskRow = await db
       .prepare(`
-        SELECT t.*, c.name as client_name,
+        SELECT t.*, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name,
                tc.name as category_name, tc.color as category_color,
                u.name as created_by_name,
                (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
@@ -324,7 +324,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         .first<{ id: string }>();
 
       const clientRow = finalClientId
-        ? await db.prepare('SELECT name FROM clients WHERE id = ?').bind(finalClientId).first<{ name: string }>()
+        ? await db.prepare("SELECT COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) as name FROM clients WHERE id = ?").bind(finalClientId).first<{ name: string }>()
         : null;
       const clientNamePrefix = clientRow?.name ? `${clientRow.name} - ` : '';
       const txDescription = `${clientNamePrefix}${finalTaskName}`;
@@ -356,7 +356,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     const updatedRaw = await db
       .prepare(`
-        SELECT t.*, c.name as client_name,
+        SELECT t.*, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name,
                tc.name as category_name, tc.color as category_color,
                u.name as created_by_name,
                (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,

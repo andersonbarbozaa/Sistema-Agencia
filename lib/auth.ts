@@ -64,7 +64,7 @@ export async function getSessionUser(): Promise<User | null> {
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
                w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
-               p.name as position_name, c.name as client_name
+               p.name as position_name, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name
         FROM users u
         LEFT JOIN workspaces w ON COALESCE(u.workspace_id, 'ws_default') = w.id
         LEFT JOIN positions p ON u.position_id = p.id
@@ -77,11 +77,11 @@ export async function getSessionUser(): Promise<User | null> {
     if (user && user.role === 'CLIENTE') {
       if (payload?.clientId && payload.clientId !== user.client_id) {
         user.client_id = payload.clientId;
-        const cRow = await db.prepare('SELECT name FROM clients WHERE id = ?').bind(payload.clientId).first<{ name: string }>();
+        const cRow = await db.prepare("SELECT COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) as name FROM clients WHERE id = ?").bind(payload.clientId).first<{ name: string }>();
         if (cRow) user.client_name = cRow.name;
       }
       if (!user.client_id) {
-        const match = await db.prepare('SELECT id, name FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1').bind(user.email, user.id).first<any>();
+        const match = await db.prepare("SELECT id, COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) as name FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1").bind(user.email, user.id).first<any>();
         if (match) {
           user.client_id = match.id;
           user.client_name = match.name;
@@ -128,7 +128,7 @@ export async function getApiUser(request: Request): Promise<User | null> {
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
                w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
-               p.name as position_name, c.name as client_name
+               p.name as position_name, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name
         FROM users u
         LEFT JOIN workspaces w ON COALESCE(u.workspace_id, 'ws_default') = w.id
         LEFT JOIN positions p ON u.position_id = p.id
@@ -141,11 +141,11 @@ export async function getApiUser(request: Request): Promise<User | null> {
     if (user && user.role === 'CLIENTE') {
       if (payload?.clientId && payload.clientId !== user.client_id) {
         user.client_id = payload.clientId;
-        const cRow = await db.prepare('SELECT name FROM clients WHERE id = ?').bind(payload.clientId).first<{ name: string }>();
+        const cRow = await db.prepare("SELECT COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) as name FROM clients WHERE id = ?").bind(payload.clientId).first<{ name: string }>();
         if (cRow) user.client_name = cRow.name;
       }
       if (!user.client_id) {
-        const match = await db.prepare('SELECT id, name FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1').bind(user.email, user.id).first<any>();
+        const match = await db.prepare("SELECT id, COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) as name FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1").bind(user.email, user.id).first<any>();
         if (match) {
           user.client_id = match.id;
           user.client_name = match.name;

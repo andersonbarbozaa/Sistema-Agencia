@@ -589,7 +589,9 @@ export default function TasksPage() {
             >
               <option value="">Todos os Clientes</option>
               {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.company_name || c.trade_name || c.corporate_name || c.name}
+                </option>
               ))}
             </select>
           )}
@@ -1538,9 +1540,11 @@ export default function TasksPage() {
                     required
                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="">Selecione o Cliente</option>
+                    <option value="">Selecione a Empresa / Cliente</option>
                     {clients.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.company_name || c.trade_name || c.corporate_name || c.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1786,9 +1790,11 @@ export default function TasksPage() {
                     required
                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="">Selecione o Cliente</option>
+                    <option value="">Selecione a Empresa / Cliente</option>
                     {clients.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.company_name || c.trade_name || c.corporate_name || c.name}
+                      </option>
                     ))}
                   </select>
                 </div>

@@ -27,8 +27,8 @@ export async function GET(request: Request) {
     const db = getDb();
 
     const baseSelect = `
-      SELECT t.*, c.name as client_name,
-             tc.name as category_name, tc.color as category_color,
+      SELECT t.*, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name,
+      tc.name as category_name, tc.color as category_color,
              u.name as created_by_name,
              (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
              (SELECT url FROM task_media_links WHERE task_id = t.id ORDER BY created_at DESC LIMIT 1) as cover_image_url,
@@ -58,8 +58,13 @@ export async function GET(request: Request) {
 
     // Role-based visibility
     if (user.role === 'CLIENTE') {
-      conditions.push('(t.client_id = ? OR t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (t.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?)))');
-      params.push(user.client_id || '', user.email, user.client_name || user.name);
+      if (user.client_id) {
+        conditions.push('t.client_id = ?');
+        params.push(user.client_id);
+      } else {
+        conditions.push('(t.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)))');
+        params.push(user.email);
+      }
     }
 
     if (status) {
@@ -284,7 +289,7 @@ export async function POST(request: Request) {
 
       // Fetch client name to format description: "<Cliente> - <Nome da Tarefa>"
       const clientRow = client_id
-        ? await db.prepare('SELECT name FROM clients WHERE id = ?').bind(client_id).first<{ name: string }>()
+        ? await db.prepare("SELECT COALESCE(NULLIF(company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), name) as name FROM clients WHERE id = ?").bind(client_id).first<{ name: string }>()
         : null;
       const clientPrefix = clientRow?.name ? `${clientRow.name} - ` : '';
       const txDesc = `${clientPrefix}${taskName}`;

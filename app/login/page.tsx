@@ -126,10 +126,10 @@ export default function LoginPage() {
                       )}
                     </div>
                     <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-700 line-clamp-2 leading-tight">
-                      {c.name}
+                      {c.company_name || c.trade_name || c.corporate_name || c.name}
                     </span>
-                    {c.corporate_name && (
-                      <span className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{c.corporate_name}</span>
+                    {c.name && (c.company_name || c.corporate_name) && (c.company_name || c.corporate_name) !== c.name && (
+                      <span className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{c.name}</span>
                     )}
                   </button>
                 ))}

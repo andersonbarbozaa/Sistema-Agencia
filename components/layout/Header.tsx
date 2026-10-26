@@ -759,7 +759,12 @@ export default function Header({ user }: HeaderProps) {
                                 (client.name || 'C').charAt(0).toUpperCase()
                               )}
                             </div>
-                            <span className="truncate">{client.name}</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="truncate font-semibold">{client.company_name || client.trade_name || client.corporate_name || client.name}</span>
+                              {client.name && (client.company_name || client.corporate_name) && (client.company_name || client.corporate_name) !== client.name && (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate leading-none">Cliente: {client.name}</span>
+                              )}
+                            </div>
                           </div>
                           {isCurrent ? (
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 shrink-0">Ativo</span>

@@ -28,8 +28,13 @@ export async function GET(request: NextRequest) {
 
     // Role-based visibility filter
     if (user.role === 'CLIENTE') {
-      where += " AND (e.client_id = ? OR e.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?)) OR (e.client_id IS NULL AND c.name IS NOT NULL AND lower(c.name) = lower(?)))";
-      params.push(user.client_id || '', user.email, user.client_name || user.name);
+      if (user.client_id) {
+        where += " AND e.client_id = ?";
+        params.push(user.client_id);
+      } else {
+        where += " AND e.client_id IN (SELECT id FROM clients WHERE lower(email) = lower(?))";
+        params.push(user.email);
+      }
     } else if (user.role === 'COLABORADOR') {
       where += " AND (e.visibility != 'private' OR e.visibility IS NULL OR e.created_by = ?)";
       params.push(user.id);

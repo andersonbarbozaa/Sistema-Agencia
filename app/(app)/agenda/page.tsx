@@ -858,7 +858,7 @@ export default function AgendaPage() {
                   <option value="">Nenhum (Compromisso Interno)</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.company_name || c.trade_name || c.corporate_name || c.name}
                     </option>
                   ))}
                 </select>
@@ -1171,7 +1171,7 @@ export default function AgendaPage() {
                   <option value="">Nenhum (Compromisso Interno)</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.company_name || c.trade_name || c.corporate_name || c.name}
                     </option>
                   ))}
                 </select>
