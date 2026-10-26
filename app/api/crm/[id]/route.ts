@@ -77,8 +77,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const body = await request.json().catch(() => ({}));
     const payload: Record<string, any> = { ...body };
-    if ('whatsapp' in payload && !('phone' in payload)) payload.phone = payload.whatsapp;
-    if ('phone' in payload && !('whatsapp' in payload)) payload.whatsapp = payload.phone;
     if ('platform' in payload && !('source' in payload)) payload.source = payload.platform;
     if ('source' in payload && !('platform' in payload)) payload.platform = payload.source;
     if ('social_links' in payload && payload.social_links && typeof payload.social_links !== 'string') {

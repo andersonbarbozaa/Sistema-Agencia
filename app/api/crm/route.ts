@@ -159,8 +159,8 @@ export async function POST(request: NextRequest) {
     const contact_name = body.contact_name;
     const company = body.company ?? null;
     const email = body.email ?? null;
-    const phone = body.phone || body.whatsapp || null;
-    const whatsapp = body.whatsapp || body.phone || null;
+    const phone = body.phone ?? null;
+    const whatsapp = body.whatsapp ?? null;
     const city = body.city ?? null;
     const address = body.address ?? null;
     const platform = body.platform || body.source || 'WhatsApp';

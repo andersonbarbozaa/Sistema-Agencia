@@ -238,6 +238,54 @@ export default function CRMPage() {
     mode: 'edit' | 'create';
   }>({ isOpen: false, mode: 'edit' });
 
+  // WhatsApp sending modal
+  const [whatsAppModal, setWhatsAppModal] = useState<{
+    isOpen: boolean;
+    lead: CRMLead | null;
+    phone: string;
+    message: string;
+  }>({
+    isOpen: false,
+    lead: null,
+    phone: '',
+    message: '',
+  });
+
+  const getDefaultWhatsAppMessage = (lead: CRMLead | null): string => {
+    if (!lead) return '';
+    const firstName = lead.contact_name ? lead.contact_name.trim().split(' ')[0] : '';
+    const greeting = firstName ? `Olá, ${firstName}!` : 'Olá!';
+    return `${greeting} Tudo bem? Sou da equipe da PixelCraft Studio. Estamos entrando em contato sobre a sua solicitação. Como podemos te ajudar hoje?`;
+  };
+
+  const handleOpenWhatsApp = (lead: CRMLead, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const rawNumber = lead.whatsapp || lead.phone || '';
+    const digits = rawNumber.replace(/\D/g, '');
+    if (!digits) {
+      showToast('Este lead não possui número de WhatsApp ou telefone cadastrado.', 'error');
+      return;
+    }
+    setWhatsAppModal({
+      isOpen: true,
+      lead,
+      phone: digits,
+      message: getDefaultWhatsAppMessage(lead),
+    });
+  };
+
+  const handleSendWhatsApp = () => {
+    if (!whatsAppModal.phone) return;
+    let fullNumber = whatsAppModal.phone;
+    if ((fullNumber.length === 10 || fullNumber.length === 11) && !fullNumber.startsWith('55')) {
+      fullNumber = `55${fullNumber}`;
+    }
+    const encodedMsg = encodeURIComponent(whatsAppModal.message.trim());
+    const url = `https://wa.me/${fullNumber}?text=${encodedMsg}`;
+    window.open(url, '_blank');
+    setWhatsAppModal({ isOpen: false, lead: null, phone: '', message: '' });
+  };
+
   // New interaction form
   const [submittingInteraction, setSubmittingInteraction] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -706,6 +754,11 @@ export default function CRMPage() {
 
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
                   {statusLeads.map((lead) => {
+                    const socials = parseSocialLinks(lead);
+                    const hasWebsite = Boolean(lead.website && lead.website.trim());
+                    const hasCompleteAddress = Boolean(lead.address && lead.address.trim().length > 5);
+                    const cityOrAddress = lead.city || lead.address || '';
+
                     return (
                       <div
                         key={lead.id}
@@ -717,40 +770,121 @@ export default function CRMPage() {
                           'border-gray-200'
                         )}
                       >
-                        <div className="flex items-center justify-between gap-1 mb-1">
+                        {/* Data da última atualização ACIMA do nome */}
+                        <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                          <span>
+                            {lead.updated_at || lead.last_activity_at || lead.created_at
+                              ? `Atualizado: ${formatDate(lead.updated_at || lead.last_activity_at || lead.created_at)}`
+                              : ''}
+                          </span>
+                        </div>
+
+                        {/* Nome do contato */}
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
                           <span className="font-bold text-xs text-gray-900 group-hover:text-blue-600 transition-colors">
                             {lead.contact_name}
                           </span>
                         </div>
 
+                        {/* Nome da empresa */}
                         {lead.company && (
-                          <p className="text-[11px] text-gray-600 font-medium truncate">{lead.company}</p>
+                          <p className="text-[11px] text-gray-600 font-medium truncate mb-1">{lead.company}</p>
                         )}
 
-                        {/* Inactivity Alert (>7 days - Requisito 34) */}
-                        {lead.is_inactive && lead.status !== 'Finalizado positivo' && lead.status !== 'Finalizado negativo' && (
-                          <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold">
+                        {/* Redes sociais e Site ABAIXO do nome da empresa */}
+                        {(hasWebsite || socials.length > 0) && (
+                          <div className="flex items-center gap-1.5 my-1.5 flex-wrap">
+                            {hasWebsite && (
+                              <a
+                                href={normalizeWebsiteUrl(lead.website!)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 border border-gray-200 rounded-md transition-colors"
+                                title={`Website: ${lead.website}`}
+                              >
+                                <Globe size={11} />
+                              </a>
+                            )}
+                            {socials.map((s, idx) => (
+                              <a
+                                key={idx}
+                                href={buildSocialUrl(s.network, s.value)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 border border-gray-200 rounded-md transition-colors"
+                                title={`${s.network}: ${s.value}`}
+                              >
+                                {s.network.toLowerCase().includes('instagram') ? (
+                                  <InstagramIcon size={11} />
+                                ) : s.network.toLowerCase().includes('facebook') ? (
+                                  <FacebookIcon size={11} />
+                                ) : s.network.toLowerCase().includes('linkedin') ? (
+                                  <LinkedinIcon size={11} />
+                                ) : (
+                                  <ExternalLink size={11} />
+                                )}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Alerta de Inatividade - sem renderizar '0' */}
+                        {Boolean(lead.is_inactive) && lead.status !== 'Finalizado positivo' && lead.status !== 'Finalizado negativo' && (
+                          <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold">
                             <Clock size={10} />
                             SEM RESPOSTA (+7d)
                           </div>
                         )}
 
-                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
-                          <span>{lead.platform || 'WhatsApp'}</span>
-                          {getFullAddress(lead) ? (
-                            <a
-                              href={getGoogleMapsUrl(getFullAddress(lead))}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5 truncate max-w-[140px]"
-                              title={`Abrir no Google Maps: ${getFullAddress(lead)}`}
+                        {/* Rodapé: Botão WhatsApp e Endereço */}
+                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500">
+                          {(lead.whatsapp || lead.phone) ? (
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenWhatsApp(lead, e)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-md font-semibold transition-colors shadow-2xs"
+                              title="Enviar mensagem via WhatsApp"
                             >
-                              <MapPin size={10} className="shrink-0" />
-                              <span className="truncate">{lead.address || lead.city}</span>
-                            </a>
+                              <MessageCircle size={11} className="text-emerald-600" />
+                              <span>WhatsApp</span>
+                            </button>
                           ) : (
-                            <span>{lead.city || ''}</span>
+                            <span className="text-gray-400">{lead.platform || 'Sem Whats'}</span>
+                          )}
+
+                          {/* No card exibe apenas a cidade e só mostra maps/waze se tiver endereço completo */}
+                          {hasCompleteAddress ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-600 font-medium truncate max-w-[90px]" title={getFullAddress(lead)}>
+                                {lead.city || lead.address}
+                              </span>
+                              <a
+                                href={getGoogleMapsUrl(getFullAddress(lead))}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-0.5 text-blue-600 hover:text-blue-800 rounded transition-colors"
+                                title="Google Maps"
+                              >
+                                <MapPin size={11} />
+                              </a>
+                              <a
+                                href={getWazeUrl(getFullAddress(lead))}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-1 py-0.2 text-[9px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded transition-colors"
+                                title="Waze"
+                              >
+                                Waze
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 truncate max-w-[110px]" title={cityOrAddress}>
+                              {cityOrAddress || '-'}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -827,18 +961,11 @@ export default function CRMPage() {
                       )}
                     </div>
                   </th>
-                  <th
-                    onClick={() => handleSort('city')}
-                    className="py-3.5 px-4 cursor-pointer hover:text-gray-900 transition-colors"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Endereço / Cidade</span>
-                      {sortField === 'city' ? (
-                        sortDirection === 'asc' ? <ChevronUp size={14} className="text-blue-600" /> : <ChevronDown size={14} className="text-blue-600" />
-                      ) : (
-                        <ArrowUpDown size={12} className="opacity-40" />
-                      )}
-                    </div>
+                  <th className="py-3.5 px-4 text-gray-500 font-semibold">
+                    <span>WhatsApp</span>
+                  </th>
+                  <th className="py-3.5 px-4 text-gray-500 font-semibold">
+                    <span>Localização</span>
                   </th>
                   <th
                     onClick={() => handleSort('last_activity_at')}
@@ -879,39 +1006,58 @@ export default function CRMPage() {
                         {l.platform || l.source || '-'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-gray-700 font-medium">
+                    <td className="py-3 px-4">
+                      {(l.whatsapp || l.phone) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenWhatsApp(l, e)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
+                          title="Clique para enviar mensagem via WhatsApp"
+                        >
+                          <MessageCircle size={13} className="text-emerald-600" />
+                          <span>{l.whatsapp || l.phone}</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
                       {(() => {
-                        const fullAddr = getFullAddress(l);
-                        if (!fullAddr) return '-';
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className="truncate max-w-[200px]" title={fullAddr}>
-                              {l.address ? `${l.address}${l.city ? ` (${l.city})` : ''}` : l.city}
-                            </span>
-                            <div className="flex items-center gap-1 shrink-0">
+                        const hasCompleteAddress = Boolean(l.address && l.address.trim().length > 5);
+                        if (hasCompleteAddress) {
+                          const fullAddr = getFullAddress(l);
+                          return (
+                            <div className="flex items-center gap-1.5">
                               <a
                                 href={getGoogleMapsUrl(fullAddr)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
-                                title="Abrir no Google Maps"
+                                className="p-1.5 bg-blue-50 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                                title={`Google Maps: ${fullAddr}`}
                               >
                                 <MapPin size={13} />
+                                <span>Maps</span>
                               </a>
                               <a
                                 href={getWazeUrl(fullAddr)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded transition-colors"
-                                title="Abrir no Waze"
+                                className="p-1.5 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-bold"
+                                title={`Waze: ${fullAddr}`}
                               >
-                                Waze
+                                <span>Waze</span>
                               </a>
                             </div>
-                          </div>
-                        );
+                          );
+                        }
+
+                        // Se não tiver endereço completo, exibe apenas o que estiver escrito (sem ícones)
+                        if (l.city || l.address) {
+                          return <span className="text-gray-600 font-medium">{l.city || l.address}</span>;
+                        }
+                        return <span className="text-gray-400">-</span>;
                       })()}
                     </td>
                     <td className="py-3 px-4 text-gray-500">
@@ -986,7 +1132,23 @@ export default function CRMPage() {
               {/* Contact Info */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 bg-gray-50 rounded-xl">
-                  <span className="text-gray-400">Telefone / WhatsApp:</span>
+                  <span className="text-gray-400">Telefone Fixo:</span>
+                  <p className="font-semibold text-gray-800 mt-1">{selectedLead.phone || '-'}</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">WhatsApp:</span>
+                    {(selectedLead.whatsapp || selectedLead.phone) && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenWhatsApp(selectedLead)}
+                        className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
+                      >
+                        <MessageCircle size={12} />
+                        Enviar
+                      </button>
+                    )}
+                  </div>
                   <p className="font-semibold text-gray-800 mt-1">{selectedLead.whatsapp || selectedLead.phone || '-'}</p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl">
@@ -994,7 +1156,7 @@ export default function CRMPage() {
                   <p className="font-semibold text-gray-800 mt-1 truncate">{selectedLead.email || '-'}</p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl">
-                  <span className="text-gray-400">Origem / Plataforma:</span>
+                  <span className="text-gray-400">Plataforma:</span>
                   <p className="font-semibold text-gray-800 mt-1">{selectedLead.platform || selectedLead.source || '-'}</p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl sm:col-span-2">
@@ -1270,12 +1432,23 @@ export default function CRMPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
+                    <label className="block font-semibold text-gray-700 mb-1">Telefone Fixo</label>
+                    <input
+                      type="text"
+                      placeholder="(18) 3600-0000"
+                      value={newLead.phone}
+                      onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">WhatsApp</label>
                     <input
                       type="text"
                       placeholder="(18) 99999-9999"
                       value={newLead.whatsapp}
-                      onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value, phone: e.target.value })}
+                      onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
@@ -1298,7 +1471,7 @@ export default function CRMPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="Ex: Av. Paulista, 1000 - Bela Vista"
+                      placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
                       value={newLead.address}
                       onChange={(e) => setNewLead({ ...newLead, address: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -1306,18 +1479,7 @@ export default function CRMPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Cidade / Estado</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Araçatuba - SP"
-                      value={newLead.city}
-                      onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
+                    <label className="block font-semibold text-gray-700 mb-1">Plataforma</label>
                     <select
                       value={newLead.platform}
                       onChange={(e) => setNewLead({ ...newLead, platform: e.target.value })}
@@ -1535,11 +1697,23 @@ export default function CRMPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
+                    <label className="block font-semibold text-gray-700 mb-1">Telefone Fixo</label>
                     <input
                       type="text"
+                      placeholder="(18) 3600-0000"
                       value={editLead.phone}
-                      onChange={(e) => setEditLead({ ...editLead, phone: e.target.value, whatsapp: e.target.value })}
+                      onChange={(e) => setEditLead({ ...editLead, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">WhatsApp</label>
+                    <input
+                      type="text"
+                      placeholder="(18) 99999-9999"
+                      value={editLead.whatsapp}
+                      onChange={(e) => setEditLead({ ...editLead, whatsapp: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
@@ -1570,7 +1744,7 @@ export default function CRMPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Plataforma de Origem</label>
+                    <label className="block font-semibold text-gray-700 mb-1">Plataforma</label>
                     <select
                       value={editLead.platform}
                       onChange={(e) => setEditLead({ ...editLead, platform: e.target.value })}
@@ -1593,20 +1767,9 @@ export default function CRMPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="Ex: Av. Paulista, 1000 - Bela Vista"
+                      placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
                       value={editLead.address}
                       onChange={(e) => setEditLead({ ...editLead, address: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Cidade / Estado</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Araçatuba - SP"
-                      value={editLead.city}
-                      onChange={(e) => setEditLead({ ...editLead, city: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
@@ -1849,6 +2012,82 @@ export default function CRMPage() {
           </div>
         </div>
       </ModalPortal>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: ENVIAR MENSAGEM NO WHATSAPP                        */}
+      {/* ======================================================== */}
+      {whatsAppModal.isOpen && (
+        <ModalPortal>
+          <div
+            onClick={() => setWhatsAppModal({ isOpen: false, lead: null, phone: '', message: '' })}
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+            >
+              <button
+                onClick={() => setWhatsAppModal({ isOpen: false, lead: null, phone: '', message: '' })}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <MessageCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Enviar Mensagem no WhatsApp</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Para: <strong className="text-gray-800">{whatsAppModal.lead?.contact_name}</strong> {whatsAppModal.lead?.company ? `(${whatsAppModal.lead.company})` : ''} • {whatsAppModal.phone}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                    Mensagem (você pode editar o texto antes de enviar):
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={whatsAppModal.message}
+                    onChange={(e) => setWhatsAppModal((prev) => ({ ...prev, message: e.target.value }))}
+                    className="w-full p-3 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed text-gray-800 resize-none"
+                    placeholder="Digite sua mensagem..."
+                  />
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[11px] text-emerald-800 flex items-start gap-2">
+                  <MessageCircle size={14} className="shrink-0 mt-0.5 text-emerald-600" />
+                  <span>
+                    Ao clicar em <strong>Enviar Mensagem</strong>, o WhatsApp Web ou o aplicativo do WhatsApp no celular será aberto com a conversa iniciada e o texto pronto para envio.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setWhatsAppModal({ isOpen: false, lead: null, phone: '', message: '' })}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendWhatsApp}
+                    className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-all flex items-center gap-2 active:scale-95"
+                  >
+                    <Send size={13} />
+                    <span>Enviar Mensagem</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       <ConfirmModal
