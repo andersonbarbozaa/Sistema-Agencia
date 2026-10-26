@@ -35,6 +35,9 @@ export async function GET(request: Request) {
     try {
       await db.exec('ALTER TABLE clients ADD COLUMN social_links TEXT');
     } catch {}
+    try {
+      await db.exec('ALTER TABLE clients ADD COLUMN company_name TEXT');
+    } catch {}
 
     // Auto-sync: Ensure all users with role 'CLIENTE' exist as clients in clients table
     try {
@@ -214,8 +217,9 @@ export async function POST(request: Request) {
     }
 
     // Optional fields
-    const corporate_name      = body.corporate_name      ?? null;
-    const trade_name          = body.trade_name          ?? null;
+    const company_name        = body.company_name        ?? body.company ?? body.corporate_name ?? body.trade_name ?? null;
+    const corporate_name      = body.corporate_name      ?? company_name ?? null;
+    const trade_name          = body.trade_name          ?? company_name ?? null;
     const avatar_url          = body.avatar_url          ?? null;
     const document            = body.document            ?? body.cnpj ?? null;
     const email               = body.email               ?? null;
@@ -243,38 +247,74 @@ export async function POST(request: Request) {
 
     const wsId = user.workspace_id || 'ws_default';
 
-    await db
-      .prepare(
-        `INSERT INTO clients (
-           id, name, corporate_name, trade_name, avatar_url, document,
-           email, phone, whatsapp, address, city, state, website, instagram,
-           responsible_user_id, notes, status, social_links, workspace_id, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        id,
-        name.trim(),
-        corporate_name,
-        trade_name,
-        avatar_url,
-        document,
-        email,
-        phone,
-        whatsapp,
-        address,
-        city,
-        state,
-        website,
-        instagram,
-        responsible_user_id,
-        notes,
-        status,
-        social_links,
-        wsId,
-        now,
-        now
-      )
-      .run();
+    try {
+      await db
+        .prepare(
+          `INSERT INTO clients (
+             id, name, company_name, corporate_name, trade_name, avatar_url, document,
+             email, phone, whatsapp, address, city, state, website, instagram,
+             responsible_user_id, notes, status, social_links, workspace_id, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          id,
+          name.trim(),
+          company_name,
+          corporate_name,
+          trade_name,
+          avatar_url,
+          document,
+          email,
+          phone,
+          whatsapp,
+          address,
+          city,
+          state,
+          website,
+          instagram,
+          responsible_user_id,
+          notes,
+          status,
+          social_links,
+          wsId,
+          now,
+          now
+        )
+        .run();
+    } catch {
+      await db
+        .prepare(
+          `INSERT INTO clients (
+             id, name, corporate_name, trade_name, avatar_url, document,
+             email, phone, whatsapp, address, city, state, website, instagram,
+             responsible_user_id, notes, status, social_links, workspace_id, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          id,
+          name.trim(),
+          corporate_name,
+          trade_name,
+          avatar_url,
+          document,
+          email,
+          phone,
+          whatsapp,
+          address,
+          city,
+          state,
+          website,
+          instagram,
+          responsible_user_id,
+          notes,
+          status,
+          social_links,
+          wsId,
+          now,
+          now
+        )
+        .run();
+    }
 
     await logAudit({
       userId:     user.id,

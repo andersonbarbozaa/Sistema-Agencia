@@ -3680,7 +3680,7 @@ function SettingsContent() {
                     <option value="">Criar novo cliente automaticamente</option>
                     {clients.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.company_name ? `${c.company_name} — ${c.name}` : c.name}
                       </option>
                     ))}
                   </select>
@@ -3792,7 +3792,7 @@ function SettingsContent() {
                     <option value="">Cliente próprio (sincronizado automaticamente)</option>
                     {clients.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.company_name ? `${c.company_name} — ${c.name}` : c.name}
                       </option>
                     ))}
                   </select>

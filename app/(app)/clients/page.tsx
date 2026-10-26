@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Users,
+  User,
   Plus,
   Search,
   Building,
@@ -193,6 +194,7 @@ export default function ClientsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newClient, setNewClient] = useState({
     name: '',
+    company_name: '',
     corporate_name: '',
     trade_name: '',
     avatar_url: '',
@@ -399,6 +401,7 @@ export default function ClientsPage() {
         setShowCreateModal(false);
         setNewClient({
           name: '',
+          company_name: '',
           corporate_name: '',
           trade_name: '',
           avatar_url: '',
@@ -429,6 +432,7 @@ export default function ClientsPage() {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [editClient, setEditClient] = useState({
     name: '',
+    company_name: '',
     corporate_name: '',
     trade_name: '',
     avatar_url: '',
@@ -448,8 +452,9 @@ export default function ClientsPage() {
   const openEditModal = (client: any) => {
     setEditClient({
       name: client.name || '',
-      corporate_name: client.corporate_name || '',
-      trade_name: client.trade_name || '',
+      company_name: client.company_name || client.corporate_name || client.trade_name || '',
+      corporate_name: client.corporate_name || client.company_name || '',
+      trade_name: client.trade_name || client.company_name || '',
       avatar_url: client.avatar_url || '',
       document: client.document || '',
       email: client.email || '',
@@ -539,6 +544,7 @@ export default function ClientsPage() {
       const q = searchQuery.toLowerCase();
       return (
         c.name.toLowerCase().includes(q) ||
+        (c.company_name && c.company_name.toLowerCase().includes(q)) ||
         (c.trade_name && c.trade_name.toLowerCase().includes(q)) ||
         (c.corporate_name && c.corporate_name.toLowerCase().includes(q)) ||
         (c.city && c.city.toLowerCase().includes(q))
@@ -657,12 +663,20 @@ export default function ClientsPage() {
                   </span>
                 </div>
 
-                <h3 className="font-bold text-base text-gray-900 group-hover:text-blue-600 transition-colors">
-                  {client.name}
-                </h3>
-                {client.corporate_name && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">{client.corporate_name}</p>
-                )}
+                <div className="space-y-0.5">
+                  <h3 className="font-bold text-base text-gray-900 group-hover:text-blue-600 transition-colors leading-snug">
+                    {(client.company_name || client.corporate_name || client.trade_name) || client.name}
+                  </h3>
+                  {client.name && (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium pt-0.5">
+                      <User size={12} className="text-gray-400 shrink-0" />
+                      <span className="truncate">
+                        <span className="text-gray-400 font-normal">Cliente: </span>
+                        {client.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 <div className="mt-4 space-y-1.5 text-xs text-gray-600">
                   {client.document && (
@@ -786,7 +800,15 @@ export default function ClientsPage() {
                     }}
                   />
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedClient.name}</h3>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {selectedClient.company_name || selectedClient.corporate_name || selectedClient.name}
+                    </h3>
+                    {selectedClient.name && (
+                      <p className="text-xs text-blue-600 font-semibold mt-0.5 flex items-center gap-1.5">
+                        <User size={12} />
+                        <span>Cliente: {selectedClient.name}</span>
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500 mt-1">
                       CNPJ/CPF: {selectedClient.document || 'Não informado'} • {selectedClient.city} - {selectedClient.state}
                     </p>
@@ -859,8 +881,12 @@ export default function ClientsPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div className="p-3 bg-gray-50 rounded-xl">
-                      <span className="text-gray-400 font-medium">Nome Fantasia:</span>
-                      <p className="font-semibold text-gray-800 mt-1">{selectedClient.trade_name || selectedClient.name}</p>
+                      <span className="text-gray-400 font-medium">Nome do Cliente:</span>
+                      <p className="font-semibold text-gray-800 mt-1">{selectedClient.name || '-'}</p>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <span className="text-gray-400 font-medium">Nome da Empresa:</span>
+                      <p className="font-semibold text-gray-800 mt-1">{selectedClient.company_name || selectedClient.corporate_name || selectedClient.trade_name || '-'}</p>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-400 font-medium">Telefone:</span>
@@ -1176,10 +1202,10 @@ export default function ClientsPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Principal / Fantasia *</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome do Cliente *</label>
                       <input
                         type="text"
-                        placeholder="Ex: Conscape Construtora"
+                        placeholder="Ex: Anderson Barboza ou João Silva"
                         value={newClient.name}
                         onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
                         required
@@ -1188,12 +1214,12 @@ export default function ClientsPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Razão Social</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Empresa</label>
                       <input
                         type="text"
-                        placeholder="Ex: Conscape Construções LTDA"
-                        value={newClient.corporate_name}
-                        onChange={(e) => setNewClient({ ...newClient, corporate_name: e.target.value })}
+                        placeholder="Ex: Conscape Construtora"
+                        value={newClient.company_name}
+                        onChange={(e) => setNewClient({ ...newClient, company_name: e.target.value, corporate_name: e.target.value, trade_name: e.target.value })}
                         className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
@@ -1466,7 +1492,7 @@ export default function ClientsPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Fantasia / Principal *</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome do Cliente *</label>
                       <input
                         type="text"
                         required
@@ -1477,11 +1503,11 @@ export default function ClientsPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Razão Social</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Empresa</label>
                       <input
                         type="text"
-                        value={editClient.corporate_name}
-                        onChange={(e) => setEditClient({ ...editClient, corporate_name: e.target.value })}
+                        value={editClient.company_name}
+                        onChange={(e) => setEditClient({ ...editClient, company_name: e.target.value, corporate_name: e.target.value, trade_name: e.target.value })}
                         className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>

@@ -49,6 +49,7 @@ export interface Position {
 export interface Client {
   id: string;
   name: string;
+  company_name?: string | null;
   corporate_name?: string | null;
   trade_name?: string | null;
   document?: string | null;

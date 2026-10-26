@@ -227,9 +227,10 @@ export async function POST(request: Request) {
       }
 
       case 'CLIENT': {
-        const clientName = data.name || data.company || 'Novo Cliente';
+        const clientName = data.name || data.contact_name || data.company || 'Novo Cliente';
         const clientId = generateId('cli');
-        const corporateName = data.corporate_name || data.company || null;
+        const companyName = data.company_name || data.company || data.corporate_name || null;
+        const corporateName = companyName;
         const phone = data.phone || null;
         const whatsapp = data.whatsapp || data.phone || null;
         const email = data.email || null;
@@ -253,14 +254,15 @@ export async function POST(request: Request) {
           await db
             .prepare(`
               INSERT INTO clients (
-                id, name, corporate_name, email, phone, whatsapp, address, city, state,
+                id, name, company_name, corporate_name, email, phone, whatsapp, address, city, state,
                 website, instagram, social_links, notes, status, workspace_id, created_at, updated_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ativo', ?, datetime('now'), datetime('now'))
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ativo', ?, datetime('now'), datetime('now'))
             `)
             .bind(
               clientId,
               clientName,
+              companyName,
               corporateName,
               email,
               phone,

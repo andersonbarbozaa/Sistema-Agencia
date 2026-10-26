@@ -440,6 +440,7 @@ function fallbackPortugueseParser(text: string): AIInterpretationResult {
         name: clientName,
         contact_name: extracted.contact_name || clientName,
         company: comp,
+        company_name: comp,
         corporate_name: comp,
         phone: extracted.phone || null,
         whatsapp: extracted.whatsapp || extracted.phone || null,

@@ -70,6 +70,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     // Allowed updatable fields
     const ALLOWED_FIELDS = [
       'name',
+      'company_name',
       'corporate_name',
       'trade_name',
       'avatar_url',
@@ -87,6 +88,14 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       'notes',
       'status',
     ];
+
+    // Support company_name sync
+    if ('company_name' in body && !('corporate_name' in body)) {
+      body.corporate_name = body.company_name;
+    }
+    if ('company_name' in body && !('trade_name' in body)) {
+      body.trade_name = body.company_name;
+    }
 
     // Support legacy/alias cnpj -> document
     if ('cnpj' in body && !('document' in body)) {
