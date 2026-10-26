@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useMemo, useEffect } from 'react';
 import {
   FileCheck2,
@@ -41,9 +42,10 @@ interface ClientPortalViewProps {
     completed_tasks: number;
   };
   onRefresh?: () => void;
+  mode?: 'dashboard' | 'tasks';
 }
 
-export default function ClientPortalView({ initialTasks = [], user, counts }: ClientPortalViewProps) {
+export default function ClientPortalView({ initialTasks = [], user, counts, mode = 'tasks' }: ClientPortalViewProps) {
   const [tasks, setTasks] = useState<any[]>(initialTasks);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
@@ -52,6 +54,24 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
+
+  // Read initial filter from URL params (e.g. /tasks?status=para_aprovacao or ?id=xxx)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const st = sp.get('status') || sp.get('filter');
+      if (st) {
+        if (st === 'aprovacao' || st === 'para_aprovacao') setStatusFilter('para_aprovacao');
+        else if (st === 'abertas' || st === 'pendentes') setStatusFilter('pendentes');
+        else if (st === 'em_producao') setStatusFilter('em_producao');
+        else if (st === 'concluidas' || st === 'aprovadas') setStatusFilter('concluidas');
+      }
+      const tid = sp.get('id');
+      if (tid) {
+        openTask(tid);
+      }
+    }
+  }, []);
 
   // Selected task detail modal
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -438,7 +458,12 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Welcome Banner */}
+      {mode === 'dashboard' ? (
+        /* ======================================================== */
+        /* DASHBOARD EXCLUSIVO DO CLIENTE (/dashboard)              */
+        /* ======================================================== */
+        <>
+          {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -468,15 +493,13 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
               </button>
             )}
 
-            <button
-              onClick={() => {
-                setStatusFilter('para_aprovacao');
-              }}
+            <Link
+              href="/tasks?status=para_aprovacao"
               className="px-4 py-2.5 bg-white text-blue-800 hover:bg-blue-50 rounded-2xl text-xs font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2"
             >
               <FileCheck2 size={16} className="text-amber-600" />
-              <span>Aprovações Pendentes ({counts?.awaiting_approval || 0})</span>
-            </button>
+              <span>Aprovações Pendentes ({counts?.awaiting_approval || awaitingApprovalCount})</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -484,12 +507,9 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
       {/* Metric Cards (Total Abertas, Em Aprovação, Atrasadas) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Total de Tarefas Abertas */}
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'pendentes' ? 'todos' : 'pendentes')}
-          className={cn(
-            'p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group',
-            statusFilter === 'pendentes' ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50/30' : 'border-gray-200'
-          )}
+        <Link
+          href="/tasks?status=pendentes"
+          className="p-5 rounded-2xl border border-gray-200 transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group hover:border-blue-300 block"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
@@ -500,16 +520,13 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
             </div>
           </div>
           <p className="text-3xl font-extrabold text-blue-600 mt-3">{openTasksCount}</p>
-          <p className="text-[11px] text-gray-400 mt-1">Total de demandas em andamento</p>
-        </div>
+          <p className="text-[11px] text-gray-400 mt-1">Total de demandas em andamento &bull; Ver na lista &rarr;</p>
+        </Link>
 
         {/* Total em Aprovação */}
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'para_aprovacao' ? 'todos' : 'para_aprovacao')}
-          className={cn(
-            'p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group',
-            statusFilter === 'para_aprovacao' ? 'ring-2 ring-amber-500 border-amber-300 bg-amber-50/30' : 'border-gray-200'
-          )}
+        <Link
+          href="/tasks?status=para_aprovacao"
+          className="p-5 rounded-2xl border border-gray-200 transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group hover:border-amber-300 block"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
@@ -520,19 +537,13 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
             </div>
           </div>
           <p className="text-3xl font-extrabold text-amber-600 mt-3">{awaitingApprovalCount}</p>
-          <p className="text-[11px] text-gray-400 mt-1">Materiais prontos para sua revisão</p>
-        </div>
+          <p className="text-[11px] text-gray-400 mt-1">Materiais prontos para sua revisão &bull; Ver na lista &rarr;</p>
+        </Link>
 
         {/* Total Atrasadas */}
-        <div
-          onClick={() => {
-            const today = new Date().toISOString().split('T')[0];
-            setStatusFilter('todos');
-            setSearchQuery('');
-          }}
-          className={cn(
-            'p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group border-gray-200 hover:border-red-300'
-          )}
+        <Link
+          href="/tasks?status=pendentes"
+          className="p-5 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md bg-white group border-gray-200 hover:border-red-300 block"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-red-600 transition-colors">
@@ -543,8 +554,8 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
             </div>
           </div>
           <p className="text-3xl font-extrabold text-red-600 mt-3">{overdueTasksCount}</p>
-          <p className="text-[11px] text-gray-400 mt-1">Entregas que requerem atenção</p>
-        </div>
+          <p className="text-[11px] text-gray-400 mt-1">Entregas que requerem atenção &bull; Ver na lista &rarr;</p>
+        </Link>
       </div>
 
       {/* ======================================================== */}
@@ -563,9 +574,19 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
                 <p className="text-[11px] text-gray-400">Demandas agendadas com entrega mais próxima</p>
               </div>
             </div>
-            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-              {upcomingDeliveries.length} entregas
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
+                {upcomingDeliveries.length} entregas
+              </span>
+              <Link
+                href="/tasks"
+                className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1"
+                title="Ir para a página de Tarefas"
+              >
+                <span>Ver Todas</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
           </div>
 
           {upcomingDeliveries.length === 0 ? (
@@ -768,7 +789,40 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
         </div>
       </div>
 
-      {/* Superior Controls & Filters Bar */}
+        </>
+      ) : (
+        /* ======================================================== */
+        /* MÓDULO EXCLUSIVO DE TAREFAS DO CLIENTE (/tasks)          */
+        /* ======================================================== */
+        <>
+          {/* Header Superior de Tarefas */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2.5">
+                <CheckSquare className="w-6 h-6 text-blue-600" />
+                Minhas Tarefas & Demandas
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                Acompanhe suas entregas, aprove materiais criativos ou solicite alterações em formato de lista ou kanban.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {linkedClients.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setShowSwitchModal(true)}
+                  className="px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold border border-gray-200 shadow-xs flex items-center gap-2 transition-all active:scale-95"
+                  title="Trocar de empresa ou conta vinculada"
+                >
+                  <ArrowLeftRight size={14} className="text-blue-600" />
+                  <span>Trocar Empresa ({linkedClients.length})</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Superior Controls & Filters Bar */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Search Input */}
@@ -1190,6 +1244,8 @@ export default function ClientPortalView({ initialTasks = [], user, counts }: Cl
             })}
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* ======================================================== */}

@@ -520,6 +520,7 @@ export default function TasksPage() {
         initialTasks={tasks}
         user={currentUser}
         onRefresh={fetchInitialData}
+        mode="tasks"
       />
     );
   }

@@ -259,6 +259,7 @@ export default function DashboardPage() {
         user={data.user}
         counts={data.counts}
         onRefresh={fetchDashboard}
+        mode="dashboard"
       />
     );
   }
