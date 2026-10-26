@@ -47,7 +47,7 @@ export default function CRMPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortField, setSortField] = useState<'contact_name' | 'company' | 'status' | 'last_activity_at'>('last_activity_at');
+  const [sortField, setSortField] = useState<'contact_name' | 'company' | 'status' | 'platform' | 'city' | 'last_activity_at'>('last_activity_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null);
   const [interactions, setInteractions] = useState<CRMInteraction[]>([]);
@@ -321,7 +321,7 @@ export default function CRMPage() {
     }
   };
 
-  const handleSort = (field: 'contact_name' | 'company' | 'status' | 'last_activity_at') => {
+  const handleSort = (field: 'contact_name' | 'company' | 'status' | 'platform' | 'city' | 'last_activity_at') => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -343,9 +343,17 @@ export default function CRMPage() {
         const dateA = new Date(a.last_activity_at || '').getTime();
         const dateB = new Date(b.last_activity_at || '').getTime();
         comparison = dateA - dateB;
+      } else if (sortField === 'platform') {
+        const valA = (a.platform || a.source || '').toLowerCase();
+        const valB = (b.platform || b.source || '').toLowerCase();
+        comparison = valA.localeCompare(valB, 'pt-BR');
+      } else if (sortField === 'city') {
+        const valA = (a.city || '').toLowerCase();
+        const valB = (b.city || '').toLowerCase();
+        comparison = valA.localeCompare(valB, 'pt-BR');
       } else {
-        const valA = (a[sortField] || '').toLowerCase();
-        const valB = (b[sortField] || '').toLowerCase();
+        const valA = ((a as any)[sortField] || '').toLowerCase();
+        const valB = ((b as any)[sortField] || '').toLowerCase();
         comparison = valA.localeCompare(valB, 'pt-BR');
       }
       return sortDirection === 'asc' ? comparison : -comparison;
@@ -522,8 +530,32 @@ export default function CRMPage() {
                       )}
                     </div>
                   </th>
-                  <th className="py-3.5 px-4">Plataforma</th>
-                  <th className="py-3.5 px-4">Cidade</th>
+                  <th
+                    onClick={() => handleSort('platform')}
+                    className="py-3.5 px-4 cursor-pointer hover:text-gray-900 transition-colors"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Plataforma</span>
+                      {sortField === 'platform' ? (
+                        sortDirection === 'asc' ? <ChevronUp size={14} className="text-blue-600" /> : <ChevronDown size={14} className="text-blue-600" />
+                      ) : (
+                        <ArrowUpDown size={12} className="opacity-40" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('city')}
+                    className="py-3.5 px-4 cursor-pointer hover:text-gray-900 transition-colors"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Cidade</span>
+                      {sortField === 'city' ? (
+                        sortDirection === 'asc' ? <ChevronUp size={14} className="text-blue-600" /> : <ChevronDown size={14} className="text-blue-600" />
+                      ) : (
+                        <ArrowUpDown size={12} className="opacity-40" />
+                      )}
+                    </div>
+                  </th>
                   <th
                     onClick={() => handleSort('last_activity_at')}
                     className="py-3.5 px-4 cursor-pointer hover:text-gray-900 transition-colors"
@@ -558,8 +590,14 @@ export default function CRMPage() {
                         {l.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-gray-600">{l.platform || '-'}</td>
-                    <td className="py-3 px-4 text-gray-600">{l.city || '-'}</td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700">
+                        {l.platform || l.source || '-'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-gray-700 font-medium">
+                      {l.city || '-'}
+                    </td>
                     <td className="py-3 px-4 text-gray-500">
                       {formatDate(l.last_activity_at)}
                       {l.is_inactive && (
@@ -635,6 +673,10 @@ export default function CRMPage() {
                 <div className="p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-400">Origem / Plataforma:</span>
                   <p className="font-semibold text-gray-800 mt-1">{selectedLead.platform || selectedLead.source || '-'}</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <span className="text-gray-400">Cidade:</span>
+                  <p className="font-semibold text-gray-800 mt-1">{selectedLead.city || '-'}</p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-400">Valor Estimado:</span>

@@ -19,3 +19,10 @@ ALTER TABLE crm_interactions ADD COLUMN message TEXT;
 ALTER TABLE crm_interactions ADD COLUMN type TEXT;
 ALTER TABLE crm_interactions ADD COLUMN notes TEXT;
 ALTER TABLE crm_interactions ADD COLUMN created_at TEXT;
+
+ALTER TABLE crm_leads ADD COLUMN city TEXT;
+ALTER TABLE crm_leads ADD COLUMN platform TEXT;
+ALTER TABLE crm_leads ADD COLUMN source TEXT;
+ALTER TABLE crm_leads ADD COLUMN whatsapp TEXT;
+ALTER TABLE crm_leads ADD COLUMN estimated_value REAL DEFAULT 0;
+ALTER TABLE crm_leads ADD COLUMN first_contact_date TEXT;

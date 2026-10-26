@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
@@ -18,6 +17,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .prepare(
         `SELECT
           l.*,
+          COALESCE(l.platform, l.source, 'WhatsApp') AS platform,
+          COALESCE(l.source, l.platform, 'WhatsApp') AS source,
+          COALESCE(l.city, '') AS city,
+          COALESCE(l.whatsapp, l.phone, '') AS whatsapp,
           u.name as assignee_name,
           CAST((julianday('now') - julianday(l.last_activity_at)) AS INTEGER) > 7 as is_inactive
         FROM crm_leads l
@@ -72,12 +75,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existing = await db.prepare('SELECT * FROM crm_leads WHERE id = ?').bind(id).first();
     if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const payload: Record<string, any> = { ...body };
     if ('whatsapp' in payload && !('phone' in payload)) payload.phone = payload.whatsapp;
+    if ('phone' in payload && !('whatsapp' in payload)) payload.whatsapp = payload.phone;
     if ('platform' in payload && !('source' in payload)) payload.source = payload.platform;
+    if ('source' in payload && !('platform' in payload)) payload.platform = payload.source;
 
-    const allowedFields = ['contact_name', 'company', 'email', 'phone', 'status', 'assignee_id', 'notes', 'source', 'estimated_value'];
+    const allowedFields = [
+      'contact_name',
+      'company',
+      'email',
+      'phone',
+      'whatsapp',
+      'city',
+      'platform',
+      'source',
+      'status',
+      'assignee_id',
+      'notes',
+      'estimated_value'
+    ];
     const updates: string[] = [];
     const values: unknown[] = [];
 
@@ -105,7 +123,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const updated = await db
       .prepare(
-        `SELECT l.*, u.name as assignee_name,
+        `SELECT l.*,
+          COALESCE(l.platform, l.source, 'WhatsApp') AS platform,
+          COALESCE(l.source, l.platform, 'WhatsApp') AS source,
+          COALESCE(l.city, '') AS city,
+          COALESCE(l.whatsapp, l.phone, '') AS whatsapp,
+          u.name as assignee_name,
           CAST((julianday('now') - julianday(l.last_activity_at)) AS INTEGER) > 7 as is_inactive
         FROM crm_leads l
         LEFT JOIN users u ON u.id = l.assignee_id
@@ -137,9 +160,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await db.prepare('DELETE FROM crm_interactions WHERE lead_id = ?').bind(id).run();
     await db.prepare('DELETE FROM crm_leads WHERE id = ?').bind(id).run();
 
-    await logAudit(user.id, 'crm_leads', 'DELETE', id, { contact_name: (existing as Record<string, unknown>).contact_name });
+    await logAudit(user.id, 'crm_leads', 'DELETE', id, { contact_name: (existing as any).contact_name });
 
-    return NextResponse.json({ message: 'Lead deleted successfully' });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('DELETE /api/crm/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
