@@ -139,6 +139,66 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .bind(...values)
       .run();
 
+    // If the updated user is a CLIENTE, ensure they appear in clients table
+    const targetRole = body.role || (existing as any).role;
+    if (targetRole === 'CLIENTE') {
+      const currentUserRecord = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<any>();
+      if (currentUserRecord) {
+        let cliId = currentUserRecord.client_id;
+        let clientExists = null;
+        if (cliId) {
+          clientExists = await db.prepare('SELECT id FROM clients WHERE id = ?').bind(cliId).first();
+        }
+        if (!clientExists && currentUserRecord.email) {
+          clientExists = await db.prepare('SELECT id FROM clients WHERE lower(email) = lower(?)').bind(currentUserRecord.email).first();
+          if (clientExists) {
+            cliId = clientExists.id;
+            await db.prepare('UPDATE users SET client_id = ? WHERE id = ?').bind(cliId, id).run();
+          }
+        }
+        if (!clientExists) {
+          cliId = 'cli_' + id.replace(/^usr_/, '');
+          await db.prepare(`
+            INSERT INTO clients (
+              id, name, email, phone, whatsapp, avatar_url, status, workspace_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            cliId,
+            currentUserRecord.name || 'Cliente',
+            currentUserRecord.email || null,
+            currentUserRecord.phone || null,
+            currentUserRecord.phone || null,
+            currentUserRecord.avatar_url || null,
+            currentUserRecord.status || 'ativo',
+            currentUserRecord.workspace_id || 'ws_default',
+            now,
+            now
+          ).run();
+          await db.prepare('UPDATE users SET client_id = ? WHERE id = ?').bind(cliId, id).run();
+        } else {
+          // Keep existing client synced with user info
+          await db.prepare(`
+            UPDATE clients
+            SET name = COALESCE(?, name),
+                email = COALESCE(?, email),
+                phone = COALESCE(?, phone),
+                status = COALESCE(?, status),
+                avatar_url = COALESCE(?, avatar_url),
+                updated_at = ?
+            WHERE id = ?
+          `).bind(
+            currentUserRecord.name || null,
+            currentUserRecord.email || null,
+            currentUserRecord.phone || null,
+            currentUserRecord.status || null,
+            currentUserRecord.avatar_url || null,
+            now,
+            cliId
+          ).run();
+        }
+      }
+    }
+
     await logAudit(user.id, 'users', 'UPDATE', id, { updated_fields: Object.keys(body).filter((k) => k !== 'current_password' && k !== 'new_password') });
 
     const updated = await db

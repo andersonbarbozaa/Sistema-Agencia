@@ -82,7 +82,42 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     const wsId = user.workspace_id || 'ws_default';
     const hashedPassword = await hashPassword(password);
-    const jobTitle = body.job_title || (role === 'ADMINISTRADOR' ? 'Administrador' : 'Colaborador');
+    const jobTitle = body.job_title || (role === 'ADMINISTRADOR' ? 'Administrador' : role === 'CLIENTE' ? 'Cliente' : 'Colaborador');
+
+    let finalClientId = client_id || null;
+
+    // If role is CLIENTE, ensure client exists in clients table
+    if (role === 'CLIENTE') {
+      if (finalClientId) {
+        const cli = await db.prepare('SELECT id FROM clients WHERE id = ?').bind(finalClientId).first();
+        if (!cli) finalClientId = null;
+      }
+      if (!finalClientId && email) {
+        const cliByEmail = await db.prepare('SELECT id FROM clients WHERE lower(email) = lower(?)').bind(email.trim()).first<{ id: string }>();
+        if (cliByEmail) {
+          finalClientId = cliByEmail.id;
+        }
+      }
+      if (!finalClientId) {
+        finalClientId = 'cli_' + id.replace(/^usr_/, '');
+        await db.prepare(`
+          INSERT INTO clients (
+            id, name, email, phone, whatsapp, avatar_url, status, workspace_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          finalClientId,
+          name.trim(),
+          email.trim().toLowerCase(),
+          phone || null,
+          phone || null,
+          avatar_url || null,
+          status || 'ativo',
+          wsId,
+          now,
+          now
+        ).run();
+      }
+    }
 
     await db
       .prepare(
@@ -100,7 +135,7 @@ export async function POST(request: NextRequest) {
         phone ?? null,
         avatar_url ?? null,
         position_id ?? null,
-        client_id ?? null,
+        finalClientId,
         is_partner ? 1 : 0,
         jobTitle,
         wsId,

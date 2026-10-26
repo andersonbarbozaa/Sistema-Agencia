@@ -23,15 +23,66 @@ export async function GET(request: Request) {
     const search   = searchParams.get('search')?.trim() ?? '';
     const status   = searchParams.get('status')?.trim() ?? '';
     const cursor   = searchParams.get('cursor')?.trim() ?? ''; // ISO string of created_at
-    const limit    = 20;
+    const limit    = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 100;
+    const wsId     = user.workspace_id || 'ws_default';
 
     const db = await getDb();
+
+    // Auto-sync: Ensure all users with role 'CLIENTE' exist as clients in clients table
+    try {
+      const clientUsers = await db
+        .prepare(`
+          SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.status, u.client_id, u.workspace_id, u.created_at, u.updated_at
+          FROM users u
+          WHERE u.role = 'CLIENTE'
+            AND (u.workspace_id = ? OR (u.workspace_id IS NULL AND ? = 'ws_default'))
+        `)
+        .bind(wsId, wsId)
+        .all();
+
+      const userRows = (clientUsers.results || []) as any[];
+      for (const u of userRows) {
+        let existingClient: any = null;
+        if (u.client_id) {
+          existingClient = await db.prepare('SELECT id FROM clients WHERE id = ?').bind(u.client_id).first();
+        }
+        if (!existingClient && u.email) {
+          existingClient = await db.prepare('SELECT id FROM clients WHERE lower(email) = lower(?)').bind(u.email).first();
+          if (existingClient) {
+            await db.prepare('UPDATE users SET client_id = ? WHERE id = ?').bind(existingClient.id, u.id).run();
+          }
+        }
+        if (!existingClient) {
+          const newClientId = u.client_id || ('cli_' + u.id.replace(/^usr_/, ''));
+          const nowStr = new Date().toISOString();
+          await db.prepare(`
+            INSERT INTO clients (
+              id, name, email, phone, whatsapp, avatar_url, status, workspace_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            newClientId,
+            u.name || 'Cliente',
+            u.email || null,
+            u.phone || null,
+            u.phone || null,
+            u.avatar_url || null,
+            u.status || 'ativo',
+            u.workspace_id || wsId,
+            u.created_at || nowStr,
+            u.updated_at || nowStr
+          ).run();
+
+          await db.prepare('UPDATE users SET client_id = ? WHERE id = ?').bind(newClientId, u.id).run();
+        }
+      }
+    } catch (syncErr) {
+      console.error('[GET /api/clients] Sync client users error:', syncErr);
+    }
 
     // Build dynamic WHERE clauses
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
-    const wsId = user.workspace_id || 'ws_default';
     conditions.push("(c.workspace_id = ? OR (c.workspace_id IS NULL AND ? = 'ws_default'))");
     params.push(wsId, wsId);
 
