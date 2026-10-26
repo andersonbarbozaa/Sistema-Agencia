@@ -60,6 +60,7 @@ export interface Client {
   state?: string | null;
   website?: string | null;
   instagram?: string | null;
+  social_links?: string | null;
   responsible_user_id?: string | null;
   responsible_name?: string | null;
   notes?: string | null;

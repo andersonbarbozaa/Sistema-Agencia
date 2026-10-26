@@ -82,6 +82,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       'state',
       'website',
       'instagram',
+      'social_links',
       'responsible_user_id',
       'notes',
       'status',

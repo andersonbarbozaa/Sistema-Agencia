@@ -73,6 +73,7 @@ export async function GET(request: Request) {
            c.address,
            c.website,
            c.instagram,
+           c.social_links,
            c.responsible_user_id,
            u.name AS responsible_name,
            c.status,
@@ -148,6 +149,7 @@ export async function POST(request: Request) {
     const instagram           = body.instagram           ?? null;
     const responsible_user_id = body.responsible_user_id ?? null;
     const notes               = body.notes               ?? null;
+    const social_links        = body.social_links ? (typeof body.social_links === 'string' ? body.social_links : JSON.stringify(body.social_links)) : null;
     const status              = body.status              ?? 'ativo';
 
     // Generate ID
@@ -167,8 +169,8 @@ export async function POST(request: Request) {
         `INSERT INTO clients (
            id, name, corporate_name, trade_name, avatar_url, document,
            email, phone, whatsapp, address, city, state, website, instagram,
-           responsible_user_id, notes, status, workspace_id, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           responsible_user_id, notes, status, social_links, workspace_id, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -188,6 +190,7 @@ export async function POST(request: Request) {
         responsible_user_id,
         notes,
         status,
+        social_links,
         wsId,
         now,
         now
@@ -202,31 +205,29 @@ export async function POST(request: Request) {
       details:    `Client "${name.trim()}" created`,
     });
 
-    // Auto-create client user in users table if email is provided
-    if (email) {
-      try {
-        const clientEmail = email.trim().toLowerCase();
-        const existingUser = await db
-          .prepare('SELECT id FROM users WHERE lower(email) = lower(?) OR client_id = ?')
-          .bind(clientEmail, id)
-          .first();
+    // Auto-create client user in users table (guarantees presence in Configurações > Usuários)
+    try {
+      const clientEmail = (email && email.trim()) ? email.trim().toLowerCase() : `cliente.${id.replace(/[^a-zA-Z0-9]/g, '')}@portal.com`;
+      const existingUser = await db
+        .prepare('SELECT id FROM users WHERE lower(email) = lower(?) OR client_id = ?')
+        .bind(clientEmail, id)
+        .first();
 
-        if (!existingUser) {
-          const pass = (body.password && typeof body.password === 'string' && body.password.trim())
-            ? body.password.trim()
-            : 'cliente123';
-          const passHash = await hashPassword(pass);
-          const newUserId = 'usr_' + id.replace(/^cli_/, '');
-          await db
-            .prepare(
-              'INSERT INTO users (id, name, email, password_hash, role, client_id, workspace_id, avatar_url, phone, status) VALUES (?, ?, ?, ?, \'CLIENTE\', ?, ?, ?, ?, ?)'
-            )
-            .bind(newUserId, name.trim(), clientEmail, passHash, id, wsId, avatar_url || null, whatsapp || phone || null, status || 'ativo')
-            .run();
-        }
-      } catch (uErr) {
-        console.error('Error auto-creating client user on POST:', uErr);
+      if (!existingUser) {
+        const pass = (body.password && typeof body.password === 'string' && body.password.trim())
+          ? body.password.trim()
+          : 'cliente123';
+        const passHash = await hashPassword(pass);
+        const newUserId = 'usr_' + id.replace(/^cli_/, '');
+        await db
+          .prepare(
+            'INSERT INTO users (id, name, email, password_hash, role, client_id, workspace_id, avatar_url, phone, status) VALUES (?, ?, ?, ?, \'CLIENTE\', ?, ?, ?, ?, ?)'
+          )
+          .bind(newUserId, name.trim(), clientEmail, passHash, id, wsId, avatar_url || null, whatsapp || phone || null, status || 'ativo')
+          .run();
       }
+    } catch (uErr) {
+      console.error('Error auto-creating client user on POST:', uErr);
     }
 
     const created = await db

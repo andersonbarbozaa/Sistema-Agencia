@@ -1749,7 +1749,7 @@ function SettingsContent() {
               <div>
                 <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <Users className="w-5 h-5 text-blue-600" />
-                  Equipe & Usuários da Agência
+                  Usuários
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Gerenciamento de contas, cargos e níveis de acesso (Admin, Colaborador, Cliente).

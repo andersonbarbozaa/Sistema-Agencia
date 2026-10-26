@@ -30,6 +30,8 @@ import {
   EyeOff,
   RefreshCw,
   Lock,
+  MessageCircle,
+  Trash2,
 } from 'lucide-react';
 import { Client } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
@@ -63,6 +65,91 @@ async function compressClientImage(file: File, maxSize = 256): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+const SOCIAL_NETWORK_OPTIONS = [
+  'Instagram',
+  'Facebook',
+  'LinkedIn',
+  'TikTok',
+  'YouTube',
+  'Threads',
+  'X / Twitter',
+  'Pinterest',
+  'Behance',
+  'WhatsApp',
+  'Outro',
+];
+
+interface SocialLinkItem {
+  network: string;
+  value: string;
+}
+
+function parseSocialLinks(client: any): SocialLinkItem[] {
+  if (!client) return [];
+  if (client.social_links) {
+    try {
+      const parsed = typeof client.social_links === 'string' ? JSON.parse(client.social_links) : client.social_links;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((item: any) => item && item.value && String(item.value).trim());
+      }
+    } catch {
+      // ignore
+    }
+  }
+  const legacy: SocialLinkItem[] = [];
+  if (client.instagram && String(client.instagram).trim()) {
+    legacy.push({ network: 'Instagram', value: String(client.instagram).trim() });
+  }
+  return legacy;
+}
+
+function buildSocialUrl(network: string, rawValue: string): string {
+  const val = (rawValue || '').trim();
+  if (!val) return '#';
+  if (/^https?:\/\//i.test(val)) return val;
+  const cleanHandle = val.replace(/^@/, '');
+  const net = (network || '').toLowerCase();
+
+  if (net.includes('instagram')) {
+    return val.includes('instagram.com') ? `https://${val}` : `https://instagram.com/${cleanHandle}`;
+  }
+  if (net.includes('facebook')) {
+    return val.includes('facebook.com') ? `https://${val}` : `https://facebook.com/${cleanHandle}`;
+  }
+  if (net.includes('linkedin')) {
+    return val.includes('linkedin.com') ? `https://${val}` : `https://linkedin.com/in/${cleanHandle}`;
+  }
+  if (net.includes('tiktok')) {
+    return val.includes('tiktok.com') ? `https://${val}` : `https://tiktok.com/@${cleanHandle}`;
+  }
+  if (net.includes('youtube')) {
+    return val.includes('youtube.com') ? `https://${val}` : `https://youtube.com/@${cleanHandle}`;
+  }
+  if (net.includes('threads')) {
+    return val.includes('threads.net') ? `https://${val}` : `https://threads.net/@${cleanHandle}`;
+  }
+  if (net.includes('twitter') || net.includes('x /') || net === 'x') {
+    return val.includes('x.com') || val.includes('twitter.com') ? `https://${val}` : `https://x.com/${cleanHandle}`;
+  }
+  if (net.includes('pinterest')) {
+    return val.includes('pinterest.com') ? `https://${val}` : `https://pinterest.com/${cleanHandle}`;
+  }
+  if (net.includes('behance')) {
+    return val.includes('behance.net') ? `https://${val}` : `https://behance.net/${cleanHandle}`;
+  }
+  if (net.includes('whatsapp')) {
+    const digits = val.replace(/\D/g, '');
+    return digits ? `https://wa.me/${digits.length <= 11 ? '55' + digits : digits}` : `https://${val}`;
+  }
+  return `https://${val}`;
+}
+
+function getWhatsAppUrl(rawPhone: string): string {
+  const digits = (rawPhone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return `https://wa.me/${digits.length <= 11 ? '55' + digits : digits}`;
 }
 
 export default function ClientsPage() {
@@ -105,15 +192,16 @@ export default function ClientsPage() {
     avatar_url: '',
     document: '',
     email: '',
+    password: '',
     phone: '',
     whatsapp: '',
     address: '',
     city: '',
-    state: '',
     website: '',
-    instagram: '',
     notes: '',
+    social_links: [] as SocialLinkItem[],
   });
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
 
   const fetchClients = async () => {
     try {
@@ -253,10 +341,17 @@ export default function ClientsPage() {
     if (!newClient.name) return;
 
     try {
+      const payload: any = {
+        ...newClient,
+        social_links: JSON.stringify(newClient.social_links),
+      };
+      const firstIg = newClient.social_links.find((s) => s.network.toLowerCase().includes('instagram'));
+      if (firstIg) payload.instagram = firstIg.value;
+
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newClient),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setShowCreateModal(false);
@@ -267,14 +362,14 @@ export default function ClientsPage() {
           avatar_url: '',
           document: '',
           email: '',
+          password: '',
           phone: '',
           whatsapp: '',
           address: '',
           city: '',
-          state: '',
           website: '',
-          instagram: '',
           notes: '',
+          social_links: [],
         });
         fetchClients();
       } else {
@@ -302,11 +397,10 @@ export default function ClientsPage() {
     whatsapp: '',
     address: '',
     city: '',
-    state: '',
     website: '',
-    instagram: '',
     status: 'ativo',
     notes: '',
+    social_links: [] as SocialLinkItem[],
   });
 
   const openEditModal = (client: any) => {
@@ -322,11 +416,10 @@ export default function ClientsPage() {
       whatsapp: client.whatsapp || '',
       address: client.address || '',
       city: client.city || '',
-      state: client.state || '',
       website: client.website || '',
-      instagram: client.instagram || '',
       status: client.status || 'ativo',
       notes: client.notes || '',
+      social_links: parseSocialLinks(client),
     });
     setShowEditPassword(false);
     setShowEditModal(true);
@@ -337,16 +430,23 @@ export default function ClientsPage() {
     if (!selectedClient || !editClient.name) return;
 
     try {
+      const payload: any = {
+        ...editClient,
+        social_links: JSON.stringify(editClient.social_links),
+      };
+      const firstIg = editClient.social_links.find((s) => s.network.toLowerCase().includes('instagram'));
+      if (firstIg) payload.instagram = firstIg.value;
+
       const res = await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editClient),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setShowEditModal(false);
         const updated = await res.json();
-        setSelectedClient({ ...selectedClient, ...(updated.data || editClient) });
+        setSelectedClient({ ...selectedClient, ...(updated.data || payload) });
         fetchClients();
       } else {
         const err = await res.json();
@@ -522,6 +622,21 @@ export default function ClientsPage() {
                     <span>{client.phone}</span>
                   </div>
                 )}
+                {client.whatsapp && (
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={13} className="text-emerald-500 flex-shrink-0" />
+                    <a
+                      href={getWhatsAppUrl(client.whatsapp)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:underline text-emerald-700 font-medium"
+                      title="Abrir WhatsApp para enviar mensagem"
+                    >
+                      {client.whatsapp}
+                    </a>
+                  </div>
+                )}
                 {client.email && (
                   <div className="flex items-center gap-2">
                     <Mail size={13} className="text-gray-400 flex-shrink-0" />
@@ -586,7 +701,7 @@ export default function ClientsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const url = window.location.origin + '/login?email=' + encodeURIComponent(selectedClient.email || '');
+                        const url = window.location.origin + '/login';
                         handleCopy(url, 'modalLoginLink');
                       }}
                       className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
@@ -651,8 +766,28 @@ export default function ClientsPage() {
                       <p className="font-semibold text-gray-800 mt-1">{selectedClient.trade_name || selectedClient.name}</p>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
-                      <span className="text-gray-400 font-medium">WhatsApp / Telefone:</span>
-                      <p className="font-semibold text-gray-800 mt-1">{selectedClient.whatsapp || selectedClient.phone || '-'}</p>
+                      <span className="text-gray-400 font-medium">Telefone:</span>
+                      <p className="font-semibold text-gray-800 mt-1">{selectedClient.phone || '-'}</p>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <span className="text-gray-400 font-medium">WhatsApp:</span>
+                      {selectedClient.whatsapp ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="font-semibold text-gray-800">{selectedClient.whatsapp}</p>
+                          <a
+                            href={getWhatsAppUrl(selectedClient.whatsapp)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-[11px] transition-colors"
+                            title="Abrir WhatsApp para enviar mensagem"
+                          >
+                            <MessageCircle size={12} />
+                            <span>Conversar</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="font-semibold text-gray-800 mt-1">-</p>
+                      )}
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-400 font-medium">E-mail Comercial:</span>
@@ -663,10 +798,6 @@ export default function ClientsPage() {
                       <p className="font-semibold text-gray-800 mt-1">{selectedClient.address || '-'}</p>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
-                      <span className="text-gray-400 font-medium">Instagram:</span>
-                      <p className="font-semibold text-gray-800 mt-1">{selectedClient.instagram || '-'}</p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-400 font-medium">Website:</span>
                       <p className="font-semibold text-blue-600 mt-1 truncate">
                         {selectedClient.website ? (
@@ -675,6 +806,28 @@ export default function ClientsPage() {
                           </a>
                         ) : '-'}
                       </p>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl col-span-2 sm:col-span-3">
+                      <span className="text-gray-400 font-medium block mb-1">Redes Sociais:</span>
+                      {parseSocialLinks(selectedClient).length === 0 ? (
+                        <p className="font-semibold text-gray-400 italic">Nenhuma rede social configurada</p>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {parseSocialLinks(selectedClient).map((social, sIdx) => (
+                            <a
+                              key={sIdx}
+                              href={buildSocialUrl(social.network, social.value)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-200 hover:border-blue-400 rounded-lg text-xs font-semibold text-gray-700 hover:text-blue-600 transition-colors shadow-2xs"
+                            >
+                              <ExternalLink size={11} className="text-gray-400" />
+                              <span className="text-gray-500 font-medium">{social.network}:</span>
+                              <span>{social.value}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -823,7 +976,7 @@ export default function ClientsPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const url = window.location.origin + '/login?email=' + encodeURIComponent(user.email);
+                                  const url = window.location.origin + '/login';
                                   handleCopy(url, 'link-' + user.id);
                                 }}
                                 className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -880,124 +1033,290 @@ export default function ClientsPage() {
         <ModalPortal>
           <div
             onClick={() => setShowCreateModal(false)}
-            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             >
-            <button
-              onClick={() => setShowCreateModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
-            >
-              <X size={20} />
-            </button>
-            <h3 className="text-lg font-bold text-gray-900 mb-1 pr-6">Cadastrar Novo Cliente</h3>
-            <p className="text-xs text-gray-500 mb-4">Insira as informações cadastrais da empresa ou cliente.</p>
-
-            <form onSubmit={handleCreateClient} className="space-y-3">
-              {/* Foto / Avatar Circular */}
-              <div className="flex items-center gap-3 pb-2">
-                <ProfileAvatarUpload
-                  value={newClient.avatar_url}
-                  fallbackText={newClient.name}
-                  alt={newClient.name || 'Cliente'}
-                  size="md"
-                  onChange={(dataUrl) => setNewClient((prev) => ({ ...prev, avatar_url: dataUrl }))}
-                />
+              {/* Header Fixo */}
+              <div className="shrink-0 p-5 border-b border-gray-100 flex items-center justify-between bg-white">
                 <div>
-                  <p className="text-xs font-semibold text-gray-800">Foto / Logo do Cliente</p>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Users size={18} className="text-blue-600" />
+                    Cadastrar Novo Cliente
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Insira as informações cadastrais e dados de acesso do cliente.</p>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Principal *</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Conscape Construtora"
-                  value={newClient.name}
-                  onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
-                  <input
-                    type="text"
-                    placeholder="(18) 99999-9999"
-                    value={newClient.phone}
-                    onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    placeholder="contato@empresa.com"
-                    value={newClient.email}
-                    onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cidade</label>
-                  <input
-                    type="text"
-                    placeholder="Araçatuba"
-                    value={newClient.city}
-                    onChange={(e) => setNewClient({ ...newClient, city: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Estado</label>
-                  <input
-                    type="text"
-                    placeholder="SP"
-                    value={newClient.state}
-                    onChange={(e) => setNewClient({ ...newClient, state: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Observações</label>
-                <textarea
-                  rows={2}
-                  placeholder="Informações relevantes do cliente..."
-                  value={newClient.notes}
-                  onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
-                  className="w-full p-2.5 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                  className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
+                  title="Fechar"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm"
-                >
-                  Salvar Cliente
+                  <X size={20} />
                 </button>
               </div>
-            </form>
+
+              {/* Form com Corpo Rolável e Rodapé Fixo */}
+              <form onSubmit={handleCreateClient} className="flex flex-col flex-1 overflow-hidden min-h-0">
+                {/* Corpo Rolável */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  {/* Foto / Avatar Circular */}
+                  <div className="flex items-center gap-3.5 pb-2 border-b border-gray-100">
+                    <ProfileAvatarUpload
+                      value={newClient.avatar_url}
+                      fallbackText={newClient.name}
+                      alt={newClient.name || 'Cliente'}
+                      size="md"
+                      onChange={(dataUrl) => setNewClient((prev) => ({ ...prev, avatar_url: dataUrl }))}
+                    />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">Foto / Logo do Cliente</p>
+                      <p className="text-[11px] text-gray-400">Clique na câmera para enviar uma imagem de identificação.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Principal / Fantasia *</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Conscape Construtora"
+                        value={newClient.name}
+                        onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Razão Social</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Conscape Construções LTDA"
+                        value={newClient.corporate_name}
+                        onChange={(e) => setNewClient({ ...newClient, corporate_name: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">CPF ou CNPJ</label>
+                      <input
+                        type="text"
+                        placeholder="00.000.000/0001-00"
+                        value={newClient.document}
+                        onChange={(e) => setNewClient({ ...newClient, document: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail Comercial / Login</label>
+                      <input
+                        type="email"
+                        placeholder="contato@empresa.com"
+                        value={newClient.email}
+                        onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Utilizado para login no portal e listado em Usuários.</p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-gray-700">Senha de Acesso ao Portal</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const pass = Math.random().toString(36).slice(-8) + 'A1!';
+                            setNewClient((prev) => ({ ...prev, password: pass }));
+                            setShowCreatePassword(true);
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                        >
+                          <RefreshCw size={11} />
+                          <span>Gerar Senha</span>
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showCreatePassword ? 'text' : 'password'}
+                          value={newClient.password}
+                          onChange={(e) => setNewClient({ ...newClient, password: e.target.value })}
+                          placeholder="Digite ou gere uma senha para o cliente"
+                          className="w-full pl-3 pr-10 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCreatePassword(!showCreatePassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                        >
+                          {showCreatePassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">O cliente é cadastrado automaticamente com a permissão CLIENTE.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone</label>
+                      <input
+                        type="text"
+                        placeholder="(18) 3333-3333"
+                        value={newClient.phone}
+                        onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">WhatsApp</label>
+                      <input
+                        type="text"
+                        placeholder="(18) 99999-9999"
+                        value={newClient.whatsapp}
+                        onChange={(e) => setNewClient({ ...newClient, whatsapp: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Cidade</label>
+                      <input
+                        type="text"
+                        placeholder="Araçatuba"
+                        value={newClient.city}
+                        onChange={(e) => setNewClient({ ...newClient, city: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Endereço</label>
+                      <input
+                        type="text"
+                        placeholder="Rua Exemplo, 123 - Centro"
+                        value={newClient.address}
+                        onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Website</label>
+                      <input
+                        type="text"
+                        placeholder="https://exemplo.com.br"
+                        value={newClient.website}
+                        onChange={(e) => setNewClient({ ...newClient, website: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Redes Sociais Dinâmicas */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-gray-700">Redes Sociais</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewClient((prev) => ({
+                            ...prev,
+                            social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+                          }))
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold text-xs transition-colors"
+                      >
+                        <Plus size={13} />
+                        <span>Adicionar Rede Social</span>
+                      </button>
+                    </div>
+
+                    {newClient.social_links.length === 0 ? (
+                      <p className="text-gray-400 italic text-[11px] bg-gray-50 p-3 rounded-xl border border-dashed border-gray-200">
+                        Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {newClient.social_links.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={item.network}
+                              onChange={(e) => {
+                                const updated = [...newClient.social_links];
+                                updated[idx] = { ...updated[idx], network: e.target.value };
+                                setNewClient({ ...newClient, social_links: updated });
+                              }}
+                              className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none shrink-0"
+                            >
+                              {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                                <option key={net} value={net}>
+                                  {net}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="@usuario ou link da rede"
+                              value={item.value}
+                              onChange={(e) => {
+                                const updated = [...newClient.social_links];
+                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                setNewClient({ ...newClient, social_links: updated });
+                              }}
+                              className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = newClient.social_links.filter((_, i) => i !== idx);
+                                setNewClient({ ...newClient, social_links: updated });
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                              title="Remover rede social"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Observações Internas</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Informações relevantes do cliente..."
+                      value={newClient.notes}
+                      onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
+                      className="w-full p-2.5 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Rodapé Fixo */}
+                <div className="shrink-0 p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm transition-colors"
+                  >
+                    Salvar Cliente
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      </ModalPortal>
+        </ModalPortal>
       )}
 
       {/* ======================================================== */}
@@ -1011,103 +1330,365 @@ export default function ClientsPage() {
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             >
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Edit2 size={18} className="text-blue-600" />
-                Editar Cliente
-              </h3>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
-              >
-                <X size={20} />
-              </button>
-            </div>
+              {/* Header Fixo */}
+              <div className="shrink-0 p-5 border-b border-gray-100 flex items-center justify-between bg-white">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Edit2 size={18} className="text-blue-600" />
+                  Editar Cliente
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
+                  title="Fechar"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-            <form onSubmit={handleUpdateClient} className="mt-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2 flex items-center gap-4 pb-2 border-b border-gray-100">
-                  <ProfileAvatarUpload
-                    value={editClient.avatar_url}
-                    fallbackText={editClient.name}
-                    alt={editClient.name || 'Cliente'}
-                    size="md"
-                    onChange={(dataUrl) => setEditClient((prev) => ({ ...prev, avatar_url: dataUrl }))}
-                  />
+              {/* Form com Corpo Rolável e Rodapé Fixo */}
+              <form onSubmit={handleUpdateClient} className="flex flex-col flex-1 overflow-hidden min-h-0">
+                {/* Corpo Rolável */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  {/* Foto / Logo do Cliente */}
+                  <div className="flex items-center gap-4 pb-2 border-b border-gray-100">
+                    <ProfileAvatarUpload
+                      value={editClient.avatar_url}
+                      fallbackText={editClient.name}
+                      alt={editClient.name || 'Cliente'}
+                      size="md"
+                      onChange={(dataUrl) => setEditClient((prev) => ({ ...prev, avatar_url: dataUrl }))}
+                    />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">Foto / Logo do Perfil do Cliente</p>
+                      <p className="text-[11px] text-gray-400">Clique na câmera para alterar a foto do perfil.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Fantasia / Principal *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editClient.name}
+                        onChange={(e) => setEditClient({ ...editClient, name: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Razão Social</label>
+                      <input
+                        type="text"
+                        value={editClient.corporate_name}
+                        onChange={(e) => setEditClient({ ...editClient, corporate_name: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">CPF ou CNPJ</label>
+                      <input
+                        type="text"
+                        value={editClient.document}
+                        onChange={(e) => setEditClient({ ...editClient, document: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                      <select
+                        value={editClient.status}
+                        onChange={(e) => setEditClient({ ...editClient, status: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                        <option value="arquivado">Arquivado</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail de Login do Cliente</label>
+                      <input
+                        type="email"
+                        value={editClient.email}
+                        onChange={(e) => setEditClient({ ...editClient, email: e.target.value })}
+                        placeholder="email@cliente.com"
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Utilizado para login no portal e listado em Usuários.</p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-gray-700">Senha de Acesso ao Portal</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const pass = Math.random().toString(36).slice(-8) + 'A1!';
+                            setEditClient((prev) => ({ ...prev, password: pass }));
+                            setShowEditPassword(true);
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                        >
+                          <RefreshCw size={11} />
+                          <span>Gerar Senha</span>
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showEditPassword ? 'text' : 'password'}
+                          value={editClient.password}
+                          onChange={(e) => setEditClient({ ...editClient, password: e.target.value })}
+                          placeholder="Deixe em branco para manter a atual"
+                          className="w-full pl-3 pr-10 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditPassword(!showEditPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                        >
+                          {showEditPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">Ao definir senha, ela é sincronizada automaticamente em Usuários.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone</label>
+                      <input
+                        type="text"
+                        placeholder="(18) 3333-3333"
+                        value={editClient.phone}
+                        onChange={(e) => setEditClient({ ...editClient, phone: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">WhatsApp</label>
+                      <input
+                        type="text"
+                        placeholder="(18) 99999-9999"
+                        value={editClient.whatsapp}
+                        onChange={(e) => setEditClient({ ...editClient, whatsapp: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Cidade</label>
+                      <input
+                        type="text"
+                        placeholder="Araçatuba"
+                        value={editClient.city}
+                        onChange={(e) => setEditClient({ ...editClient, city: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Endereço</label>
+                      <input
+                        type="text"
+                        placeholder="Rua Exemplo, 123 - Centro"
+                        value={editClient.address}
+                        onChange={(e) => setEditClient({ ...editClient, address: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Website</label>
+                      <input
+                        type="text"
+                        placeholder="https://exemplo.com.br"
+                        value={editClient.website}
+                        onChange={(e) => setEditClient({ ...editClient, website: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Redes Sociais Dinâmicas */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-gray-700">Redes Sociais</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditClient((prev) => ({
+                            ...prev,
+                            social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+                          }))
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-semibold text-xs transition-colors"
+                      >
+                        <Plus size={13} />
+                        <span>Adicionar Rede Social</span>
+                      </button>
+                    </div>
+
+                    {editClient.social_links.length === 0 ? (
+                      <p className="text-gray-400 italic text-[11px] bg-gray-50 p-3 rounded-xl border border-dashed border-gray-200">
+                        Nenhuma rede social adicionada. Clique em &ldquo;Adicionar Rede Social&rdquo; para incluir.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {editClient.social_links.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={item.network}
+                              onChange={(e) => {
+                                const updated = [...editClient.social_links];
+                                updated[idx] = { ...updated[idx], network: e.target.value };
+                                setEditClient({ ...editClient, social_links: updated });
+                              }}
+                              className="px-2.5 py-2 border border-gray-300 rounded-xl bg-gray-50 font-semibold text-gray-700 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none shrink-0"
+                            >
+                              {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                                <option key={net} value={net}>
+                                  {net}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="@usuario ou link da rede"
+                              value={item.value}
+                              onChange={(e) => {
+                                const updated = [...editClient.social_links];
+                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                setEditClient({ ...editClient, social_links: updated });
+                              }}
+                              className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = editClient.social_links.filter((_, i) => i !== idx);
+                                setEditClient({ ...editClient, social_links: updated });
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                              title="Remover rede social"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
-                    <p className="text-xs font-semibold text-gray-800">Foto / Logo do Perfil do Cliente</p>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Observações Internas</label>
+                    <textarea
+                      rows={2}
+                      value={editClient.notes}
+                      onChange={(e) => setEditClient({ ...editClient, notes: e.target.value })}
+                      className="w-full p-2.5 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Fantasia / Principal *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editClient.name}
-                    onChange={(e) => setEditClient({ ...editClient, name: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Razão Social</label>
-                  <input
-                    type="text"
-                    value={editClient.corporate_name}
-                    onChange={(e) => setEditClient({ ...editClient, corporate_name: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">CPF ou CNPJ</label>
-                  <input
-                    type="text"
-                    value={editClient.document}
-                    onChange={(e) => setEditClient({ ...editClient, document: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
-                  <select
-                    value={editClient.status}
-                    onChange={(e) => setEditClient({ ...editClient, status: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                {/* Rodapé Fixo */}
+                <div className="shrink-0 p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleArchiveClient}
+                    className="px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100/70 rounded-xl flex items-center gap-1.5 transition-colors"
                   >
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                    <option value="arquivado">Arquivado</option>
-                  </select>
+                    <Archive size={14} />
+                    Arquivar Cliente
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditModal(false)}
+                      className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm transition-colors"
+                    >
+                      Salvar Alterações
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* MODAL: CRIAR ACESSO AO PORTAL */}
+      {showPortalUserModal && (
+        <ModalPortal>
+          <div
+            onClick={() => setShowPortalUserModal(false)}
+            className="fixed inset-0 !m-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            >
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <Key size={16} className="text-indigo-600" />
+                    Novo Acesso ao Portal
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Crie credenciais de login para seu cliente.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPortalUserModal(false)}
+                  className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreatePortalUser} className="p-5 space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Nome do Contato</label>
+                  <input
+                    type="text"
+                    value={portalUserForm.name}
+                    onChange={(e) => setPortalUserForm({ ...portalUserForm, name: e.target.value })}
+                    placeholder="Ex: João da Silva"
+                    required
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail de Login do Cliente</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail de Login *</label>
                   <input
                     type="email"
-                    value={editClient.email}
-                    onChange={(e) => setEditClient({ ...editClient, email: e.target.value })}
-                    placeholder="email@cliente.com"
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={portalUserForm.email}
+                    onChange={(e) => setPortalUserForm({ ...portalUserForm, email: e.target.value })}
+                    placeholder="cliente@empresa.com"
+                    required
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">Utilizado para login no portal e listado em Usuários & Cargos.</p>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-gray-700">Senha de Acesso ao Portal</label>
+                    <label className="block text-xs font-semibold text-gray-700">Senha Provisória *</label>
                     <button
                       type="button"
-                      onClick={() => {
-                        const pass = Math.random().toString(36).slice(-8) + 'A1!';
-                        setEditClient((prev) => ({ ...prev, password: pass }));
-                        setShowEditPassword(true);
-                      }}
-                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                      onClick={generateRandomPassword}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
                     >
                       <RefreshCw size={11} />
                       <span>Gerar Senha</span>
@@ -1115,125 +1696,143 @@ export default function ClientsPage() {
                   </div>
                   <div className="relative">
                     <input
-                      type={showEditPassword ? 'text' : 'password'}
-                      value={editClient.password}
-                      onChange={(e) => setEditClient({ ...editClient, password: e.target.value })}
-                      placeholder="Deixe em branco para manter a atual ou digite nova senha"
-                      className="w-full pl-3 pr-10 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                      type={showPassword ? 'text' : 'password'}
+                      value={portalUserForm.password}
+                      onChange={(e) => setPortalUserForm({ ...portalUserForm, password: e.target.value })}
+                      required
+                      className="w-full pl-3 pr-10 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
                     >
-                      {showEditPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">Ao definir senha, ela é sincronizada automaticamente em Usuários & Cargos.</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">WhatsApp / Telefone</label>
                   <input
                     type="text"
-                    value={editClient.phone}
-                    onChange={(e) => setEditClient({ ...editClient, phone: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={portalUserForm.phone}
+                    onChange={(e) => setPortalUserForm({ ...portalUserForm, phone: e.target.value })}
+                    placeholder="(18) 99999-9999"
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cidade</label>
-                  <input
-                    type="text"
-                    value={editClient.city}
-                    onChange={(e) => setEditClient({ ...editClient, city: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Estado (UF)</label>
-                  <input
-                    type="text"
-                    maxLength={2}
-                    value={editClient.state}
-                    onChange={(e) => setEditClient({ ...editClient, state: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Website</label>
-                  <input
-                    type="url"
-                    value={editClient.website}
-                    onChange={(e) => setEditClient({ ...editClient, website: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Instagram (@)</label>
-                  <input
-                    type="text"
-                    value={editClient.instagram}
-                    onChange={(e) => setEditClient({ ...editClient, instagram: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Endereço Completo</label>
-                <input
-                  type="text"
-                  value={editClient.address}
-                  onChange={(e) => setEditClient({ ...editClient, address: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Observações Internas</label>
-                <textarea
-                  rows={2}
-                  value={editClient.notes}
-                  onChange={(e) => setEditClient({ ...editClient, notes: e.target.value })}
-                  className="w-full p-2.5 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={handleArchiveClient}
-                  className="px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-1.5 transition-colors"
-                >
-                  <Archive size={14} />
-                  Arquivar Cliente
-                </button>
-
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={() => setShowEditModal(false)}
+                    onClick={() => setShowPortalUserModal(false)}
                     className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm transition-colors"
+                    disabled={savingPortalUser}
+                    className="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl shadow-sm"
                   >
-                    Salvar Alterações
+                    {savingPortalUser ? 'Criando...' : 'Criar Acesso'}
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      </ModalPortal>
+        </ModalPortal>
+      )}
+
+      {/* MODAL: SUCESSO AO CRIAR ACESSO */}
+      {createdPortalUser && (
+        <ModalPortal>
+          <div
+            onClick={() => setCreatedPortalUser(null)}
+            className="fixed inset-0 !m-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                <Check size={24} />
+              </div>
+              <h4 className="font-bold text-base text-gray-900">Acesso Criado com Sucesso!</h4>
+              <p className="text-xs text-gray-500 mt-1">
+                Compartilhe as credenciais abaixo com o cliente para que ele possa acessar o portal.
+              </p>
+
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-left space-y-2.5 mt-4 text-xs font-mono">
+                <div>
+                  <span className="text-gray-400 font-sans block text-[11px]">Link de Acesso:</span>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-indigo-600 truncate">{typeof window !== 'undefined' ? window.location.origin : ''}/login</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(window.location.origin + '/login', 'createdLink')}
+                      className="text-gray-500 hover:text-indigo-600 font-sans text-[11px] font-semibold flex items-center gap-1 shrink-0"
+                    >
+                      {copiedText === 'createdLink' ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                      <span>{copiedText === 'createdLink' ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-gray-400 font-sans block text-[11px]">E-mail:</span>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-gray-800">{createdPortalUser.credentials?.email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(createdPortalUser.credentials?.email || '', 'createdEmail')}
+                      className="text-gray-500 hover:text-indigo-600 font-sans text-[11px] font-semibold flex items-center gap-1 shrink-0"
+                    >
+                      {copiedText === 'createdEmail' ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                      <span>{copiedText === 'createdEmail' ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-gray-400 font-sans block text-[11px]">Senha:</span>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-gray-800">{createdPortalUser.credentials?.password}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(createdPortalUser.credentials?.password || '', 'createdPass')}
+                      className="text-gray-500 hover:text-indigo-600 font-sans text-[11px] font-semibold flex items-center gap-1 shrink-0"
+                    >
+                      {copiedText === 'createdPass' ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                      <span>{copiedText === 'createdPass' ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-5">
+                {createdPortalUser.invite_message && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(createdPortalUser.invite_message, 'createdInvite')}
+                    className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Share2 size={13} />
+                    <span>{copiedText === 'createdInvite' ? 'Mensagem Copiada!' : 'Copiar Convite'}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCreatedPortalUser(null)}
+                  className="py-2 px-4 bg-gray-900 hover:bg-black text-white font-semibold rounded-xl text-xs transition-colors"
+                >
+                  Concluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       <ConfirmModal
