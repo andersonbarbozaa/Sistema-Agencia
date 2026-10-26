@@ -167,7 +167,7 @@ function buildSocialUrl(network: string, rawValue: string): string {
 export default function CRMPage() {
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('list');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -176,6 +176,17 @@ export default function CRMPage() {
   const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null);
   const [interactions, setInteractions] = useState<CRMInteraction[]>([]);
   const [loadingInteractions, setLoadingInteractions] = useState(false);
+
+  const handleViewModeChange = (mode: 'kanban' | 'list') => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('crm_view_mode', mode);
+      } catch {
+        // ignore storage quota errors
+      }
+    }
+  };
 
   // New lead modal
   const EMPTY_NEW_LEAD = {
@@ -393,6 +404,16 @@ export default function CRMPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMode = sessionStorage.getItem('crm_view_mode');
+        if (savedMode === 'kanban' || savedMode === 'list') {
+          setViewMode(savedMode);
+        }
+      } catch {
+        // ignore
+      }
+    }
     fetchLeads();
     const handleOpenCreate = () => setShowCreateModal(true);
     window.addEventListener('open-create-lead', handleOpenCreate);
@@ -617,7 +638,7 @@ export default function CRMPage() {
           {/* View Mode Toggle */}
           <div className="flex items-center bg-gray-100 p-1 rounded-xl">
             <button
-              onClick={() => setViewMode('kanban')}
+              onClick={() => handleViewModeChange('kanban')}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
                 viewMode === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
@@ -626,7 +647,7 @@ export default function CRMPage() {
               <Kanban size={14} /> Kanban
             </button>
             <button
-              onClick={() => setViewMode('list')}
+              onClick={() => handleViewModeChange('list')}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
                 viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'

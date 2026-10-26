@@ -12,6 +12,7 @@ import {
   X,
   Users,
   TrendingUp,
+  Settings,
 } from 'lucide-react';
 import { User } from '@/types';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,12 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
       active: pathname.startsWith('/tasks'),
     },
     {
+      href: '/crm',
+      label: 'CRM',
+      icon: TrendingUp,
+      active: pathname.startsWith('/crm'),
+    },
+    {
       isCenter: true,
       label: 'Criar',
     },
@@ -70,27 +77,33 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
       icon: Calendar,
       active: pathname.startsWith('/agenda'),
     },
+    {
+      href: '/settings',
+      label: 'Configurações',
+      icon: Settings,
+      active: pathname.startsWith('/settings'),
+    },
   ];
 
   return (
     <>
       {/* Barra de Navegação Inferior Mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 md:hidden px-2 py-1 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 md:hidden px-1 py-1 shadow-lg">
         <div className="flex items-center justify-around h-14">
           {navItems.map((item, idx) => {
             if (item.isCenter) {
               return (
-                <div key={idx} className="relative flex justify-center items-center w-14">
+                <div key={idx} className="relative flex justify-center items-center w-12 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowQuickMenu(!showQuickMenu)}
                     className={cn(
-                      'w-12 h-12 -mt-5 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center border-4 border-white dark:border-gray-900 active:scale-95 transition-all duration-200',
+                      'w-11 h-11 -mt-4 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center border-3 border-white dark:border-gray-900 active:scale-95 transition-all duration-200',
                       showQuickMenu ? 'rotate-45 bg-gray-800' : ''
                     )}
                     aria-label="Criar novo item"
                   >
-                    <Plus size={24} strokeWidth={2.5} />
+                    <Plus size={22} strokeWidth={2.5} />
                   </button>
                 </div>
               );
@@ -102,14 +115,14 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
                   key={idx}
                   href="/clients"
                   className={cn(
-                    'flex flex-col items-center justify-center flex-1 py-1 text-[10px] font-medium transition-colors',
+                    'flex flex-col items-center justify-center flex-1 py-1 text-[9px] min-[390px]:text-[10px] font-medium transition-colors min-w-0',
                     pathname.startsWith('/clients')
                       ? 'text-blue-600 dark:text-blue-400 font-bold'
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   )}
                 >
-                  <Users size={20} strokeWidth={pathname.startsWith('/clients') ? 2.5 : 1.8} />
-                  <span className="mt-0.5">Clientes</span>
+                  <Users size={19} strokeWidth={pathname.startsWith('/clients') ? 2.5 : 1.8} />
+                  <span className="mt-0.5 truncate max-w-[48px] min-[390px]:max-w-[58px] text-center leading-tight">Clientes</span>
                 </Link>
               );
             }
@@ -122,14 +135,14 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
                 key={idx}
                 href={item.href!}
                 className={cn(
-                  'flex flex-col items-center justify-center flex-1 py-1 text-[10px] font-medium transition-colors',
+                  'flex flex-col items-center justify-center flex-1 py-1 text-[9px] min-[390px]:text-[10px] font-medium transition-colors min-w-0',
                   isActive
                     ? 'text-blue-600 dark:text-blue-400 font-bold'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 )}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
-                <span className="mt-0.5">{item.label}</span>
+                <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} />
+                <span className="mt-0.5 truncate max-w-[48px] min-[390px]:max-w-[58px] text-center leading-tight">{item.label}</span>
               </Link>
             );
           })}
