@@ -82,13 +82,30 @@ export default function Header({ user }: HeaderProps) {
   // Linked clients for switching company in profile dropdown
   const [linkedClients, setLinkedClients] = useState<any[]>([]);
 
+  // Active client identification for client logins / multi-company
+  const isClientLogin = user?.role === 'CLIENTE' || !!user?.client_id || linkedClients.length > 0;
+  const activeClient = linkedClients.find((c) => c.id === user?.client_id) || (user?.role === 'CLIENTE' && linkedClients.length > 0 ? linkedClients[0] : null);
+
+  // Foto e nome seguem a empresa ativa que o cliente está visualizando
+  const headerAvatarUrl = (isClientLogin && activeClient)
+    ? activeClient.avatar_url
+    : user?.avatar_url;
+
+  const headerFallback = (isClientLogin && activeClient)
+    ? ((activeClient.name || activeClient.company_name || activeClient.trade_name || 'C').charAt(0).toUpperCase())
+    : ((user?.name || 'U').charAt(0).toUpperCase());
+
+  const headerDisplayName = (isClientLogin && activeClient)
+    ? (activeClient.company_name || activeClient.trade_name || user?.name)
+    : user?.name;
+
   useEffect(() => {
     async function loadLinkedClients() {
       try {
         const res = await fetch('/api/auth/switch-client');
         if (res.ok) {
           const json = await res.json();
-          if (json.clients && json.clients.length > 1) {
+          if (json.clients && json.clients.length > 0) {
             setLinkedClients(json.clients);
           }
         }
@@ -685,23 +702,23 @@ export default function Header({ user }: HeaderProps) {
             }}
             className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
           >
-            {user.avatar_url ? (
+            {headerAvatarUrl ? (
               <img
-                src={user.avatar_url}
-                alt={user.name}
+                src={headerAvatarUrl}
+                alt={headerDisplayName}
                 className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
-                {(user.name || 'U').charAt(0).toUpperCase()}
+                {headerFallback}
               </div>
             )}
             <div className="hidden lg:flex flex-col text-left">
               <span className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">
-                {user.name?.split(' ')[0]}
+                {headerDisplayName?.split(' ')[0]}
               </span>
               <span className="text-[10px] text-gray-400 leading-none">
-                {user.job_title || (user.role === 'ADMINISTRADOR' ? 'Admin' : 'Equipe')}
+                {isClientLogin ? 'Cliente' : (user.job_title || (user.role === 'ADMINISTRADOR' ? 'Admin' : 'Equipe'))}
               </span>
             </div>
             <ChevronDown size={14} className="text-gray-400 hidden sm:block" />
@@ -711,10 +728,17 @@ export default function Header({ user }: HeaderProps) {
           {showUserDropdown && (
             <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
-                <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{user.name}</p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
-                <span className="mt-1 inline-block px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
-                  {user.job_title || user.role}
+                <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                  {isClientLogin && activeClient ? (activeClient.company_name || activeClient.trade_name || user.name) : user.name}
+                </p>
+                {isClientLogin && activeClient && activeClient.name && (activeClient.company_name || activeClient.trade_name) && (
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight mt-0.5">
+                    Cliente: {activeClient.name}
+                  </p>
+                )}
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{user.email}</p>
+                <span className="mt-1.5 inline-block px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                  {isClientLogin ? 'Painel do Cliente' : (user.job_title || user.role)}
                 </span>
               </div>
 
