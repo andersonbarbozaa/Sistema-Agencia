@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ModalPortal from '@/components/ModalPortal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useSearchParams } from 'next/navigation';
@@ -59,6 +59,11 @@ export default function TasksPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customCalendars, setCustomCalendars] = useState<any[]>([]);
+
+  // Drag and drop state
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverTaskCol, setDragOverTaskCol] = useState<string | null>(null);
+  const taskDragStartTimeRef = useRef<number>(0);
 
   useEffect(() => {
     const handler = () => setShowCreateModal(true);
@@ -200,20 +205,27 @@ export default function TasksPage() {
   };
 
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
+    const previousTasks = tasks;
+    // Atualização otimista imediata para resposta visual instantânea ao arrastar
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    if (selectedTask?.id === taskId) {
+      setSelectedTask((prev: any) => prev ? { ...prev, status: newStatus } : null);
+    }
+
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-        if (selectedTask?.id === taskId) {
-          openTaskDetail(taskId);
-        }
+      if (!res.ok) {
+        setTasks(previousTasks);
+      } else if (selectedTask?.id === taskId) {
+        openTaskDetail(taskId);
       }
     } catch (err) {
       console.error(err);
+      setTasks(previousTasks);
     }
   };
 
@@ -807,41 +819,90 @@ export default function TasksPage() {
         <div className="flex flex-row gap-4 overflow-x-auto pb-6 items-start w-full">
           {STATUS_COLUMNS.map((colStatus) => {
             const columnTasks = filteredTasks.filter((t) => t.status === colStatus);
+            const isColOver = dragOverTaskCol === colStatus;
 
             return (
               <div
                 key={colStatus}
-                onDragOver={(e) => { e.preventDefault(); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverTaskCol !== colStatus) {
+                    setDragOverTaskCol(colStatus);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  if (dragOverTaskCol === colStatus) {
+                    setDragOverTaskCol(null);
+                  }
+                }}
                 onDrop={(e) => {
                   e.preventDefault();
-                  const taskId = e.dataTransfer.getData('taskId');
+                  setDragOverTaskCol(null);
+                  const taskId = e.dataTransfer.getData('taskId') || e.dataTransfer.getData('text/plain') || draggedTaskId;
                   if (taskId) {
                     handleUpdateStatus(taskId, colStatus);
                   }
+                  setDraggedTaskId(null);
                 }}
-                className="w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-sm"
+                className={cn(
+                  "w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border flex flex-col shadow-sm transition-all duration-150",
+                  isColOver
+                    ? "border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/20"
+                    : "border-gray-200"
+                )}
               >
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="font-bold text-xs text-gray-700 uppercase tracking-wider">
                     {colStatus}
                   </h3>
-                  <span className="text-xs bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-full">
+                  <span className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded-full transition-colors",
+                    isColOver ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
+                  )}>
                     {columnTasks.length}
                   </span>
                 </div>
 
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[70vh] pr-0.5">
+                  {isColOver && draggedTaskId && !columnTasks.some(t => t.id === draggedTaskId) && (
+                    <div className="p-3 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/50 text-blue-600 text-center text-xs font-semibold animate-pulse">
+                      Soltar tarefa aqui
+                    </div>
+                  )}
+
                   {columnTasks.map((task) => {
                     const isDeletionPending = task.deletion_request_status === 'pending';
+                    const isDraggingThis = draggedTaskId === task.id;
 
                     return (
                       <div
                         key={task.id}
                         draggable
-                        onDragStart={(e) => e.dataTransfer.setData('taskId', task.id.toString())}
-                        onClick={() => openTaskDetail(task.id)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('taskId', task.id.toString());
+                          e.dataTransfer.setData('text/plain', task.id.toString());
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedTaskId(task.id);
+                          taskDragStartTimeRef.current = Date.now();
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTaskId(null);
+                          setDragOverTaskCol(null);
+                          setTimeout(() => {
+                            taskDragStartTimeRef.current = 0;
+                          }, 150);
+                        }}
+                        onClick={() => {
+                          if (taskDragStartTimeRef.current > 0 && Date.now() - taskDragStartTimeRef.current < 250) {
+                            return;
+                          }
+                          openTaskDetail(task.id);
+                        }}
                         className={cn(
-                          'p-3.5 rounded-xl border shadow-xs hover:shadow-md transition-all cursor-pointer group',
+                          'p-3.5 rounded-xl border shadow-xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing select-none group',
+                          isDraggingThis && 'opacity-40 scale-[0.98] border-dashed border-blue-400 shadow-none',
                           isDeletionPending
                             ? 'bg-red-50/70 border-red-300 opacity-60'
                             : 'bg-white border-gray-200'

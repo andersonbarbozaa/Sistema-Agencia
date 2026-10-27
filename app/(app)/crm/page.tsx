@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import ModalPortal from '@/components/ModalPortal';
 import {
@@ -274,6 +274,11 @@ export default function CRMPage() {
   const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null);
   const [interactions, setInteractions] = useState<CRMInteraction[]>([]);
   const [loadingInteractions, setLoadingInteractions] = useState(false);
+
+  // Drag and Drop State
+  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const dragStartTimeRef = useRef<number>(0);
 
   const handleViewModeChange = (mode: 'kanban' | 'list') => {
     setViewMode(mode);
@@ -599,20 +604,27 @@ export default function CRMPage() {
   };
 
   const handleUpdateStatus = async (leadId: string, newStatus: CRMLeadStatus) => {
+    const previousLeads = leads;
+    // Atualização otimista imediata para resposta instantânea ao arrastar
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+    if (selectedLead?.id === leadId) {
+      setSelectedLead(prev => prev ? { ...prev, status: newStatus } : null);
+    }
+
     try {
       const res = await fetch(`/api/crm/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
-        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-        if (selectedLead?.id === leadId) {
-          setSelectedLead({ ...selectedLead, status: newStatus });
-        }
+      if (!res.ok) {
+        setLeads(previousLeads);
+        showToast('Não foi possível atualizar o status do lead.', 'error');
       }
     } catch (err) {
       console.error(err);
+      setLeads(previousLeads);
+      showToast('Erro de conexão ao atualizar status do lead.', 'error');
     }
   };
 
@@ -819,32 +831,91 @@ export default function CRMPage() {
         <div className="flex flex-row gap-4 overflow-x-auto pb-6 items-start w-full">
           {CRM_STATUSES.map((status) => {
             const statusLeads = filteredLeads.filter(l => l.status === status);
+            const isColumnOver = dragOverColumn === status;
 
             return (
               <div
                 key={status}
-                className="w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border border-gray-200 flex flex-col shadow-sm"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverColumn !== status) {
+                    setDragOverColumn(status);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  if (dragOverColumn === status) {
+                    setDragOverColumn(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverColumn(null);
+                  const leadId = e.dataTransfer.getData('leadId') || e.dataTransfer.getData('text/plain') || draggedLeadId;
+                  if (leadId) {
+                    handleUpdateStatus(leadId, status);
+                  }
+                  setDraggedLeadId(null);
+                }}
+                className={cn(
+                  "w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border flex flex-col shadow-sm transition-all duration-150",
+                  isColumnOver
+                    ? "border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/20"
+                    : "border-gray-200"
+                )}
               >
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="font-bold text-xs text-gray-700 uppercase tracking-wider">
                     {status}
                   </h3>
-                  <span className="text-xs bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-full">
+                  <span className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded-full transition-colors",
+                    isColumnOver ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
+                  )}>
                     {statusLeads.length}
                   </span>
                 </div>
 
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
+                  {isColumnOver && draggedLeadId && !statusLeads.some(l => l.id === draggedLeadId) && (
+                    <div className="p-3 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/50 text-blue-600 text-center text-xs font-semibold animate-pulse">
+                      Soltar lead aqui
+                    </div>
+                  )}
+
                   {statusLeads.map((lead) => {
                     const socials = parseSocialLinks(lead);
                     const hasWebsite = Boolean(lead.website && lead.website.trim());
+                    const isDraggingThis = draggedLeadId === lead.id;
 
                     return (
                       <div
                         key={lead.id}
-                        onClick={() => openLeadDetails(lead)}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('leadId', lead.id);
+                          e.dataTransfer.setData('text/plain', lead.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedLeadId(lead.id);
+                          dragStartTimeRef.current = Date.now();
+                        }}
+                        onDragEnd={() => {
+                          setDraggedLeadId(null);
+                          setDragOverColumn(null);
+                          setTimeout(() => {
+                            dragStartTimeRef.current = 0;
+                          }, 150);
+                        }}
+                        onClick={() => {
+                          if (dragStartTimeRef.current > 0 && Date.now() - dragStartTimeRef.current < 250) {
+                            return;
+                          }
+                          openLeadDetails(lead);
+                        }}
                         className={cn(
-                          'p-3.5 rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer group bg-white',
+                          'p-3.5 rounded-xl border shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing select-none group bg-white',
+                          isDraggingThis && 'opacity-40 scale-[0.98] border-dashed border-blue-400 shadow-none',
                           lead.status === 'Finalizado positivo' ? 'border-emerald-300' :
                           lead.status === 'Finalizado negativo' ? 'border-gray-300 opacity-75' :
                           'border-gray-200'
