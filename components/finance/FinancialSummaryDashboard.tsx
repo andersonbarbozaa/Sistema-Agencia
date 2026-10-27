@@ -165,188 +165,93 @@ export default function FinancialSummaryDashboard({ onRefresh, className }: Fina
       {/* CARDS CONSOLIDADOS (2 CARDS PRINCIPAIS + LUCRO AUDITADO) */}
       {/* ======================================================== */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* CARD 1: RECEITAS (Consolidado) */}
+        {/* CARD 1: TOTAL DE RECEITAS */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs flex flex-col justify-between hover:border-emerald-300 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Receitas
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  Recebido
-                </span>
-              </div>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                <ArrowUpRight className="w-5 h-5 stroke-[2.5]" />
-              </div>
-            </div>
-
-            {/* Destaque Principal: Total Recebido (Já pago) */}
-            <div className="mb-4">
-              <span className="text-[11px] text-gray-400 font-medium">Total de Receitas Recebidas</span>
-              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">
-                {formatCurrency(receivedVal)}
-              </p>
-            </div>
-
-            {/* Dentro do mesmo card: Total a Receber */}
-            <div className="space-y-2 py-2 border-t border-gray-100 dark:border-gray-700/60">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-blue-500" />
-                  A Receber (Pendentes):
-                </span>
-                <span className="font-bold text-blue-600 dark:text-blue-400">
-                  {formatCurrency(toReceiveVal)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <hr className="my-3 border-gray-100 dark:border-gray-700/60" />
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 dark:text-gray-300 font-medium">Total Previsto ({currentMonthName}):</span>
-              <span className="font-black text-gray-900 dark:text-gray-100 text-sm">
-                {formatCurrency(totalReceitas)}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Total de Receitas
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                Recebido
               </span>
             </div>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <ArrowUpRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
+          </div>
+          <div>
+            <span className="text-[11px] text-gray-400 font-medium">Receitas no período</span>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-1">
+              {formatCurrency(receivedVal)}
+            </p>
           </div>
         </div>
 
-        {/* CARD 2: DESPESAS (Consolidado) */}
+        {/* CARD 2: TOTAL DE DESPESAS */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs flex flex-col justify-between hover:border-rose-300 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Despesas
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                  Pago
-                </span>
-              </div>
-              <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-                <ArrowDownRight className="w-5 h-5 stroke-[2.5]" />
-              </div>
-            </div>
-
-            {/* Destaque Principal: Total Pago */}
-            <div className="mb-4">
-              <span className="text-[11px] text-gray-400 font-medium">Total de Despesas Pagas</span>
-              <p className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 leading-tight">
-                {formatCurrency(paidVal)}
-              </p>
-            </div>
-
-            {/* Dentro do mesmo card: Total a Pagar */}
-            <div className="space-y-2 py-2 border-t border-gray-100 dark:border-gray-700/60">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  A Pagar (Pendentes):
-                </span>
-                <span className="font-bold text-amber-600 dark:text-amber-400">
-                  {formatCurrency(toPayVal)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <hr className="my-3 border-gray-100 dark:border-gray-700/60" />
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 dark:text-gray-300 font-medium">Total Previsto ({currentMonthName}):</span>
-              <span className="font-black text-gray-900 dark:text-gray-100 text-sm">
-                {formatCurrency(totalDespesas)}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Total de Despesas
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                Pago
               </span>
             </div>
+            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+              <ArrowDownRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
+          </div>
+          <div>
+            <span className="text-[11px] text-gray-400 font-medium">Despesas no período</span>
+            <p className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 leading-tight mt-1">
+              {formatCurrency(paidVal)}
+            </p>
           </div>
         </div>
 
-        {/* CARD 3: LUCRO POR PERÍODO (Auditado) */}
+        {/* CARD 3: LUCRO REALIZADO */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs flex flex-col justify-between hover:border-blue-300 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Lucro por Período
-                </span>
-                <span
-                  className={cn(
-                    'px-2 py-0.5 rounded-full text-[10px] font-bold border',
-                    profitVal >= 0
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300'
-                  )}
-                >
-                  {profitVal >= 0 ? 'Superávit' : 'Déficit'}
-                </span>
-              </div>
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-xl flex items-center justify-center',
-                  profitVal >= 0
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
-                )}
-              >
-                <DollarSign className="w-5 h-5 stroke-[2.5]" />
-              </div>
-            </div>
-
-            {/* Destaque Principal: Lucro Realizado (Recebido - Pago) */}
-            <div className="mb-4">
-              <span className="text-[11px] text-gray-400 font-medium">Lucro Realizado em {currentMonthName}</span>
-              <p
-                className={cn(
-                  'text-2xl sm:text-3xl font-black leading-tight',
-                  profitVal >= 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-rose-600 dark:text-rose-400'
-                )}
-              >
-                {formatCurrency(profitVal)}
-              </p>
-            </div>
-
-            {/* Detalhamento do Cálculo Auditado */}
-            <div className="space-y-1.5 py-2 border-t border-gray-100 dark:border-gray-700/60 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-gray-400 font-medium">Receitas Realizadas:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  + {formatCurrency(receivedVal)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-gray-400 font-medium">Despesas Pagas:</span>
-                <span className="font-bold text-rose-600 dark:text-rose-400">
-                  - {formatCurrency(paidVal)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-gray-400 font-medium">Margem Realizada:</span>
-                <span className="font-bold text-gray-700 dark:text-gray-300">
-                  {marginRealized}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <hr className="my-3 border-gray-100 dark:border-gray-700/60" />
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 dark:text-gray-300 font-medium">Resultado Projetado:</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Lucro Realizado
+              </span>
               <span
                 className={cn(
-                  'font-black text-sm',
-                  projectedProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                  'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                  profitVal >= 0
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300'
                 )}
               >
-                {formatCurrency(projectedProfit)}
+                {profitVal >= 0 ? 'Superávit' : 'Déficit'}
               </span>
             </div>
+            <div
+              className={cn(
+                'w-8 h-8 rounded-xl flex items-center justify-center',
+                profitVal >= 0
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
+              )}
+            >
+              <DollarSign className="w-5 h-5 stroke-[2.5]" />
+            </div>
+          </div>
+          <div>
+            <span className="text-[11px] text-gray-400 font-medium">Resultado líquido realizado</span>
+            <p
+              className={cn(
+                'text-2xl sm:text-3xl font-black leading-tight mt-1',
+                profitVal >= 0
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-rose-600 dark:text-rose-400'
+              )}
+            >
+              {formatCurrency(profitVal)}
+            </p>
           </div>
         </div>
       </div>

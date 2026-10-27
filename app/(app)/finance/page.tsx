@@ -28,7 +28,17 @@ import {
   ArrowDownRight,
   FileText,
   Wallet,
+  ArrowRight,
+  ArrowUpDown,
+  Trophy,
+  AlertTriangle,
+  Scale,
 } from 'lucide-react';
+
+const FULL_MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
 import { FinancialTransaction, BankAccount, FinancialCategory } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 
@@ -43,8 +53,10 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [reportYear, setReportYear] = useState(new Date().getFullYear().toString());
 
-  // Navigation View: 'dashboard' | 'all' | 'entries' | 'exits' | 'partners' | 'reports'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'all' | 'entries' | 'exits' | 'partners' | 'reports'>('dashboard');
+  const [reportMonth, setReportMonth] = useState<string>(String(new Date().getMonth() + 1));
+
+  // Navigation View: 'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'reports'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'reports'>('dashboard');
 
   // Filters for Transactions
   const [statusFilter, setStatusFilter] = useState('');
@@ -108,7 +120,7 @@ export default function FinancePage() {
         fetch('/api/categories?type=finance'),
         fetch('/api/clients'),
         fetch('/api/users'),
-        fetch(`/api/reports?year=${reportYear}`),
+        fetch(`/api/reports?year=${reportYear}&month=${reportMonth}`),
       ]);
 
       if (transRes.ok) {
@@ -153,7 +165,7 @@ export default function FinancePage() {
 
   useEffect(() => {
     fetchData();
-  }, [reportYear]);
+  }, [reportYear, reportMonth]);
 
   useEffect(() => {
     const handleOpenCreate = () => {
@@ -508,16 +520,16 @@ export default function FinancePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('partners')}
+          onClick={() => setActiveTab('comparative')}
           className={cn(
             'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
-            activeTab === 'partners'
+            activeTab === 'comparative'
               ? 'bg-purple-600 text-white shadow-xs'
-              : 'text-purple-700 hover:bg-purple-50'
+              : 'text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/40'
           )}
         >
-          <Users className="w-3.5 h-3.5" />
-          Usuários
+          <ArrowUpDown className="w-3.5 h-3.5" />
+          Comparativo
         </button>
 
         <button
@@ -526,11 +538,11 @@ export default function FinancePage() {
             'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
             activeTab === 'reports'
               ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-indigo-700 hover:bg-indigo-50'
+              : 'text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40'
           )}
         >
           <FileText className="w-3.5 h-3.5" />
-          Tendência
+          Relatório
         </button>
       </div>
 
@@ -907,416 +919,495 @@ export default function FinancePage() {
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 3: COMPARATIVO ENTRE SÓCIOS / PARCEIROS             */}
       {/* ======================================================== */}
-      {activeTab === 'partners' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-gray-100">
+      {/* VIEW 3: COMPARATIVO ENTRE USUÁRIOS / PARCEIROS (CONJUNTA) */}
+      {/* ======================================================== */}
+      {activeTab === 'comparative' && (
+        <div className="space-y-6">
+          {/* Header e Filtros */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200 dark:border-gray-800">
             <div>
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" />
-                Comparativo Financeiro entre Sócios & Parceiros
+              <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
+                Conjunta
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Comparativo de gastos e receitas entre usuários
+              </p>
+            </div>
+
+            {/* Filtros de Mês e Ano */}
+            <div className="flex items-center gap-2">
+              <select
+                value={reportMonth}
+                onChange={(e) => setReportMonth(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer"
+              >
+                <option value="all">Todos os meses</option>
+                {FULL_MONTH_NAMES.map((mName, idx) => (
+                  <option key={idx + 1} value={String(idx + 1)}>
+                    {mName}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={reportYear}
+                onChange={(e) => setReportYear(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer"
+              >
+                <option value="2027">2027</option>
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+              </select>
+            </div>
+          </div>
+
+          {/* CARD: Comparativo por usuário */}
+          <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs space-y-5">
+            <div className="flex items-center gap-2 pb-3 border-b border-gray-100 dark:border-gray-800">
+              <ArrowUpDown className="w-4 h-4 text-blue-500 shrink-0" />
+              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                Comparativo por usuário
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Análise factual e transparente de custos, reembolsos e receitas atribuídas a cada sócio (sem ranking competitivo).
+            </div>
+
+            <div className="space-y-6">
+              {reportsData?.comparative?.users && reportsData.comparative.users.length > 0 ? (
+                reportsData.comparative.users.map((u: any) => {
+                  const total = u.total_received + u.total_spent;
+                  const recPct = total > 0 ? Math.round((u.total_received / total) * 100) : 0;
+                  const expPct = total > 0 ? 100 - recPct : 0;
+
+                  return (
+                    <div key={u.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                          {u.name}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-sm font-bold',
+                            u.net_balance >= 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-rose-600 dark:text-rose-400'
+                          )}
+                        >
+                          {u.net_balance < 0 ? '-' : '+'}
+                          {formatCurrency(Math.abs(u.net_balance))}
+                        </span>
+                      </div>
+
+                      {/* Legenda dos valores */}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                          Recebeu: <span className="font-bold">{formatCurrency(u.total_received)}</span>
+                        </span>
+                        <span className="font-semibold text-rose-600 dark:text-rose-400">
+                          Gastou: <span className="font-bold">{formatCurrency(u.total_spent)}</span>
+                        </span>
+                      </div>
+
+                      {/* Barra de Progresso Bicolor */}
+                      <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
+                        {u.total_received > 0 && (
+                          <div
+                            className="h-full bg-emerald-500"
+                            style={{ width: `${recPct}%` }}
+                            title={`Recebido: ${formatCurrency(u.total_received)} (${recPct}%)`}
+                          />
+                        )}
+                        {u.total_spent > 0 && (
+                          <div
+                            className="h-full bg-rose-500"
+                            style={{ width: `${expPct}%` }}
+                            title={`Gasto: ${formatCurrency(u.total_spent)} (${expPct}%)`}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-gray-400 py-4 text-center">Nenhum dado de usuário para este período.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Grid 2 Cards Destaque: Quem mais recebeu & Quem mais gastou */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Quem mais recebeu */}
+            <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center gap-2 mb-3">
+                <Trophy className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Quem mais recebeu
+                </span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 truncate">
+                {reportsData?.comparative?.top_receiver?.name || '—'}
+              </p>
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1">
+                {formatCurrency(reportsData?.comparative?.top_receiver?.amount || 0)}
+              </p>
+            </div>
+
+            {/* Quem mais gastou */}
+            <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Quem mais gastou
+                </span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 truncate">
+                {reportsData?.comparative?.top_spender?.name || '—'}
+              </p>
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1">
+                {formatCurrency(reportsData?.comparative?.top_spender?.amount || 0)}
               </p>
             </div>
           </div>
 
-          {/* Partner Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {reportsData?.by_partner && reportsData.by_partner.length > 0 ? (
-              reportsData.by_partner.map((p: any) => {
-                const net = (p.total_entries || 0) - (p.total_expenses || 0);
-                return (
-                  <div
-                    key={p.id}
-                    className="bg-gray-50 border border-gray-200 rounded-2xl p-5 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between pb-3 border-b border-gray-200">
-                        <div>
-                          <span className="text-base font-bold text-gray-900">{p.name}</span>
-                          <div className="text-xs text-gray-500">Sócio / Parceiro</div>
+          {/* Grid 2 Cards com Ranking e Subtítulo Usuário · Categoria */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Maiores gastos */}
+            <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+                  <TrendingDown className="w-4 h-4 text-rose-500 shrink-0" />
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    Maiores gastos
+                  </h3>
+                </div>
+
+                <div className="space-y-3.5">
+                  {reportsData?.comparative?.top_expenses && reportsData.comparative.top_expenses.length > 0 ? (
+                    reportsData.comparative.top_expenses.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 w-5 shrink-0 mt-0.5">
+                            {idx + 1}º
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-800 dark:text-gray-200 truncate">
+                              {item.description}
+                            </p>
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                              {item.user_name || '—'} · {item.category_name || 'Despesa'}
+                            </p>
+                          </div>
                         </div>
-                        <span className="px-2 py-0.5 text-[11px] rounded-full bg-purple-50 text-purple-700 font-bold border border-purple-200">
-                          {p.transaction_count} lançamentos
+                        <span className="font-bold text-rose-600 dark:text-rose-400 shrink-0 whitespace-nowrap">
+                          -{formatCurrency(item.amount)}
                         </span>
                       </div>
-
-                      <div className="mt-4 space-y-3">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-gray-500">Despesas / Gastos Atribuídos:</span>
-                          <span className="font-semibold text-rose-600">
-                            {formatCurrency(p.total_expenses || 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-gray-500">Receitas / Renda Geradas:</span>
-                          <span className="font-semibold text-emerald-600">
-                            {formatCurrency(p.total_entries || 0)}
-                          </span>
-                        </div>
-                        <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-xs font-bold">
-                          <span className="text-gray-700">Balanço do Parceiro:</span>
-                          <span className={net >= 0 ? 'text-emerald-600' : 'text-amber-600'}>
-                            {formatCurrency(net)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="col-span-full py-8 text-center text-gray-400">
-                Nenhum parceiro com transações atribuídas ainda. Para vincular um sócio a uma transação, selecione o parceiro ao cadastrar a despesa.
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-400 py-6 text-center">Nenhum gasto registrado neste período.</p>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Maiores retornos */}
+            <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+                  <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    Maiores retornos
+                  </h3>
+                </div>
+
+                <div className="space-y-3.5">
+                  {reportsData?.comparative?.top_revenues && reportsData.comparative.top_revenues.length > 0 ? (
+                    reportsData.comparative.top_revenues.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 w-5 shrink-0 mt-0.5">
+                            {idx + 1}º
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-800 dark:text-gray-200 truncate">
+                              {item.description}
+                            </p>
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                              {item.user_name || '—'} · {item.category_name || 'Receita'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0 whitespace-nowrap">
+                          +{formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-400 py-6 text-center">Nenhum retorno registrado neste período.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 4: TENDÊNCIA & RELATÓRIOS (CONTADOR CONSULTIVO)      */}
+      {/* VIEW 4: RELATÓRIO (SAÚDE FINANCEIRA E PROJEÇÕES)         */}
       {/* ======================================================== */}
       {activeTab === 'reports' && (
         <div className="space-y-6">
-          {/* ======================================================== */}
-          {/* 1. VISÃO DE CONTADOR CONSULTIVO (Parecer Executivo)      */}
-          {/* ======================================================== */}
-          {reportsData?.accountant_consulting && (
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-6">
-              {/* Header com Parecer e Selo de Saúde */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-100 dark:border-gray-700">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                      Parecer do Contador Consultivo
-                    </span>
-                    <span
-                      className={cn(
-                        'px-2.5 py-0.5 rounded-full text-xs font-bold border',
-                        reportsData.accountant_consulting.health_status === 'excelente'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300'
-                          : reportsData.accountant_consulting.health_status === 'boa'
-                          ? 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300'
-                          : reportsData.accountant_consulting.health_status === 'atencao'
-                          ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'
-                          : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300'
-                      )}
-                    >
-                      {reportsData.accountant_consulting.health_title}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-black text-gray-900 dark:text-gray-100">
-                    Diagnóstico Financeiro & Diretrizes Estratégicas
-                  </h3>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed max-w-3xl pt-1">
-                    {reportsData.accountant_consulting.summary_text}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-gray-500 font-medium">Ano Base:</span>
-                  <select
-                    value={reportYear}
-                    onChange={(e) => setReportYear(e.target.value)}
-                    className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                  >
-                    <option value="2026">2026</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Grid 4 Cards: Mês Passado, Mês Atual, Previsão Mês Seguinte, Média Anual */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 1. Mês Passado */}
-                <div className="bg-gray-50/70 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                      Mês Passado
-                    </span>
-                    <p className="text-xs font-bold text-gray-800 dark:text-gray-200 mb-2 truncate">
-                      {reportsData.accountant_consulting.last_month.label}
-                    </p>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Recebido:</span>
-                        <span className="font-bold text-emerald-600">
-                          {formatCurrency(reportsData.accountant_consulting.last_month.received)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Gasto:</span>
-                        <span className="font-bold text-rose-600">
-                          {formatCurrency(reportsData.accountant_consulting.last_month.spent)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between text-xs font-bold">
-                    <span className="text-gray-600 dark:text-gray-400">Resultado:</span>
-                    <span
-                      className={
-                        reportsData.accountant_consulting.last_month.result >= 0
-                          ? 'text-emerald-600'
-                          : 'text-rose-600'
-                      }
-                    >
-                      {formatCurrency(reportsData.accountant_consulting.last_month.result)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 2. Mês Atual */}
-                <div className="bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-4 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                      Mês Atual (Em Curso)
-                    </span>
-                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-2 truncate">
-                      {reportsData.accountant_consulting.current_month.label}
-                    </p>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Recebido:</span>
-                        <span className="font-bold text-emerald-600">
-                          {formatCurrency(reportsData.accountant_consulting.current_month.received)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Gasto:</span>
-                        <span className="font-bold text-rose-600">
-                          {formatCurrency(reportsData.accountant_consulting.current_month.spent)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-blue-200 dark:border-blue-900 flex justify-between text-xs font-bold">
-                    <span className="text-gray-700 dark:text-gray-300">Resultado Real:</span>
-                    <span
-                      className={
-                        reportsData.accountant_consulting.current_month.result >= 0
-                          ? 'text-emerald-600 font-black'
-                          : 'text-rose-600 font-black'
-                      }
-                    >
-                      {formatCurrency(reportsData.accountant_consulting.current_month.result)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3. Previsão Mês Seguinte */}
-                <div className="bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900 rounded-xl p-4 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                      Previsão Mês Seguinte
-                    </span>
-                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-2 truncate">
-                      {reportsData.accountant_consulting.next_month.label}
-                    </p>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Prev. Receitas:</span>
-                        <span className="font-bold text-emerald-600">
-                          {formatCurrency(reportsData.accountant_consulting.next_month.projected_revenue)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Prev. Despesas:</span>
-                        <span className="font-bold text-rose-600">
-                          {formatCurrency(reportsData.accountant_consulting.next_month.projected_expenses)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-indigo-200 dark:border-indigo-900 flex justify-between text-xs font-bold">
-                    <span className="text-gray-700 dark:text-gray-300">Lucro Previsto:</span>
-                    <span
-                      className={
-                        reportsData.accountant_consulting.next_month.projected_result >= 0
-                          ? 'text-indigo-600 font-black'
-                          : 'text-rose-600 font-black'
-                      }
-                    >
-                      {formatCurrency(reportsData.accountant_consulting.next_month.projected_result)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 4. Média Anual */}
-                <div className="bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl p-4 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                      Média do Ano ({reportYear})
-                    </span>
-                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-2">
-                      Desempenho Mensal Médio
-                    </p>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Média Receitas:</span>
-                        <span className="font-bold text-gray-800 dark:text-gray-200">
-                          {formatCurrency(reportsData.accountant_consulting.annual_averages.monthly_revenue)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Média Despesas:</span>
-                        <span className="font-bold text-gray-800 dark:text-gray-200">
-                          {formatCurrency(reportsData.accountant_consulting.annual_averages.monthly_expenses)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-amber-200 dark:border-amber-900 flex justify-between text-xs font-bold">
-                    <span className="text-gray-700 dark:text-gray-300">Margem Média:</span>
-                    <span className="text-amber-700 dark:text-amber-400 font-black">
-                      {reportsData.accountant_consulting.annual_averages.margin_percent}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Ações e Recomendações Práticas do Contador */}
-              <div className="pt-2">
-                <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Recomendações Práticas do Contador:
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {reportsData.accountant_consulting.recommended_actions.map((act: string, aIdx: number) => (
-                    <div
-                      key={aIdx}
-                      className="p-3 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-700 dark:text-gray-300 leading-relaxed flex items-start gap-2"
-                    >
-                      <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                        {aIdx + 1}
-                      </span>
-                      <span>{act}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* Header e Filtros */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200 dark:border-gray-800">
+            <div>
+              <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
+                Relatório
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Saúde financeira e projeções
+              </p>
             </div>
-          )}
 
-          {/* Monthly Evolution Overview */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
-            <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              Evolução Mensal do Exercício ({reportYear})
-            </h4>
+            {/* Filtros de Mês e Ano */}
+            <div className="flex items-center gap-2">
+              <select
+                value={reportMonth}
+                onChange={(e) => setReportMonth(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer"
+              >
+                <option value="all">Todos os meses</option>
+                {FULL_MONTH_NAMES.map((mName, idx) => (
+                  <option key={idx + 1} value={String(idx + 1)}>
+                    {mName}
+                  </option>
+                ))}
+              </select>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {monthLabels.map((label, idx) => {
-                const monthKey = String(idx + 1).padStart(2, '0');
-                const mData = reportsData?.monthly?.find((m: any) => m.month === monthKey);
-                const ent = mData?.entries_paid || 0;
-                const ext = mData?.exits_paid || 0;
-                const res = ent - ext;
-
-                return (
-                  <div
-                    key={monthKey}
-                    className="bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl p-3 flex flex-col justify-between"
-                  >
-                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{label}</span>
-                    <div className="mt-2 space-y-1 text-[11px]">
-                      <div className="text-emerald-600 flex justify-between">
-                        <span>Rec:</span>
-                        <span>{formatCurrency(ent)}</span>
-                      </div>
-                      <div className="text-rose-600 flex justify-between">
-                        <span>Desp:</span>
-                        <span>{formatCurrency(ext)}</span>
-                      </div>
-                      <div className="pt-1 border-t border-gray-200 dark:border-gray-700 flex justify-between font-bold">
-                        <span className="text-gray-500">Res:</span>
-                        <span className={res >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                          {formatCurrency(res)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              <select
+                value={reportYear}
+                onChange={(e) => setReportYear(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer"
+              >
+                <option value="2027">2027</option>
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+              </select>
             </div>
           </div>
 
-          {/* Categories and Clients Breakdown */}
+          {/* Grid 2 Cards: Maiores gastos (geral) & Maiores retornos (geral) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* By Category */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
-              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                <PieChart className="w-4 h-4 text-blue-600" />
-                Despesas Pagas por Categoria
-              </h4>
-
-              {reportsData?.by_category && reportsData.by_category.length > 0 ? (
-                <div className="space-y-3">
-                  {reportsData.by_category.map((cat: any) => (
-                    <div key={cat.id} className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{cat.name}</span>
-                        <span className="font-bold text-gray-900 dark:text-gray-100">{formatCurrency(cat.total_amount)}</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{
-                            width: `${Math.min(
-                              100,
-                              (cat.total_amount / (monthExits || 1)) * 100
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+            {/* CARD: Maiores gastos (geral) */}
+            <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+                  <TrendingDown className="w-4 h-4 text-rose-500 shrink-0" />
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    Maiores gastos (geral)
+                  </h3>
                 </div>
-              ) : (
-                <p className="text-xs text-gray-400">Nenhuma despesa paga registrada por categoria.</p>
-              )}
+
+                <div className="space-y-3">
+                  {reportsData?.report?.top_expenses && reportsData.report.top_expenses.length > 0 ? (
+                    reportsData.report.top_expenses.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 w-5 shrink-0">
+                            {idx + 1}º
+                          </span>
+                          <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {item.description}
+                          </span>
+                        </div>
+                        <span className="font-bold text-rose-600 dark:text-rose-400 shrink-0 whitespace-nowrap">
+                          -{formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-400 py-6 text-center">Nenhum gasto registrado neste período.</p>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* By Client */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
-              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                <Building className="w-4 h-4 text-blue-600" />
-                Faturamento Realizado por Cliente
-              </h4>
-
-              {reportsData?.by_client && reportsData.by_client.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 font-semibold uppercase text-[10px]">
-                        <th className="pb-2">Cliente</th>
-                        <th className="pb-2 text-right">Recebido</th>
-                        <th className="pb-2 text-right">A Receber</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                      {reportsData.by_client.map((cli: any) => (
-                        <tr key={cli.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-750">
-                          <td className="py-2.5 font-medium text-gray-900 dark:text-gray-100">{cli.name}</td>
-                          <td className="py-2.5 text-right font-bold text-emerald-600">
-                            {formatCurrency(cli.total_received)}
-                          </td>
-                          <td className="py-2.5 text-right font-semibold text-blue-600">
-                            {formatCurrency(cli.total_pending)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            {/* CARD: Maiores retornos (geral) */}
+            <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+                  <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    Maiores retornos (geral)
+                  </h3>
                 </div>
-              ) : (
-                <p className="text-xs text-gray-400">Nenhum faturamento registrado por cliente.</p>
-              )}
+
+                <div className="space-y-3">
+                  {reportsData?.report?.top_revenues && reportsData.report.top_revenues.length > 0 ? (
+                    reportsData.report.top_revenues.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 w-5 shrink-0">
+                            {idx + 1}º
+                          </span>
+                          <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {item.description}
+                          </span>
+                        </div>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0 whitespace-nowrap">
+                          +{formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-400 py-6 text-center">Nenhum retorno registrado neste período.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CARD: Comparativo Atual vs Anterior */}
+          <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs">
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+              <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
+              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                {reportsData?.report?.comparison?.title || 'Comparativo'}
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* RECEITAS */}
+              <div className="p-4 rounded-xl bg-gray-50/70 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
+                  RECEITAS
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(reportsData?.report?.comparison?.entries || 0)}
+                  </span>
+                  {reportsData?.report?.comparison?.entries_var_pct !== undefined && (
+                    <span
+                      className={cn(
+                        'text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5',
+                        reportsData.report.comparison.entries_var_pct >= 0
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                      )}
+                    >
+                      {reportsData.report.comparison.entries_var_pct >= 0 ? '↑' : '↓'}{' '}
+                      {Math.abs(reportsData.report.comparison.entries_var_pct)}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                  Anterior: {formatCurrency(reportsData?.report?.comparison?.entries_previous || 0)}
+                </p>
+              </div>
+
+              {/* DESPESAS */}
+              <div className="p-4 rounded-xl bg-gray-50/70 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
+                  DESPESAS
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400">
+                    {formatCurrency(reportsData?.report?.comparison?.exits || 0)}
+                  </span>
+                  {reportsData?.report?.comparison?.exits_var_pct !== undefined && (
+                    <span
+                      className={cn(
+                        'text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5',
+                        reportsData.report.comparison.exits_var_pct <= 0
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                      )}
+                    >
+                      {reportsData.report.comparison.exits_var_pct >= 0 ? '↑' : '↓'}{' '}
+                      {Math.abs(reportsData.report.comparison.exits_var_pct)}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                  Anterior: {formatCurrency(reportsData?.report?.comparison?.exits_previous || 0)}
+                </p>
+              </div>
+
+              {/* SALDO */}
+              <div className="p-4 rounded-xl bg-gray-50/70 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
+                  SALDO
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className={cn(
+                      'text-xl sm:text-2xl font-black',
+                      (reportsData?.report?.comparison?.balance || 0) >= 0
+                        ? 'text-gray-900 dark:text-white'
+                        : 'text-rose-600 dark:text-rose-400'
+                    )}
+                  >
+                    {formatCurrency(reportsData?.report?.comparison?.balance || 0)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                  Anterior: {formatCurrency(reportsData?.report?.comparison?.balance_previous || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* CARD: Previsão Próximo Período */}
+          <div className="bg-white dark:bg-[#0d121d] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 shadow-xs">
+            <div className="flex items-start gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+              <ArrowRight className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  {reportsData?.report?.prediction?.title || 'Previsão'}
+                </h3>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                  {reportsData?.report?.prediction?.subtitle || 'Baseado na média dos últimos 3 meses'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* ENTRADA PREVISTA */}
+              <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block mb-1">
+                  ENTRADA PREVISTA
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400 block">
+                  {formatCurrency(reportsData?.report?.prediction?.projected_revenue || 0)}
+                </span>
+              </div>
+
+              {/* SAÍDA PREVISTA */}
+              <div className="p-4 rounded-xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 block mb-1">
+                  SAÍDA PREVISTA
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-400 block">
+                  {formatCurrency(reportsData?.report?.prediction?.projected_expenses || 0)}
+                </span>
+              </div>
+
+              {/* SALDO PREVISTO */}
+              <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block mb-1">
+                  SALDO PREVISTO
+                </span>
+                <span
+                  className={cn(
+                    'text-xl sm:text-2xl font-black block',
+                    (reportsData?.report?.prediction?.projected_balance || 0) >= 0
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-rose-600 dark:text-rose-400'
+                  )}
+                >
+                  {formatCurrency(reportsData?.report?.prediction?.projected_balance || 0)}
+                </span>
+              </div>
             </div>
           </div>
         </div>

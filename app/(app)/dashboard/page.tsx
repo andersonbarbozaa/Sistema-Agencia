@@ -320,7 +320,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="font-bold text-base text-gray-900">Financeiro</h3>
-              <p className="text-xs text-gray-500">Saldo consolidado, meta e fluxo de caixa</p>
+
             </div>
             <Link href="/finance" className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
               Ver Financeiro <ArrowRight size={14} />
