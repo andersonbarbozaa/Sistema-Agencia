@@ -92,11 +92,11 @@ export default function Header({ user }: HeaderProps) {
     : user?.avatar_url;
 
   const headerFallback = (isClientLogin && activeClient)
-    ? ((activeClient.name || activeClient.company_name || activeClient.trade_name || 'C').charAt(0).toUpperCase())
+    ? ((activeClient.company_name || activeClient.trade_name || activeClient.name || 'C').charAt(0).toUpperCase())
     : ((user?.name || 'U').charAt(0).toUpperCase());
 
   const headerDisplayName = (isClientLogin && activeClient)
-    ? (activeClient.company_name || activeClient.trade_name || user?.name)
+    ? (activeClient.company_name || activeClient.trade_name || activeClient.corporate_name || activeClient.name || user?.name)
     : user?.name;
 
   useEffect(() => {
@@ -114,6 +114,16 @@ export default function Header({ user }: HeaderProps) {
       }
     }
     loadLinkedClients();
+
+    const handleUpdate = () => {
+      loadLinkedClients();
+    };
+    window.addEventListener('workspace-updated', handleUpdate);
+    window.addEventListener('user-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('workspace-updated', handleUpdate);
+      window.removeEventListener('user-updated', handleUpdate);
+    };
   }, []);
 
   // Creation button config before notification icon
@@ -714,8 +724,11 @@ export default function Header({ user }: HeaderProps) {
               </div>
             )}
             <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">
-                {headerDisplayName?.split(' ')[0]}
+              <span
+                className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight max-w-[140px] sm:max-w-[180px] lg:max-w-[220px] truncate block"
+                title={headerDisplayName}
+              >
+                {headerDisplayName}
               </span>
               <span className="text-[10px] text-gray-400 leading-none">
                 {isClientLogin ? 'Cliente' : (user.job_title || (user.role === 'ADMINISTRADOR' ? 'Admin' : 'Equipe'))}

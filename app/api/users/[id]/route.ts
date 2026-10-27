@@ -184,7 +184,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                 status = COALESCE(?, status),
                 avatar_url = COALESCE(?, avatar_url),
                 updated_at = ?
-            WHERE id = ?
+            WHERE id = ? OR (email IS NOT NULL AND lower(email) = lower(?))
           `).bind(
             currentUserRecord.name || null,
             currentUserRecord.email || null,
@@ -192,7 +192,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             currentUserRecord.status || null,
             currentUserRecord.avatar_url || null,
             now,
-            cliId
+            cliId,
+            currentUserRecord.email || ''
           ).run();
         }
       }

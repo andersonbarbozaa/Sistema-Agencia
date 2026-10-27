@@ -21,13 +21,16 @@ export async function GET(request: NextRequest) {
         client = await db.prepare('SELECT * FROM clients WHERE lower(email) = lower(?) OR id = ? LIMIT 1').bind(user.email, user.id).first<any>();
       }
       if (client) {
+        const compName = client.company_name || client.trade_name || client.corporate_name || client.name;
         return NextResponse.json({
           workspace: {
             id: client.id,
-            name: client.name,
+            name: compName,
+            company_name: compName,
+            corporate_name: client.corporate_name || '',
+            trade_name: client.trade_name || compName,
             description: client.notes || client.corporate_name || '',
             logo_url: client.avatar_url || null,
-            corporate_name: client.corporate_name || '',
             document: client.document || '',
             email: client.email || '',
             phone: client.phone || '',
@@ -122,12 +125,20 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Cliente não vinculado.' }, { status: 400 });
       }
       const body = await request.json();
-      const { name, corporate_name, document, email, phone, whatsapp, address, city, state, website, instagram, notes, logo_url } = body;
+      const { name, company_name, trade_name, corporate_name, client_name, document, email, phone, whatsapp, address, city, state, website, instagram, notes, description, logo_url } = body;
+
+      const compName = (company_name || trade_name || name || '').trim();
+      const corpName = corporate_name !== undefined ? corporate_name.trim() : (compName || null);
+      const tradName = trade_name !== undefined ? trade_name.trim() : (compName || null);
+      const notesClean = notes !== undefined ? notes.trim() : (description !== undefined ? description.trim() : null);
+
       await db
         .prepare(`
           UPDATE clients
-          SET name = COALESCE(?, name),
-              corporate_name = COALESCE(?, corporate_name),
+          SET company_name = COALESCE(NULLIF(?, ''), company_name),
+              trade_name = COALESCE(NULLIF(?, ''), trade_name),
+              corporate_name = COALESCE(NULLIF(?, ''), corporate_name),
+              name = COALESCE(NULLIF(?, ''), name),
               document = COALESCE(?, document),
               email = COALESCE(?, email),
               phone = COALESCE(?, phone),
@@ -143,8 +154,10 @@ export async function PATCH(request: NextRequest) {
           WHERE id = ?
         `)
         .bind(
-          name !== undefined ? name.trim() : null,
-          corporate_name !== undefined ? corporate_name.trim() : null,
+          compName || null,
+          tradName || null,
+          corpName || null,
+          client_name ? client_name.trim() : null,
           document !== undefined ? document.trim() : null,
           email !== undefined ? email.trim() : null,
           phone !== undefined ? phone.trim() : null,
@@ -154,31 +167,35 @@ export async function PATCH(request: NextRequest) {
           state !== undefined ? state.trim() : null,
           website !== undefined ? website.trim() : null,
           instagram !== undefined ? instagram.trim() : null,
-          notes !== undefined ? notes.trim() : null,
+          notesClean,
           logo_url !== undefined ? logo_url : null,
           clientId
         )
         .run();
 
       const updatedClient = await db.prepare('SELECT * FROM clients WHERE id = ?').bind(clientId).first<any>();
+      const resolvedCompanyName = updatedClient?.company_name || updatedClient?.trade_name || updatedClient?.corporate_name || updatedClient?.name || compName;
       return NextResponse.json({
+        success: true,
         workspace: {
-          id: updatedClient.id,
-          name: updatedClient.name,
-          description: updatedClient.notes || '',
-          logo_url: updatedClient.avatar_url,
-          corporate_name: updatedClient.corporate_name,
-          document: updatedClient.document,
-          email: updatedClient.email,
-          phone: updatedClient.phone,
-          whatsapp: updatedClient.whatsapp,
-          address: updatedClient.address,
-          city: updatedClient.city,
-          state: updatedClient.state,
-          website: updatedClient.website,
-          instagram: updatedClient.instagram,
-          notes: updatedClient.notes,
-          status: updatedClient.status,
+          id: updatedClient?.id || clientId,
+          name: resolvedCompanyName,
+          company_name: resolvedCompanyName,
+          corporate_name: updatedClient?.corporate_name || corpName,
+          trade_name: updatedClient?.trade_name || tradName,
+          description: updatedClient?.notes || '',
+          logo_url: updatedClient?.avatar_url,
+          document: updatedClient?.document,
+          email: updatedClient?.email,
+          phone: updatedClient?.phone,
+          whatsapp: updatedClient?.whatsapp,
+          address: updatedClient?.address,
+          city: updatedClient?.city,
+          state: updatedClient?.state,
+          website: updatedClient?.website,
+          instagram: updatedClient?.instagram,
+          notes: updatedClient?.notes,
+          status: updatedClient?.status,
           is_client_company: true,
         },
         client: updatedClient,

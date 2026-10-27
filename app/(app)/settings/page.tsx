@@ -740,12 +740,15 @@ function SettingsContent() {
     try {
       setCompanySaving(true);
       if (currentUser.role === 'CLIENTE') {
+        const cleanCompanyName = profileForm.company_name.trim();
         const res = await fetch('/api/workspaces/current', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: profileForm.company_name.trim(),
-            corporate_name: profileForm.corporate_name ? profileForm.corporate_name.trim() : '',
+            name: cleanCompanyName,
+            company_name: cleanCompanyName,
+            trade_name: cleanCompanyName,
+            corporate_name: profileForm.corporate_name ? profileForm.corporate_name.trim() : cleanCompanyName,
             document: profileForm.document ? profileForm.document.trim() : '',
             email: profileForm.company_email ? profileForm.company_email.trim() : '',
             phone: profileForm.company_phone ? profileForm.company_phone.trim() : '',
@@ -764,6 +767,14 @@ function SettingsContent() {
           alert(err.error || 'Erro ao atualizar dados da empresa.');
           return;
         }
+        window.dispatchEvent(
+          new CustomEvent('workspace-updated', {
+            detail: {
+              workspace_name: cleanCompanyName,
+              workspace_logo: profileForm.company_logo || null,
+            },
+          })
+        );
         setCompanySuccess(true);
         setTimeout(() => setCompanySuccess(false), 3000);
         await fetchData();
