@@ -838,8 +838,6 @@ export default function CRMPage() {
                   {statusLeads.map((lead) => {
                     const socials = parseSocialLinks(lead);
                     const hasWebsite = Boolean(lead.website && lead.website.trim());
-                    const hasCompleteAddress = Boolean(lead.address && lead.address.trim().length > 5);
-                    const cityOrAddress = lead.city || lead.address || '';
 
                     return (
                       <div
@@ -860,8 +858,8 @@ export default function CRMPage() {
                               : ''}
                           </span>
                           {(lead.platform || lead.source) && (
-                            <span className="shrink-0" title={`Plataforma: ${lead.platform || lead.source}`}>
-                              {renderPlatformBadge(lead.platform || lead.source)}
+                            <span className="shrink-0 text-[10px] font-medium text-gray-500" title={`Plataforma: ${lead.platform || lead.source}`}>
+                              {lead.platform || lead.source}
                             </span>
                           )}
                         </div>
@@ -925,7 +923,7 @@ export default function CRMPage() {
                           </div>
                         )}
 
-                        {/* Rodapé: Botão WhatsApp e Endereço */}
+                        {/* Rodapé: Botão WhatsApp */}
                         <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500">
                           {(lead.whatsapp || lead.phone) ? (
                             <button
@@ -938,40 +936,7 @@ export default function CRMPage() {
                               <span>WhatsApp</span>
                             </button>
                           ) : (
-                            <span className="text-gray-400">{lead.platform || 'Sem Whats'}</span>
-                          )}
-
-                          {/* No card exibe apenas a cidade e só mostra maps/waze se tiver endereço completo */}
-                          {hasCompleteAddress ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-600 font-medium truncate max-w-[90px]" title={getFullAddress(lead)}>
-                                {lead.city || lead.address}
-                              </span>
-                              <a
-                                href={getGoogleMapsUrl(getFullAddress(lead))}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-0.5 text-blue-600 hover:text-blue-800 rounded transition-colors"
-                                title="Google Maps"
-                              >
-                                <MapPin size={11} />
-                              </a>
-                              <a
-                                href={getWazeUrl(getFullAddress(lead))}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-1 py-0.2 text-[9px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded transition-colors"
-                                title="Waze"
-                              >
-                                Waze
-                              </a>
-                            </div>
-                          ) : (
-                            <span className="text-gray-500 truncate max-w-[110px]" title={cityOrAddress}>
-                              {cityOrAddress || '-'}
-                            </span>
+                            <span className="text-gray-400">Sem WhatsApp</span>
                           )}
                         </div>
                       </div>
