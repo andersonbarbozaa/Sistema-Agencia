@@ -61,6 +61,82 @@ function LinkedinIcon({ size = 14, className }: { size?: number; className?: str
     </svg>
   );
 }
+
+function renderPlatformBadge(platform?: string | null) {
+  if (!platform) return null;
+  const p = platform.trim();
+  const lower = p.toLowerCase();
+
+  if (lower.includes('whatsapp') || lower.includes('whats')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+        <MessageCircle size={10} className="text-emerald-600 dark:text-emerald-400" />
+        <span>WhatsApp</span>
+      </span>
+    );
+  }
+  if (lower.includes('instagram') || lower.includes('insta')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-pink-50 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 border border-pink-200 dark:border-pink-800 shadow-2xs">
+        <InstagramIcon size={10} className="text-pink-600 dark:text-pink-400" />
+        <span>Instagram</span>
+      </span>
+    );
+  }
+  if (lower.includes('facebook') || lower.includes('face')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
+        <FacebookIcon size={10} className="text-blue-600 dark:text-blue-400" />
+        <span>Facebook</span>
+      </span>
+    );
+  }
+  if (lower.includes('linkedin')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shadow-2xs">
+        <LinkedinIcon size={10} className="text-sky-600 dark:text-sky-400" />
+        <span>LinkedIn</span>
+      </span>
+    );
+  }
+  if (lower.includes('tiktok')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-700 shadow-2xs">
+        <span>TikTok</span>
+      </span>
+    );
+  }
+  if (lower.includes('google') || lower.includes('site') || lower.includes('web')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+        <Globe size={10} className="text-indigo-600 dark:text-indigo-400" />
+        <span>{p}</span>
+      </span>
+    );
+  }
+  if (lower.includes('liga') || lower.includes('fone') || lower.includes('telefone')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shadow-2xs">
+        <Phone size={10} className="text-amber-600 dark:text-amber-400" />
+        <span>{p}</span>
+      </span>
+    );
+  }
+  if (lower.includes('email') || lower.includes('e-mail')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-2xs">
+        <Mail size={10} className="text-violet-600 dark:text-violet-400" />
+        <span>E-mail</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow-2xs">
+      <span>{p}</span>
+    </span>
+  );
+}
 import { CRMLead, CRMInteraction, CRMLeadStatus } from '@/types';
 import { formatDate, formatDateTime, cn } from '@/lib/utils';
 
@@ -776,13 +852,18 @@ export default function CRMPage() {
                           'border-gray-200'
                         )}
                       >
-                        {/* Data da última atualização ACIMA do nome */}
-                        <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
-                          <span>
+                        {/* Data da última atualização e Plataforma ACIMA do nome */}
+                        <div className="flex items-center justify-between gap-1 text-[10px] text-gray-400 mb-1.5">
+                          <span className="truncate">
                             {lead.updated_at || lead.last_activity_at || lead.created_at
                               ? `Atualizado: ${formatDate(lead.updated_at || lead.last_activity_at || lead.created_at)}`
                               : ''}
                           </span>
+                          {(lead.platform || lead.source) && (
+                            <span className="shrink-0" title={`Plataforma: ${lead.platform || lead.source}`}>
+                              {renderPlatformBadge(lead.platform || lead.source)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Nome do contato */}
@@ -1008,9 +1089,9 @@ export default function CRMPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700">
-                        {l.platform || l.source || '-'}
-                      </span>
+                      {renderPlatformBadge(l.platform || l.source) || (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       {(l.whatsapp || l.phone) ? (
