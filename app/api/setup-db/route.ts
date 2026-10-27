@@ -345,6 +345,20 @@ VALUES ('ws_default', 'PixelCraft Studio', 'Agência Audiovisual & Criativa', 'u
 ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual';
 ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial';
 ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT;
+ALTER TABLE workspaces ADD COLUMN mercadopago_payment_id TEXT;
+ALTER TABLE workspaces ADD COLUMN mercadopago_subscription_id TEXT;
+
+CREATE TABLE IF NOT EXISTS payment_logs (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT,
+  payment_id TEXT,
+  status TEXT,
+  plan_type TEXT,
+  amount REAL,
+  payer_email TEXT,
+  raw_payload TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 ALTER TABLE users ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE users ADD COLUMN job_title TEXT DEFAULT 'Administrador';

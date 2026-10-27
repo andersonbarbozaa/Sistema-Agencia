@@ -592,6 +592,44 @@ function SettingsContent() {
     }
   };
 
+  const handleCheckoutMercadoPago = async (planType: string) => {
+    try {
+      setSubscribingPlan(planType);
+      const res = await fetch('/api/payments/create-preference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: planType }),
+      });
+      const data = await res.json();
+      if (res.ok && data.init_point) {
+        // Redireciona diretamente para o Checkout Pro do Mercado Pago
+        window.location.href = data.init_point;
+      } else {
+        alert(data.error || 'Erro ao gerar checkout do Mercado Pago.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Erro de conexão ao iniciar checkout do Mercado Pago.');
+    } finally {
+      setSubscribingPlan(null);
+    }
+  };
+
+  // Escuta retorno de status de pagamento do Mercado Pago via URL query params
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    if (paymentStatus === 'success') {
+      setSubscriptionSuccess('Pagamento aprovado com sucesso no Mercado Pago! Sua assinatura está ativa.');
+      setTimeout(() => setSubscriptionSuccess(null), 8000);
+      fetchData();
+    } else if (paymentStatus === 'failure') {
+      alert('O pagamento não foi concluído no Mercado Pago. Nenhuma cobrança foi efetuada.');
+    } else if (paymentStatus === 'pending') {
+      setSubscriptionSuccess('Pagamento em análise ou aguardando compensação (Pix / Boleto). O plano será ativado assim que confirmado.');
+      setTimeout(() => setSubscriptionSuccess(null), 8000);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -3104,35 +3142,41 @@ function SettingsContent() {
                   </div>
 
                   {/* Botão de Ação Desktop */}
-                  <div className="pt-4 border-t border-gray-100 mt-2">
-                    {isCurrent ? (
-                      <button
-                        type="button"
-                        onClick={() => handleSubscribeTrial(plan.id)}
-                        disabled={subscribingPlan === plan.id}
-                        className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <Check size={14} /> Plano Ativo (30 Dias Grátis)
-                      </button>
+                  <div className="pt-4 border-t border-gray-100 mt-2 space-y-2">
+                    {isCurrent && workspaceData?.subscription_status === 'active' ? (
+                      <div className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                        <Check size={14} className="text-emerald-600" /> Assinatura Ativa (Mercado Pago)
+                      </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleSubscribeTrial(plan.id)}
+                        onClick={() => handleCheckoutMercadoPago(plan.id)}
                         disabled={subscribingPlan === plan.id}
                         className={cn(
-                          'w-full py-3 px-4 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50',
+                          'w-full py-3 px-4 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer',
                           isPopular
                             ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
                             : 'bg-gray-900 hover:bg-gray-800 text-white'
                         )}
                       >
                         {subscribingPlan === plan.id ? (
-                          'Ativando teste...'
+                          'Redirecionando ao Mercado Pago...'
                         ) : (
                           <>
-                            <Zap size={13} /> Testar 30 Dias Grátis
+                            <CreditCard size={14} /> Assinar com Mercado Pago
                           </>
                         )}
+                      </button>
+                    )}
+
+                    {!isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => handleSubscribeTrial(plan.id)}
+                        disabled={subscribingPlan === plan.id}
+                        className="w-full py-1.5 text-[11px] font-medium text-gray-500 hover:text-gray-800 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Zap size={11} className="text-amber-500" /> Ou testar 30 dias grátis
                       </button>
                     )}
                   </div>
@@ -3215,35 +3259,41 @@ function SettingsContent() {
                       </div>
 
                       {/* Botão de Ação no Mobile Expandido */}
-                      <div className="pt-2">
-                        {isCurrent ? (
-                          <button
-                            type="button"
-                            onClick={() => handleSubscribeTrial(plan.id)}
-                            disabled={subscribingPlan === plan.id}
-                            className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors flex items-center justify-center gap-1.5"
-                          >
-                            <Check size={14} /> Plano Ativo (30 Dias Grátis)
-                          </button>
+                      <div className="pt-2 space-y-2">
+                        {isCurrent && workspaceData?.subscription_status === 'active' ? (
+                          <div className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                            <Check size={14} className="text-emerald-600" /> Assinatura Ativa (Mercado Pago)
+                          </div>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleSubscribeTrial(plan.id)}
+                            onClick={() => handleCheckoutMercadoPago(plan.id)}
                             disabled={subscribingPlan === plan.id}
                             className={cn(
-                              'w-full py-3 px-4 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50',
+                              'w-full py-2.5 px-4 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer',
                               isPopular
                                 ? 'bg-blue-600 hover:bg-blue-500 text-white'
                                 : 'bg-gray-900 hover:bg-gray-800 text-white'
                             )}
                           >
                             {subscribingPlan === plan.id ? (
-                              'Ativando teste...'
+                              'Redirecionando ao Mercado Pago...'
                             ) : (
                               <>
-                                <Zap size={13} /> Testar 30 Dias Grátis
+                                <CreditCard size={13} /> Assinar com Mercado Pago
                               </>
                             )}
+                          </button>
+                        )}
+
+                        {!isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => handleSubscribeTrial(plan.id)}
+                            disabled={subscribingPlan === plan.id}
+                            className="w-full py-1 text-[11px] font-medium text-gray-500 hover:text-gray-800 transition-colors flex items-center justify-center gap-1"
+                          >
+                            <Zap size={11} className="text-amber-500" /> Testar 30 dias grátis
                           </button>
                         )}
                       </div>

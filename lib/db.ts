@@ -61,6 +61,20 @@ function getLocalDatabase(): D1DatabaseInterface {
         ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual';
         ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial';
         ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT;
+        ALTER TABLE workspaces ADD COLUMN mercadopago_payment_id TEXT;
+        ALTER TABLE workspaces ADD COLUMN mercadopago_subscription_id TEXT;
+
+        CREATE TABLE IF NOT EXISTS payment_logs (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT,
+          payment_id TEXT,
+          status TEXT,
+          plan_type TEXT,
+          amount REAL,
+          payer_email TEXT,
+          raw_payload TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
       `);
     } catch {}
 
