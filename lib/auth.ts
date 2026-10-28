@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { getDb } from './db';
 import { User, UserRole } from '@/types';
 
+export * from './auth-constants';
+
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'super_secret_jwt_key_creative_agency_2026_change_in_production';
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
 const TOKEN_COOKIE_NAME = 'agencia_auth_token';
@@ -128,7 +130,7 @@ export async function getApiUser(request: Request): Promise<User | null> {
         SELECT u.id, u.name, u.email, u.avatar_url, u.phone, u.role, u.position_id, u.client_id, u.is_partner, u.status, u.created_at, u.updated_at,
                u.workspace_id, u.job_title,
                w.name as workspace_name, w.description as workspace_description, w.logo_url as workspace_logo, w.invite_code as workspace_invite_code,
-               p.name as position_name, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name
+               p.name as position_name, COALESCE(NULLIF(c.company_name, ''), NULLIF(trade_name, ''), NULLIF(corporate_name, ''), c.name) as client_name
         FROM users u
         LEFT JOIN workspaces w ON COALESCE(u.workspace_id, 'ws_default') = w.id
         LEFT JOIN positions p ON u.position_id = p.id
@@ -157,18 +159,6 @@ export async function getApiUser(request: Request): Promise<User | null> {
   } catch (err) {
     return null;
   }
-}
-
-export function isAdmin(user: User | null | undefined): boolean {
-  return user?.role === 'ADMINISTRADOR';
-}
-
-export function isCollaborator(user: User | null | undefined): boolean {
-  return user?.role === 'COLABORADOR';
-}
-
-export function isClient(user: User | null | undefined): boolean {
-  return user?.role === 'CLIENTE';
 }
 
 export { TOKEN_COOKIE_NAME };

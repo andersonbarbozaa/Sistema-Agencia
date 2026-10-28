@@ -3028,8 +3028,19 @@ function SettingsContent() {
               </p>
             </div>
 
-            {/* Status Atual do Workspace */}
-            {workspaceData && (
+            {/* Status Atual do Workspace (Com Bypass Vitalício para Titular Master) */}
+            {currentUser?.email?.toLowerCase()?.trim() === 'anderson.barbozaa@gmail.com' ? (
+              <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-purple-50 border border-amber-300 rounded-xl text-xs">
+                <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <span className="text-amber-800 text-[10px] font-black uppercase tracking-wider block">Titular Master</span>
+                  <span className="font-extrabold text-gray-900">Acesso Vitalício sem Assinatura</span>
+                  <span className="text-[11px] text-amber-900/80 font-medium block">
+                    100% liberado para sempre em todas as funcionalidades
+                  </span>
+                </div>
+              </div>
+            ) : workspaceData && (
               <div className="flex items-center gap-2.5 px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs">
                 <Shield className="w-4 h-4 text-blue-600 shrink-0" />
                 <div>

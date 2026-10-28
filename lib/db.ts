@@ -100,6 +100,8 @@ function getLocalDatabase(): D1DatabaseInterface {
         );
         INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, workspace_id, job_title)
         VALUES ('usr_anderson', 'Anderson Barboza', 'anderson@agencia.com', '$2b$10$TNXA4RoTuecRRLfUst11TO9DmCBfbTQK1Id/dseBjOqGu3jFGfbI6', 'ADMINISTRADOR', 'ativo', 'ws_default', 'Administrador');
+        INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, workspace_id, job_title)
+        VALUES ('usr_anderson_master', 'Anderson Barboza', 'anderson.barbozaa@gmail.com', '$2b$10$TNXA4RoTuecRRLfUst11TO9DmCBfbTQK1Id/dseBjOqGu3jFGfbI6', 'ADMINISTRADOR', 'ativo', 'ws_default', 'Titular Master');
 
         CREATE TABLE IF NOT EXISTS task_time_logs (
           id TEXT PRIMARY KEY,

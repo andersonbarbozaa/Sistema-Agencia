@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getApiUser, isAdmin } from '@/lib/auth';
+import { getApiUser, isAdmin, isMasterAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 // GET /api/workspaces/current — Get current user's workspace details
@@ -99,6 +99,14 @@ export async function GET(request: NextRequest) {
       workspace.trial_ends_at = trialEndsAt;
       workspace.plan_type = workspace.plan_type || 'individual';
       workspace.subscription_status = workspace.subscription_status || 'trial';
+    }
+
+    if (workspace && isMasterAdmin(user)) {
+      workspace.subscription_status = 'active';
+      workspace.plan_type = 'corporativo';
+      workspace.is_master = true;
+      workspace.is_lifetime = true;
+      workspace.trial_ends_at = null;
     }
 
     return NextResponse.json({ workspace });
