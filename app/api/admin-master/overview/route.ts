@@ -246,12 +246,15 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Contagem de estatísticas globais
-    const totalUsers = formattedUsers.length;
-    const uniqueWorkspaces = Math.max(formattedWorkspaces.length, new Set(formattedUsers.map((u) => u.workspace.id).filter(Boolean)).size);
-    const activePaidCount = formattedUsers.filter((u) => u.finance.status === 'Pago' || u.finance.status === 'Vitalício').length;
-    const activeTrialCount = formattedUsers.filter((u) => u.finance.status === 'Trial Ativo').length;
-    const expiredOrPastDueCount = formattedUsers.filter(
+    // Filtra os usuários excluindo o próprio acesso do titular master ("o meu acesso nao precisa mostrar nesta parte")
+    const clientUsers = formattedUsers.filter((u) => !u.is_master);
+
+    // Contagem de estatísticas para os usuários e estúdios gerenciados
+    const totalUsers = clientUsers.length;
+    const uniqueWorkspaces = Math.max(formattedWorkspaces.length, new Set(clientUsers.map((u) => u.workspace.id).filter(Boolean)).size);
+    const activePaidCount = clientUsers.filter((u) => u.finance.status === 'Pago' || u.finance.status === 'Vitalício').length;
+    const activeTrialCount = clientUsers.filter((u) => u.finance.status === 'Trial Ativo').length;
+    const expiredOrPastDueCount = clientUsers.filter(
       (u) => u.finance.status === 'Trial Expirado' || u.finance.status === 'Inadimplente' || u.finance.status === 'Atrasado'
     ).length;
 
@@ -283,7 +286,7 @@ export async function GET(request: NextRequest) {
         capacityUsagePercent,
         status: capacityUsagePercent < 70 ? 'healthy' : capacityUsagePercent < 90 ? 'warning' : 'critical',
       },
-      users: formattedUsers,
+      users: clientUsers,
       workspaces: formattedWorkspaces,
       cloudflareHealth,
     });
