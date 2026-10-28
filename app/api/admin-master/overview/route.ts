@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiUser, isMasterAdmin, MASTER_ADMIN_EMAIL } from '@/lib/auth';
+import { getApiUser } from '@/lib/auth';
+import { isMasterAdmin, MASTER_ADMIN_EMAIL } from '@/lib/auth-constants';
 import { getDb } from '@/lib/db';
 import { getCloudflareHealthReport } from '@/lib/cloudflare';
 
@@ -21,6 +22,23 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getDb();
+
+    // Garante que todas as colunas necessárias existam na tabela workspaces
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN mercadopago_payment_id TEXT').run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN mercadopago_subscription_id TEXT').run();
+    } catch {}
+    try {
+      await db.prepare("ALTER TABLE workspaces ADD COLUMN plan_type TEXT DEFAULT 'individual'").run();
+    } catch {}
+    try {
+      await db.prepare("ALTER TABLE workspaces ADD COLUMN subscription_status TEXT DEFAULT 'trial'").run();
+    } catch {}
+    try {
+      await db.prepare('ALTER TABLE workspaces ADD COLUMN trial_ends_at TEXT').run();
+    } catch {}
 
     // Busca cruzada de usuários, workspaces e status financeiro
     const usersQuery = `
@@ -46,8 +64,22 @@ export async function GET(request: NextRequest) {
       ORDER BY u.created_at DESC
     `;
 
-    const usersResult = await db.prepare(usersQuery).all<any>();
-    const rawUsers = usersResult.results || [];
+    let rawUsers: any[] = [];
+    try {
+      const usersResult = await db.prepare(usersQuery).all<any>();
+      rawUsers = usersResult.results || [];
+    } catch (err: any) {
+      console.error('[Overview usersQuery error]:', err?.message);
+      // Fallback sem colunas adicionais se necessário
+      const simpleUsers = await db.prepare('SELECT id as user_id, name as user_name, email as user_email, role as user_role, status as user_status, created_at as user_created_at FROM users ORDER BY created_at DESC').all<any>();
+      rawUsers = (simpleUsers.results || []).map((u) => ({
+        ...u,
+        workspace_id: 'ws_default',
+        workspace_name: 'PixelCraft Studio',
+        plan_type: 'individual',
+        subscription_status: 'trial',
+      }));
+    }
 
     // Busca os últimos pagamentos de cada workspace
     let paymentLogs: any[] = [];
@@ -61,7 +93,7 @@ export async function GET(request: NextRequest) {
     const now = Date.now();
 
     const formattedUsers = rawUsers.map((u) => {
-      const isMaster = u.user_email?.toLowerCase().trim() === MASTER_ADMIN_EMAIL.toLowerCase().trim();
+      const isMaster = isMasterAdmin({ email: u.user_email });
 
       // Calcula tempo no sistema (dias)
       const createdAtDate = u.user_created_at ? new Date(u.user_created_at) : new Date();
@@ -137,7 +169,7 @@ export async function GET(request: NextRequest) {
         is_master: isMaster,
         workspace: {
           id: u.workspace_id,
-          name: u.workspace_name || 'Estúdio Padrão',
+          name: u.workspace_name || 'PixelCraft Studio',
           plan_type: u.plan_type || 'individual',
           subscription_status: isMaster ? 'active' : u.subscription_status || 'trial',
           trial_ends_at: u.trial_ends_at,
@@ -163,8 +195,13 @@ export async function GET(request: NextRequest) {
       (u) => u.finance.status === 'Trial Expirado' || u.finance.status === 'Inadimplente' || u.finance.status === 'Atrasado'
     ).length;
 
-    // Relatório de infraestrutura Cloudflare
-    const cloudflareHealth = await getCloudflareHealthReport();
+    // Relatório de infraestrutura Cloudflare com fallback seguro
+    let cloudflareHealth: any = null;
+    try {
+      cloudflareHealth = await getCloudflareHealthReport();
+    } catch (cfErr: any) {
+      console.warn('[Overview Cloudflare Report Warning]:', cfErr?.message);
+    }
 
     return NextResponse.json({
       success: true,

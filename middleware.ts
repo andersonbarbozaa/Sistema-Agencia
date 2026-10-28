@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'super_secret_jwt_key_creative_agency_2026_change_in_production';
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
-const MASTER_EMAIL = 'anderson.barbozaa@gmail.com';
+const MASTER_EMAILS = ['anderson.barbozaa@gmail.com', 'anderson@agencia.com'];
 const TOKEN_COOKIE_NAME = 'agencia_auth_token';
 
 export async function middleware(request: NextRequest) {
@@ -38,8 +38,8 @@ export async function middleware(request: NextRequest) {
       const { payload } = await jwtVerify(token, JWT_SECRET);
       const email = typeof payload?.email === 'string' ? payload.email.toLowerCase().trim() : '';
 
-      // Passe livre irrestrito exclusivamente para anderson.barbozaa@gmail.com
-      if (email === MASTER_EMAIL) {
+      // Passe livre irrestrito exclusivamente para o titular master
+      if (MASTER_EMAILS.includes(email)) {
         return NextResponse.next();
       }
 

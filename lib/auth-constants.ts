@@ -1,14 +1,22 @@
 import { User, UserRole } from '@/types';
 
 export const MASTER_ADMIN_EMAIL = 'anderson.barbozaa@gmail.com';
+export const MASTER_ADMIN_EMAILS = [
+  'anderson.barbozaa@gmail.com',
+  'anderson@agencia.com',
+];
 
 /**
  * Validação estrita do Titular Master do Sistema
- * Apenas anderson.barbozaa@gmail.com possui esse nível de acesso
+ * Reconhece o e-mail do titular (anderson.barbozaa@gmail.com ou anderson@agencia.com)
  */
 export function isMasterAdmin(user: { email?: string | null } | null | undefined): boolean {
   if (!user || !user.email) return false;
-  return user.email.toLowerCase().trim() === MASTER_ADMIN_EMAIL.toLowerCase().trim();
+  const email = user.email.toLowerCase().trim();
+  return (
+    email === MASTER_ADMIN_EMAIL.toLowerCase().trim() ||
+    MASTER_ADMIN_EMAILS.some((m) => m.toLowerCase().trim() === email)
+  );
 }
 
 /**

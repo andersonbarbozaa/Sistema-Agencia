@@ -115,11 +115,12 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
       setError(null);
       const res = await fetch('/api/admin-master/overview');
       if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
         if (res.status === 403) {
-          setError('Acesso negado: Rota restrita exclusivamente ao titular do sistema.');
+          setError(errorData.error || 'Acesso negado: Rota restrita exclusivamente ao titular do sistema.');
           return;
         }
-        throw new Error('Falha ao carregar dados do painel Master Admin');
+        throw new Error(errorData.error || 'Falha ao carregar dados do painel Master Admin');
       }
       const json = await res.json();
       setData(json);
@@ -179,13 +180,25 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto p-6 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 mt-12 space-y-3">
+      <div className="max-w-2xl mx-auto p-6 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 mt-12 space-y-4 shadow-sm">
         <div className="flex items-center gap-3">
           <ShieldAlert className="w-8 h-8 text-rose-600 shrink-0" />
-          <div>
-            <h3 className="font-bold text-lg">Acesso Bloqueado (403)</h3>
-            <p className="text-sm text-rose-700">{error}</p>
+          <div className="space-y-1">
+            <h3 className="font-bold text-base text-rose-950">Aviso do Painel Master Admin</h3>
+            <p className="text-xs text-rose-700 leading-relaxed">{error}</p>
           </div>
+        </div>
+        <div className="pt-2 border-t border-rose-200/60 flex items-center justify-end">
+          <button
+            onClick={() => {
+              setLoading(true);
+              fetchData();
+            }}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 active:scale-95"
+          >
+            <RefreshCw size={13} />
+            <span>Tentar Novamente</span>
+          </button>
         </div>
       </div>
     );

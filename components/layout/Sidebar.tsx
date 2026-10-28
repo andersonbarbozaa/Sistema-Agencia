@@ -24,6 +24,7 @@ import {
   CreditCard,
   X,
   LogOut,
+  ShieldCheck,
   Crown,
 } from 'lucide-react';
 import { User } from '@/types';
@@ -147,7 +148,7 @@ function SidebarInner({ user }: SidebarProps) {
         {
           href: '/admin-master',
           label: 'Master Admin',
-          icon: Crown,
+          icon: ShieldCheck,
         },
       ]
     : baseItems;
@@ -284,7 +285,6 @@ function SidebarInner({ user }: SidebarProps) {
               );
             }
 
-            const isMasterItem = item.href === '/admin-master';
             return (
               <Link
                 key={item.href}
@@ -294,18 +294,11 @@ function SidebarInner({ user }: SidebarProps) {
                   'flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold transition-all duration-150',
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : isMasterItem
-                    ? 'text-amber-800 bg-amber-50/80 border border-amber-200/80 font-bold hover:bg-amber-100'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 )}
               >
-                <Icon size={18} className={cn("flex-shrink-0", isMasterItem && !isActive && "text-amber-600")} />
+                <Icon size={18} className="flex-shrink-0" />
                 <span className="truncate">{item.label}</span>
-                {isMasterItem && (
-                  <span className="ml-auto text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-full font-black uppercase">
-                    Master
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -436,7 +429,6 @@ function SidebarInner({ user }: SidebarProps) {
               );
             }
 
-            const isMasterItem = item.href === '/admin-master';
             return (
               <Link
                 key={item.href}
@@ -446,23 +438,12 @@ function SidebarInner({ user }: SidebarProps) {
                   'flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group',
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : isMasterItem
-                    ? 'text-amber-800 bg-amber-50/80 border border-amber-200/80 font-bold hover:bg-amber-100'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
                   collapsed ? 'justify-center px-2' : ''
                 )}
               >
-                <Icon size={18} className={cn("flex-shrink-0", isMasterItem && !isActive && "text-amber-600")} />
-                {!collapsed && (
-                  <>
-                    <span className="truncate">{item.label}</span>
-                    {isMasterItem && (
-                      <span className="ml-auto text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-full font-black uppercase">
-                        Master
-                      </span>
-                    )}
-                  </>
-                )}
+                <Icon size={18} className="flex-shrink-0" />
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>
             );
           })}
