@@ -21,8 +21,10 @@ import {
   FileCheck2,
   Trash2,
   ChevronDown,
+  Crown,
 } from 'lucide-react';
 import { User, Notification } from '@/types';
+import { isMasterAdmin } from '@/lib/auth-constants';
 import { cn, formatCurrency } from '@/lib/utils';
 
 interface HeaderProps {
@@ -816,6 +818,20 @@ export default function Header({ user }: HeaderProps) {
               )}
 
               <div className="py-1">
+                {isMasterAdmin(user) && (
+                  <Link
+                    href="/admin-master"
+                    onClick={() => setShowUserDropdown(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-amber-800 bg-amber-50/80 hover:bg-amber-100 transition-colors border-b border-amber-100/80"
+                  >
+                    <Crown size={15} className="text-amber-600" />
+                    <span>Painel Master Admin</span>
+                    <span className="ml-auto text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded font-extrabold uppercase">
+                      Master
+                    </span>
+                  </Link>
+                )}
+
                 <Link
                   href="/settings?tab=profile"
                   onClick={() => setShowUserDropdown(false)}
