@@ -1,8 +1,7 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { verifyPassword, createSessionToken, TOKEN_COOKIE_NAME } from '@/lib/auth';
-import { logAudit } from '@/lib/audit';
+import { logAudit, logUserAccess } from '@/lib/audit';
 
 export async function POST(request: Request) {
   try {
@@ -44,13 +43,21 @@ export async function POST(request: Request) {
       workspace_id: user.workspace_id,
     });
 
+    // Registra o acesso detalhado do usuário (IP, Navegador, Dispositivo, OS, Localização)
+    await logUserAccess(user.id, request, 'login', {
+      email: user.email,
+      role: user.role,
+      method: 'senha',
+    }, user.workspace_id);
+
+    // Registra na auditoria geral
     await logAudit({
       userId: user.id,
       action: 'LOGIN',
       module: 'AUTH',
       recordId: user.id,
-      afterData: { email: user.email, role: user.role },
-      ipAddress: request.headers.get('x-forwarded-for') || 'local',
+      afterData: { email: user.email, role: user.role, method: 'senha' },
+      request,
     });
 
     // Remove sensitive password hash

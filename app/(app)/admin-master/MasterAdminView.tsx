@@ -31,6 +31,21 @@ import {
   Unlock,
   Ban,
   Check,
+  Globe,
+  Laptop,
+  Smartphone,
+  Tablet,
+  Activity,
+  History,
+  KeyRound,
+  CheckSquare,
+  DollarSign,
+  FileText,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Filter,
 } from 'lucide-react';
 import { User } from '@/types';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -49,7 +64,7 @@ interface OverviewData {
     activeTrialCount: number;
     expiredOrPastDueCount: number;
   };
-  capacity?: {
+  capacity: {
     currentUsers: number;
     estimatedCapacity: number;
     capacityUsagePercent: number;
@@ -61,10 +76,10 @@ interface OverviewData {
     email: string;
     role: string;
     status: string;
-    avatar_url?: string;
-    phone?: string;
-    job_title?: string;
-    is_partner?: boolean;
+    avatar_url: string | null;
+    phone: string | null;
+    job_title: string | null;
+    is_partner: boolean;
     created_at: string;
     days_in_system: number;
     formatted_age: string;
@@ -74,7 +89,7 @@ interface OverviewData {
       name: string;
       plan_type: string;
       subscription_status: string;
-      trial_ends_at?: string;
+      trial_ends_at: string | null;
       created_at: string;
     };
     finance: {
@@ -86,7 +101,7 @@ interface OverviewData {
       last_payment_date: string | null;
     };
   }>;
-  workspaces?: Array<{
+  workspaces: Array<{
     id: string;
     name: string;
     description: string;
@@ -95,8 +110,8 @@ interface OverviewData {
     owner_email: string;
     plan_type: string;
     subscription_status: string;
-    trial_ends_at?: string;
-    trial_days_remaining?: number | null;
+    trial_ends_at: string | null;
+    trial_days_remaining: number | null;
     total_members: number;
     created_at: string;
   }>;
@@ -125,6 +140,30 @@ interface OverviewData {
   };
 }
 
+function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'Não registrado';
+  const now = Date.now();
+  const date = new Date(dateStr).getTime();
+  if (isNaN(date)) return dateStr;
+  const diffSec = Math.floor((now - date) / 1000);
+
+  if (diffSec < 60) return 'Agora mesmo';
+  if (diffSec < 3600) {
+    const mins = Math.floor(diffSec / 60);
+    return `Há ${mins} ${mins === 1 ? 'minuto' : 'minutos'}`;
+  }
+  if (diffSec < 86400) {
+    const hours = Math.floor(diffSec / 3600);
+    return `Há ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+  }
+  if (diffSec < 2592000) {
+    const days = Math.floor(diffSec / 86400);
+    return `Há ${days} ${days === 1 ? 'dia' : 'dias'}`;
+  }
+  const months = Math.floor(diffSec / 2592000);
+  return `Há ${months} ${months === 1 ? 'mês' : 'meses'}`;
+}
+
 export default function MasterAdminView({ user }: MasterAdminViewProps) {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,7 +182,11 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
 
   // Modal de Detalhes do Usuário Selecionado
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
-  const [customDays, setCustomDays] = useState<number>(30);
+  const [modalTab, setModalTab] = useState<'history' | 'access' | 'account'>('history');
+  const [userActivity, setUserActivity] = useState<any | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<string>('all');
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -178,6 +221,35 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Quando um usuário é selecionado, busca o histórico completo de acessos e ações
+  useEffect(() => {
+    if (!selectedUser) {
+      setUserActivity(null);
+      setModalTab('history');
+      setActivityFilter('all');
+      setExpandedEventId(null);
+      return;
+    }
+
+    const fetchUserActivity = async () => {
+      try {
+        setActivityLoading(true);
+        const res = await fetch(`/api/admin-master/user-activity/${selectedUser.id}`);
+        if (!res.ok) {
+          throw new Error('Falha ao carregar histórico de acessos');
+        }
+        const json = await res.json();
+        setUserActivity(json);
+      } catch (err) {
+        console.error('Error fetching user activity:', err);
+      } finally {
+        setActivityLoading(false);
+      }
+    };
+
+    fetchUserActivity();
+  }, [selectedUser?.id]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -216,6 +288,15 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
 
       // Recarrega os dados imediatamente
       await fetchData();
+
+      // Recarrega o histórico de atividades se o usuário estiver aberto
+      if (selectedUser?.id) {
+        const actRes = await fetch(`/api/admin-master/user-activity/${selectedUser.id}`);
+        if (actRes.ok) {
+          const actJson = await actRes.json();
+          setUserActivity(actJson);
+        }
+      }
     } catch (err) {
       console.error(err);
       alert('Erro de conexão ao processar ação administrativa.');
@@ -267,6 +348,18 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
       return matchesSearch;
     });
   }, [data?.workspaces, searchQuery]);
+
+  // Filtragem da Timeline de Atividades do Usuário
+  const filteredTimeline = useMemo(() => {
+    if (!userActivity?.timeline) return [];
+    if (activityFilter === 'all') return userActivity.timeline;
+    if (activityFilter === 'login') return userActivity.timeline.filter((e: any) => e.type === 'login' || e.type === 'access');
+    if (activityFilter === 'task') return userActivity.timeline.filter((e: any) => e.type === 'task' || e.module === 'TASKS');
+    if (activityFilter === 'client') return userActivity.timeline.filter((e: any) => e.type === 'client' || e.module === 'CLIENTS' || e.type === 'crm' || e.module === 'CRM');
+    if (activityFilter === 'finance') return userActivity.timeline.filter((e: any) => e.type === 'finance' || e.module === 'FINANCE' || e.type === 'contract' || e.module === 'CONTRACTS');
+    if (activityFilter === 'ai') return userActivity.timeline.filter((e: any) => e.type === 'ai' || e.module === 'AI');
+    return userActivity.timeline;
+  }, [userActivity?.timeline, activityFilter]);
 
   if (loading) {
     return (
@@ -636,7 +729,7 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
                   <th className="py-3 px-4">Tempo no Sistema</th>
                   <th className="py-3 px-4">Status Financeiro</th>
                   <th className="py-3 px-4">Último Pagamento</th>
-                  <th className="py-3 px-4 text-right">Ações Rápidas</th>
+                  <th className="py-3 px-4 text-right">Ações & Histórico</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -731,9 +824,21 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
                         )}
                       </td>
 
-                      {/* Ações Rápidas (Liberar Acesso / +Dias) */}
+                      {/* Ações e Histórico */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(item);
+                              setModalTab('history');
+                            }}
+                            title="Ver histórico de acessos, dispositivos e atividades"
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1"
+                          >
+                            <History size={12} />
+                            <span>Histórico</span>
+                          </button>
+
                           <button
                             onClick={() => handleAdminAction('grant_access', item)}
                             disabled={actionLoading}
@@ -748,17 +853,10 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
                             onClick={() => handleAdminAction('extend_trial', item, 15)}
                             disabled={actionLoading}
                             title="Dar +15 dias de teste grátis"
-                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1"
                           >
                             <CalendarPlus size={12} />
                             <span>+15d</span>
-                          </button>
-
-                          <button
-                            onClick={() => setSelectedUser(item)}
-                            className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[11px] font-semibold transition-all"
-                          >
-                            Ver
                           </button>
                         </div>
                       </td>
@@ -858,217 +956,594 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
         )}
       </div>
 
-      {/* MODAL DE DETALHES E GESTÃO DO USUÁRIO */}
+      {/* MODAL DE HISTÓRICO COMPLETO DE ACESSO E GESTÃO DO USUÁRIO */}
       {selectedUser && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-gray-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-4xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-2xs">
+            <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between gap-3 bg-white">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-base shrink-0 shadow-xs">
                   {selectedUser.name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-gray-900">{selectedUser.name}</h3>
-                  <p className="text-xs text-gray-500">{selectedUser.job_title || selectedUser.role}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-base text-gray-900 truncate">{selectedUser.name}</h3>
+                    {selectedUser.finance.status === 'Pago' && (
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
+                        Pago
+                      </span>
+                    )}
+                    {selectedUser.finance.status === 'Trial Ativo' && (
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[10px] font-bold">
+                        Trial ({selectedUser.finance.trial_days_remaining}d)
+                      </span>
+                    )}
+                    {selectedUser.finance.status === 'Trial Expirado' && (
+                      <span className="px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full text-[10px] font-bold">
+                        Expirado
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {selectedUser.email} &bull; {selectedUser.workspace.name} ({selectedUser.role})
+                  </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedUser(null)}
-                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Fechar"
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+                title="Fechar Modal"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-              {/* Destaque do Período de Teste Trial / Assinatura */}
-              <div className={cn(
-                'p-4 rounded-xl border flex items-start gap-3',
-                selectedUser.finance.status === 'Trial Ativo'
-                  ? 'bg-blue-50 border-blue-200 text-blue-900'
-                  : selectedUser.finance.status === 'Pago'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : 'bg-red-50 border-red-200 text-red-900'
-              )}>
-                {selectedUser.finance.status === 'Trial Ativo' ? (
-                  <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                ) : selectedUser.finance.status === 'Pago' ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            {/* Submenus dentro do Modal */}
+            <div className="flex items-center gap-2 px-5 pt-3 pb-2 border-b border-gray-100 bg-gray-50/50">
+              <button
+                onClick={() => setModalTab('history')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2',
+                  modalTab === 'history'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-200/60'
                 )}
+              >
+                <History size={14} />
+                <span>Histórico & Atividades</span>
+                <span className={cn(
+                  'px-1.5 py-0.2 rounded-full text-[10px] font-bold',
+                  modalTab === 'history' ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'
+                )}>
+                  {userActivity?.summary?.totalRecords ?? '...'}
+                </span>
+              </button>
 
-                <div className="space-y-0.5 flex-1 text-xs">
-                  <h4 className="font-bold uppercase tracking-wider">
-                    {selectedUser.finance.status === 'Trial Ativo'
-                      ? 'Período de Teste Grátis Ativo'
-                      : selectedUser.finance.status === 'Pago'
-                      ? 'Assinatura Ativa (Mercado Pago)'
-                      : 'Período de Teste Expirado'}
-                  </h4>
+              <button
+                onClick={() => setModalTab('access')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2',
+                  modalTab === 'access'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-200/60'
+                )}
+              >
+                <ShieldCheck size={14} />
+                <span>Gerenciar Acesso & Trial</span>
+              </button>
 
-                  {selectedUser.finance.status === 'Trial Ativo' && (
-                    <div className="space-y-0.5 pt-0.5">
-                      <p className="font-bold text-blue-900 text-sm">
-                        Restam {selectedUser.finance.trial_days_remaining} dias de teste grátis
+              <button
+                onClick={() => setModalTab('account')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2',
+                  modalTab === 'account'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-200/60'
+                )}
+              >
+                <Users size={14} />
+                <span>Dados da Conta</span>
+              </button>
+            </div>
+
+            {/* Modal Body com Scroll Suave */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-5">
+              {/* ABA 1: HISTÓRICO DE ACESSO, DISPOSITIVOS E ATIVIDADES */}
+              {modalTab === 'history' && (
+                <div className="space-y-4">
+                  {/* Resumo de Conexão e Último Acesso */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Card 1: Último Acesso */}
+                    <div className="p-3.5 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-gray-500 text-[11px] font-semibold uppercase">
+                        <span>Último Acesso</span>
+                        <Clock size={13} className="text-blue-600" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-900">
+                        {formatRelativeTime(userActivity?.summary?.lastSeen)}
                       </p>
-                      {selectedUser.workspace.trial_ends_at && (
-                        <p className="text-[11px] text-blue-700">
-                          Vencimento: {new Date(selectedUser.workspace.trial_ends_at).toLocaleDateString('pt-BR')}
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-500 pt-0.5 truncate">
+                        <MapPin size={11} className="text-gray-400 shrink-0" />
+                        <span className="truncate">{userActivity?.summary?.lastLocation || 'Localização não identificada'}</span>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Dispositivo & Navegador Mais Usado */}
+                    <div className="p-3.5 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-gray-500 text-[11px] font-semibold uppercase">
+                        <span>Dispositivo & Navegador</span>
+                        <Laptop size={13} className="text-indigo-600" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-900 truncate">
+                        {userActivity?.summary?.lastDevice || 'PC Windows • Google Chrome'}
+                      </p>
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-500 pt-0.5 truncate">
+                        <Globe size={11} className="text-gray-400 shrink-0" />
+                        <span className="font-mono text-[10px] text-gray-700">{userActivity?.summary?.lastIp || '127.0.0.1'}</span>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Estatísticas Totais */}
+                    <div className="p-3.5 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-gray-500 text-[11px] font-semibold uppercase">
+                        <span>Volume de Atividades</span>
+                        <Activity size={13} className="text-emerald-600" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-900">
+                        {userActivity?.summary?.totalRecords || 0} registros catalogados
+                      </p>
+                      <p className="text-[11px] text-gray-500 pt-0.5">
+                        {userActivity?.summary?.totalLogins || 0} logins &bull; {userActivity?.summary?.totalActions || 0} ações de negócio
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Barra de Filtros da Timeline */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-b border-gray-100 pb-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => setActivityFilter('all')}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all',
+                          activityFilter === 'all'
+                            ? 'bg-gray-900 text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        Todos ({userActivity?.timeline?.length || 0})
+                      </button>
+
+                      <button
+                        onClick={() => setActivityFilter('login')}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1',
+                          activityFilter === 'login'
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        <KeyRound size={11} />
+                        <span>Logins & Acessos</span>
+                      </button>
+
+                      <button
+                        onClick={() => setActivityFilter('task')}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1',
+                          activityFilter === 'task'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        <CheckSquare size={11} />
+                        <span>Tarefas</span>
+                      </button>
+
+                      <button
+                        onClick={() => setActivityFilter('client')}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1',
+                          activityFilter === 'client'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        <UserPlus size={11} />
+                        <span>Clientes / CRM</span>
+                      </button>
+
+                      <button
+                        onClick={() => setActivityFilter('finance')}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1',
+                          activityFilter === 'finance'
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        <DollarSign size={11} />
+                        <span>Financeiro</span>
+                      </button>
+
+                      <button
+                        onClick={() => setActivityFilter('ai')}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1',
+                          activityFilter === 'ai'
+                            ? 'bg-purple-600 text-white shadow-2xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        <Sparkles size={11} />
+                        <span>IA</span>
+                      </button>
+                    </div>
+
+                    <span className="text-[11px] text-gray-400 font-medium">
+                      Exibindo {filteredTimeline.length} eventos
+                    </span>
+                  </div>
+
+                  {/* Estado de Carregamento do Histórico */}
+                  {activityLoading && (
+                    <div className="py-12 flex flex-col items-center justify-center gap-2">
+                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs text-gray-500 font-semibold">Carregando histórico de acessos e ações...</p>
+                    </div>
+                  )}
+
+                  {/* TIMELINE DE REGISTROS COMPLETOS */}
+                  {!activityLoading && filteredTimeline.length === 0 && (
+                    <div className="py-12 text-center space-y-2 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                      <History className="w-8 h-8 text-gray-400 mx-auto" />
+                      <p className="text-xs font-semibold text-gray-700">Nenhum registro encontrado para este filtro.</p>
+                      <p className="text-[11px] text-gray-400">
+                        Os acessos e ações serão catalogados automaticamente em tempo real.
+                      </p>
+                    </div>
+                  )}
+
+                  {!activityLoading && filteredTimeline.length > 0 && (
+                    <div className="space-y-3 relative before:absolute before:inset-0 before:left-4 before:w-0.5 before:bg-gray-200 before:pointer-events-none pl-1">
+                      {filteredTimeline.map((item: any) => {
+                        const isExpanded = expandedEventId === item.id;
+                        const isLogin = item.type === 'login';
+                        const isTask = item.type === 'task' || item.module === 'TASKS';
+                        const isClient = item.type === 'client' || item.module === 'CLIENTS' || item.type === 'crm' || item.module === 'CRM';
+                        const isFinance = item.type === 'finance' || item.module === 'FINANCE' || item.type === 'contract' || item.module === 'CONTRACTS';
+                        const isAi = item.type === 'ai' || item.module === 'AI';
+
+                        return (
+                          <div key={item.id} className="relative flex items-start gap-3 pl-1 group">
+                            {/* Ícone Indicador na Linha da Timeline */}
+                            <div className={cn(
+                              'w-7 h-7 rounded-full flex items-center justify-center shrink-0 z-10 shadow-2xs border-2 border-white',
+                              isLogin && 'bg-blue-600 text-white',
+                              isTask && 'bg-indigo-600 text-white',
+                              isClient && 'bg-emerald-600 text-white',
+                              isFinance && 'bg-amber-500 text-white',
+                              isAi && 'bg-purple-600 text-white',
+                              !isLogin && !isTask && !isClient && !isFinance && !isAi && 'bg-gray-700 text-white'
+                            )}>
+                              {isLogin && <KeyRound size={12} />}
+                              {isTask && <CheckSquare size={12} />}
+                              {isClient && <UserPlus size={12} />}
+                              {isFinance && <DollarSign size={12} />}
+                              {isAi && <Sparkles size={12} />}
+                              {!isLogin && !isTask && !isClient && !isFinance && !isAi && <Activity size={12} />}
+                            </div>
+
+                            {/* Card do Evento */}
+                            <div className="flex-1 bg-white border border-gray-200 rounded-xl p-3.5 space-y-2 hover:border-blue-300 transition-colors shadow-2xs">
+                              {/* Header do Card */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-xs text-gray-900">{item.title}</span>
+                                    <span className={cn(
+                                      'px-1.5 py-0.2 rounded text-[10px] font-bold uppercase tracking-wider',
+                                      isLogin && 'bg-blue-50 text-blue-700',
+                                      isTask && 'bg-indigo-50 text-indigo-700',
+                                      isClient && 'bg-emerald-50 text-emerald-700',
+                                      isFinance && 'bg-amber-50 text-amber-700',
+                                      isAi && 'bg-purple-50 text-purple-700',
+                                      !isLogin && !isTask && !isClient && !isFinance && !isAi && 'bg-gray-100 text-gray-700'
+                                    )}>
+                                      {item.module || 'SISTEMA'}
+                                    </span>
+                                  </div>
+
+                                  {item.description && (
+                                    <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  <span className="text-[11px] font-semibold text-gray-700 block">
+                                    {formatRelativeTime(item.timestamp)}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 block font-mono">
+                                    {new Date(item.timestamp).toLocaleDateString('pt-BR')}{' '}
+                                    {new Date(item.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Badges de Conexão: Por onde acessou, Navegador e Dispositivo */}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-gray-100/80">
+                                {/* Navegador */}
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 border border-gray-200/80 rounded-md text-[10px] font-semibold text-gray-700">
+                                  <Globe size={11} className="text-blue-600" />
+                                  <span>{item.browser || 'Navegador Web'}</span>
+                                </span>
+
+                                {/* Dispositivo e Sistema Operacional */}
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 border border-gray-200/80 rounded-md text-[10px] font-semibold text-gray-700">
+                                  {item.device === 'Mobile' ? (
+                                    <Smartphone size={11} className="text-emerald-600" />
+                                  ) : item.device === 'Tablet' ? (
+                                    <Tablet size={11} className="text-purple-600" />
+                                  ) : (
+                                    <Laptop size={11} className="text-indigo-600" />
+                                  )}
+                                  <span>
+                                    {item.deviceModel || item.device || 'Desktop'} ({item.os || 'Windows/Desktop'})
+                                  </span>
+                                </span>
+
+                                {/* IP e Localização */}
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 border border-gray-200/80 rounded-md text-[10px] font-semibold text-gray-700">
+                                  <MapPin size={11} className="text-red-500" />
+                                  <span className="font-mono text-gray-900">{item.ip || '127.0.0.1'}</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span>{item.location || 'Rede Local'}</span>
+                                </span>
+
+                                {/* Rota se houver */}
+                                {item.route && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 border border-gray-200/80 rounded-md text-[10px] font-mono text-gray-500">
+                                    <span>{item.route}</span>
+                                  </span>
+                                )}
+
+                                {/* Botão para expandir payload/detalhes técnicos */}
+                                {item.details && (
+                                  <button
+                                    onClick={() => setExpandedEventId(isExpanded ? null : item.id)}
+                                    className="ml-auto text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 py-0.5 px-1.5 rounded hover:bg-blue-50 transition-colors"
+                                  >
+                                    <span>{isExpanded ? 'Ocultar Detalhes' : 'Ver Detalhes'}</span>
+                                    {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Painel Expansível de Detalhes Técnicos */}
+                              {isExpanded && item.details && (
+                                <div className="mt-2 p-3 bg-gray-900 text-gray-100 rounded-lg text-[11px] font-mono overflow-x-auto border border-gray-800 animate-in fade-in duration-150">
+                                  <div className="flex items-center justify-between text-gray-400 text-[10px] pb-1 border-b border-gray-800 mb-2">
+                                    <span>PAYLOAD / DADOS DO REGISTRO:</span>
+                                    {item.userAgent && (
+                                      <span className="truncate max-w-[300px] text-[9px] text-gray-500" title={item.userAgent}>
+                                        UA: {item.userAgent}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <pre className="whitespace-pre-wrap leading-relaxed text-emerald-400">
+                                    {JSON.stringify(item.details, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ABA 2: GERENCIAMENTO DE ASSINATURA & ACESSO */}
+              {modalTab === 'access' && (
+                <div className="space-y-4">
+                  {/* Destaque do Período de Teste Trial / Assinatura */}
+                  <div className={cn(
+                    'p-4 rounded-xl border flex items-start gap-3',
+                    selectedUser.finance.status === 'Trial Ativo'
+                      ? 'bg-blue-50 border-blue-200 text-blue-900'
+                      : selectedUser.finance.status === 'Pago'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-red-50 border-red-200 text-red-900'
+                  )}>
+                    {selectedUser.finance.status === 'Trial Ativo' ? (
+                      <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                    ) : selectedUser.finance.status === 'Pago' ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    )}
+
+                    <div className="space-y-0.5 flex-1 text-xs">
+                      <h4 className="font-bold uppercase tracking-wider">
+                        {selectedUser.finance.status === 'Trial Ativo'
+                          ? 'Período de Teste Grátis Ativo'
+                          : selectedUser.finance.status === 'Pago'
+                          ? 'Assinatura Ativa (Mercado Pago)'
+                          : 'Período de Teste Expirado'}
+                      </h4>
+
+                      {selectedUser.finance.status === 'Trial Ativo' && (
+                        <div className="space-y-0.5 pt-0.5">
+                          <p className="font-bold text-blue-900 text-sm">
+                            Restam {selectedUser.finance.trial_days_remaining} dias de teste grátis
+                          </p>
+                          {selectedUser.workspace.trial_ends_at && (
+                            <p className="text-[11px] text-blue-700">
+                              Vencimento: {new Date(selectedUser.workspace.trial_ends_at).toLocaleDateString('pt-BR')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedUser.finance.status === 'Pago' && (
+                        <p className="text-emerald-800">
+                          Assinatura regularizada. Acesso liberado a todas as ferramentas.
+                        </p>
+                      )}
+
+                      {selectedUser.finance.status === 'Trial Expirado' && (
+                        <p className="text-red-700">
+                          O teste de 30 dias expirou. O estúdio está sob bloqueio de Paywall.
                         </p>
                       )}
                     </div>
-                  )}
+                  </div>
 
-                  {selectedUser.finance.status === 'Pago' && (
-                    <p className="text-emerald-800">
-                      Assinatura regularizada. Acesso liberado a todas as ferramentas.
-                    </p>
-                  )}
+                  {/* PAINEL DE CONTROLE DE ACESSO DO MASTER: LIBERAR ACESSO OU DAR MAIS DIAS */}
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck size={14} className="text-blue-600" />
+                        Gerenciar Acesso do Usuário
+                      </h4>
+                      <span className="text-[10px] text-gray-400">Exclusivo Titular</span>
+                    </div>
 
-                  {selectedUser.finance.status === 'Trial Expirado' && (
-                    <p className="text-red-700">
-                      O teste de 30 dias expirou. O estúdio está sob bloqueio de Paywall.
-                    </p>
-                  )}
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {/* Botão Liberar Acesso Total */}
+                      <button
+                        onClick={() => handleAdminAction('grant_access', selectedUser)}
+                        disabled={actionLoading}
+                        className="p-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Unlock size={14} />
+                        <span>Liberar Acesso Total</span>
+                      </button>
 
-              {/* PAINEL DE CONTROLE DE ACESSO DO MASTER: LIBERAR ACESSO OU DAR MAIS DIAS */}
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-blue-600" />
-                    Gerenciar Acesso do Usuário
-                  </h4>
-                  <span className="text-[10px] text-gray-400">Exclusivo Titular</span>
-                </div>
+                      {/* Botão Suspender */}
+                      <button
+                        onClick={() => handleAdminAction('suspend_access', selectedUser)}
+                        disabled={actionLoading}
+                        className="p-2.5 bg-white hover:bg-red-50 text-red-700 border border-red-200 active:scale-95 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Ban size={14} />
+                        <span>Suspender Acesso</span>
+                      </button>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {/* Botão Liberar Acesso Total */}
-                  <button
-                    onClick={() => handleAdminAction('grant_access', selectedUser)}
-                    disabled={actionLoading}
-                    className="p-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
-                  >
-                    <Unlock size={14} />
-                    <span>Liberar Acesso Total</span>
-                  </button>
-
-                  {/* Botão Suspender */}
-                  <button
-                    onClick={() => handleAdminAction('suspend_access', selectedUser)}
-                    disabled={actionLoading}
-                    className="p-2.5 bg-white hover:bg-red-50 text-red-700 border border-red-200 active:scale-95 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
-                  >
-                    <Ban size={14} />
-                    <span>Suspender Acesso</span>
-                  </button>
-                </div>
-
-                {/* Extensão de Trial */}
-                <div className="pt-2 border-t border-gray-200/70 space-y-1.5">
-                  <span className="text-[11px] font-semibold text-gray-700 block">
-                    Conceder mais tempo de teste grátis (Trial):
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleAdminAction('extend_trial', selectedUser, 7)}
-                      disabled={actionLoading}
-                      className="flex-1 py-1.5 bg-white border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-lg text-xs font-semibold text-gray-700 transition-all shadow-2xs"
-                    >
-                      +7 dias
-                    </button>
-                    <button
-                      onClick={() => handleAdminAction('extend_trial', selectedUser, 15)}
-                      disabled={actionLoading}
-                      className="flex-1 py-1.5 bg-white border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-lg text-xs font-semibold text-gray-700 transition-all shadow-2xs"
-                    >
-                      +15 dias
-                    </button>
-                    <button
-                      onClick={() => handleAdminAction('extend_trial', selectedUser, 30)}
-                      disabled={actionLoading}
-                      className="flex-1 py-1.5 bg-white border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-lg text-xs font-semibold text-gray-700 transition-all shadow-2xs"
-                    >
-                      +30 dias
-                    </button>
+                    {/* Extensão de Trial */}
+                    <div className="pt-2 border-t border-gray-200/70 space-y-1.5">
+                      <span className="text-[11px] font-semibold text-gray-700 block">
+                        Conceder mais tempo de teste grátis (Trial):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAdminAction('extend_trial', selectedUser, 7)}
+                          disabled={actionLoading}
+                          className="flex-1 py-1.5 bg-white border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-lg text-xs font-semibold text-gray-700 transition-all shadow-2xs"
+                        >
+                          +7 dias
+                        </button>
+                        <button
+                          onClick={() => handleAdminAction('extend_trial', selectedUser, 15)}
+                          disabled={actionLoading}
+                          className="flex-1 py-1.5 bg-white border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-lg text-xs font-semibold text-gray-700 transition-all shadow-2xs"
+                        >
+                          +15 dias
+                        </button>
+                        <button
+                          onClick={() => handleAdminAction('extend_trial', selectedUser, 30)}
+                          disabled={actionLoading}
+                          className="flex-1 py-1.5 bg-white border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-lg text-xs font-semibold text-gray-700 transition-all shadow-2xs"
+                        >
+                          +30 dias
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Informações da Conta */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Dados da Conta
-                </h4>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] text-gray-400 font-semibold block uppercase">E-mail</span>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-semibold text-gray-900 truncate">{selectedUser.email}</span>
-                      <button
-                        onClick={() => handleCopyEmail(selectedUser.email, selectedUser.id)}
-                        className="text-gray-400 hover:text-gray-700"
-                        title="Copiar"
-                      >
-                        {copiedId === selectedUser.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                      </button>
+              {/* ABA 3: DADOS DA CONTA */}
+              {modalTab === 'account' && (
+                <div className="space-y-4">
+                  {/* Informações da Conta */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Dados da Conta
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">E-mail</span>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-semibold text-gray-900 truncate">{selectedUser.email}</span>
+                          <button
+                            onClick={() => handleCopyEmail(selectedUser.email, selectedUser.id)}
+                            className="text-gray-400 hover:text-gray-700"
+                            title="Copiar"
+                          >
+                            {copiedId === selectedUser.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">Telefone</span>
+                        <span className="font-semibold text-gray-900 block truncate">
+                          {selectedUser.phone || 'Não informado'}
+                        </span>
+                      </div>
+
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">Perfil</span>
+                        <span className="font-semibold text-gray-900 block">
+                          {selectedUser.role} {selectedUser.is_partner && '(Sócio)'}
+                        </span>
+                      </div>
+
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">Tempo no Sistema</span>
+                        <span className="font-semibold text-gray-900 block">
+                          {selectedUser.formatted_age}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] text-gray-400 font-semibold block uppercase">Telefone</span>
-                    <span className="font-semibold text-gray-900 block truncate">
-                      {selectedUser.phone || 'Não informado'}
-                    </span>
-                  </div>
+                  {/* Informações do Workspace */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Workspace
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">Estúdio / Agência</span>
+                        <span className="font-semibold text-gray-900 block truncate">
+                          {selectedUser.workspace.name}
+                        </span>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] text-gray-400 font-semibold block uppercase">Perfil</span>
-                    <span className="font-semibold text-gray-900 block">
-                      {selectedUser.role} {selectedUser.is_partner && '(Sócio)'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] text-gray-400 font-semibold block uppercase">Tempo no Sistema</span>
-                    <span className="font-semibold text-gray-900 block">
-                      {selectedUser.formatted_age}
-                    </span>
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">Plano</span>
+                        <span className="font-bold text-blue-600 capitalize block">
+                          {selectedUser.workspace.plan_type}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Informações do Workspace */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Workspace
-                </h4>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] text-gray-400 font-semibold block uppercase">Estúdio / Agência</span>
-                    <span className="font-semibold text-gray-900 block truncate">
-                      {selectedUser.workspace.name}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] text-gray-400 font-semibold block uppercase">Plano</span>
-                    <span className="font-bold text-blue-600 capitalize block">
-                      {selectedUser.workspace.plan_type}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end">
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-[11px] text-gray-400">
+                Painel Master Admin &bull; Titular do Sistema
+              </span>
               <button
                 onClick={() => setSelectedUser(null)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold rounded-xl transition-colors"

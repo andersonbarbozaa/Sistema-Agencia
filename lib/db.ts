@@ -178,6 +178,40 @@ function getLocalDatabase(): D1DatabaseInterface {
         ('exchange_rate_eur', '6.15', 'Taxa de conversão EUR para moeda padrão'),
         ('ai_assistant_enabled', 'true', 'Ativação do assistente de IA Gemini'),
         ('ai_model', 'gemini-3.5-flash', 'Modelo padrão do Google Gemini');
+
+        CREATE TABLE IF NOT EXISTS user_access_logs (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          workspace_id TEXT,
+          event_type TEXT NOT NULL DEFAULT 'access',
+          route TEXT,
+          ip_address TEXT,
+          location TEXT,
+          city TEXT,
+          region TEXT,
+          country TEXT,
+          browser TEXT,
+          os TEXT,
+          device TEXT,
+          device_model TEXT,
+          user_agent TEXT,
+          details TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_access_logs_user_id ON user_access_logs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_access_logs_created_at ON user_access_logs(created_at);
+
+        ALTER TABLE audit_logs ADD COLUMN user_agent TEXT;
+        ALTER TABLE audit_logs ADD COLUMN browser TEXT;
+        ALTER TABLE audit_logs ADD COLUMN os TEXT;
+        ALTER TABLE audit_logs ADD COLUMN device TEXT;
+        ALTER TABLE audit_logs ADD COLUMN location TEXT;
+        ALTER TABLE audit_logs ADD COLUMN route TEXT;
+
+        ALTER TABLE users ADD COLUMN last_login_at TEXT;
+        ALTER TABLE users ADD COLUMN last_ip TEXT;
+        ALTER TABLE users ADD COLUMN last_device TEXT;
+        ALTER TABLE users ADD COLUMN last_location TEXT;
       `);
     } catch {}
 
