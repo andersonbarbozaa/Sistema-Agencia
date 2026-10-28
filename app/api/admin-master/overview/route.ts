@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         u.avatar_url as user_avatar,
         u.phone as user_phone,
         u.job_title,
+        u.is_partner,
         u.created_at as user_created_at,
         w.id as workspace_id,
         w.name as workspace_name,
@@ -70,7 +71,6 @@ export async function GET(request: NextRequest) {
       rawUsers = usersResult.results || [];
     } catch (err: any) {
       console.error('[Overview usersQuery error]:', err?.message);
-      // Fallback sem colunas adicionais se necessário
       const simpleUsers = await db.prepare('SELECT id as user_id, name as user_name, email as user_email, role as user_role, status as user_status, created_at as user_created_at FROM users ORDER BY created_at DESC').all<any>();
       rawUsers = (simpleUsers.results || []).map((u) => ({
         ...u,
@@ -79,6 +79,33 @@ export async function GET(request: NextRequest) {
         plan_type: 'individual',
         subscription_status: 'trial',
       }));
+    }
+
+    // Busca de Workspaces detalhada para a aba Workspaces
+    const wsQuery = `
+      SELECT 
+        w.id,
+        w.name,
+        w.description,
+        w.owner_id,
+        w.plan_type,
+        w.subscription_status,
+        w.trial_ends_at,
+        w.created_at,
+        u.name as owner_name,
+        u.email as owner_email,
+        (SELECT COUNT(*) FROM users WHERE workspace_id = w.id) as total_members
+      FROM workspaces w
+      LEFT JOIN users u ON w.owner_id = u.id
+      ORDER BY w.created_at DESC
+    `;
+
+    let rawWorkspaces: any[] = [];
+    try {
+      const wsResult = await db.prepare(wsQuery).all<any>();
+      rawWorkspaces = wsResult.results || [];
+    } catch (err: any) {
+      console.warn('[Overview wsQuery error]:', err?.message);
     }
 
     // Busca os últimos pagamentos de cada workspace
@@ -163,6 +190,7 @@ export async function GET(request: NextRequest) {
         avatar_url: u.user_avatar,
         phone: u.user_phone,
         job_title: u.job_title,
+        is_partner: u.is_partner === 1,
         created_at: u.user_created_at,
         days_in_system: daysInSystem,
         formatted_age: formattedAge,
@@ -186,9 +214,41 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const formattedWorkspaces = rawWorkspaces.map((ws) => {
+      const isMasterWs = isMasterAdmin({ email: ws.owner_email });
+      let status = 'Trial Ativo';
+      let remainingDays = null;
+
+      if (isMasterWs) {
+        status = 'Vitalício';
+      } else if (ws.subscription_status === 'active') {
+        status = 'Pago';
+      } else if (ws.trial_ends_at) {
+        const trialEndMs = new Date(ws.trial_ends_at).getTime();
+        const diff = trialEndMs - now;
+        remainingDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        status = remainingDays > 0 ? 'Trial Ativo' : 'Trial Expirado';
+      }
+
+      return {
+        id: ws.id,
+        name: ws.name || 'Estúdio',
+        description: ws.description || '',
+        owner_id: ws.owner_id,
+        owner_name: ws.owner_name || 'Proprietário',
+        owner_email: ws.owner_email || '',
+        plan_type: ws.plan_type || 'individual',
+        subscription_status: status,
+        trial_ends_at: ws.trial_ends_at,
+        trial_days_remaining: remainingDays,
+        total_members: ws.total_members || 1,
+        created_at: ws.created_at,
+      };
+    });
+
     // Contagem de estatísticas globais
     const totalUsers = formattedUsers.length;
-    const uniqueWorkspaces = new Set(formattedUsers.map((u) => u.workspace.id).filter(Boolean)).size;
+    const uniqueWorkspaces = Math.max(formattedWorkspaces.length, new Set(formattedUsers.map((u) => u.workspace.id).filter(Boolean)).size);
     const activePaidCount = formattedUsers.filter((u) => u.finance.status === 'Pago' || u.finance.status === 'Vitalício').length;
     const activeTrialCount = formattedUsers.filter((u) => u.finance.status === 'Trial Ativo').length;
     const expiredOrPastDueCount = formattedUsers.filter(
@@ -203,6 +263,10 @@ export async function GET(request: NextRequest) {
       console.warn('[Overview Cloudflare Report Warning]:', cfErr?.message);
     }
 
+    // Capacidade estimada de usuários no plano Free (base: 100k requisições/dia / 30 req/dia por usuário = ~3.500 usuários ativos diários)
+    const estimatedCapacity = 3500;
+    const capacityUsagePercent = Number(((totalUsers / estimatedCapacity) * 100).toFixed(2));
+
     return NextResponse.json({
       success: true,
       masterEmail: MASTER_ADMIN_EMAIL,
@@ -213,7 +277,14 @@ export async function GET(request: NextRequest) {
         activeTrialCount,
         expiredOrPastDueCount,
       },
+      capacity: {
+        currentUsers: totalUsers,
+        estimatedCapacity,
+        capacityUsagePercent,
+        status: capacityUsagePercent < 70 ? 'healthy' : capacityUsagePercent < 90 ? 'warning' : 'critical',
+      },
       users: formattedUsers,
+      workspaces: formattedWorkspaces,
       cloudflareHealth,
     });
   } catch (error: any) {
