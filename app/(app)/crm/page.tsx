@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import ModalPortal from '@/components/ModalPortal';
 import {
@@ -33,6 +33,16 @@ import {
   Briefcase,
   FileText,
   Sparkles,
+  BarChart3,
+  PieChart,
+  TrendingDown,
+  RotateCcw,
+  Filter,
+  Users,
+  Activity,
+  Check,
+  ArrowRight,
+  HelpCircle,
 } from 'lucide-react';
 import { DEFAULT_WHATSAPP_TEMPLATES, parseWhatsAppTemplates, formatWhatsAppTemplate } from '@/lib/whatsapp-templates';
 
@@ -267,7 +277,12 @@ function getWazeUrl(query: string): string {
 export default function CRMPage() {
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'report'>('list');
+  const [cityFilter, setCityFilter] = useState<string>('all');
+  const [segmentFilter, setSegmentFilter] = useState<string>('all');
+  const [dateFilterPreset, setDateFilterPreset] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -282,7 +297,7 @@ export default function CRMPage() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const dragStartTimeRef = useRef<number>(0);
 
-  const handleViewModeChange = (mode: 'kanban' | 'list') => {
+  const handleViewModeChange = (mode: 'kanban' | 'list' | 'report') => {
     setViewMode(mode);
     if (typeof window !== 'undefined') {
       try {
@@ -580,7 +595,7 @@ export default function CRMPage() {
     if (typeof window !== 'undefined') {
       try {
         const savedMode = sessionStorage.getItem('crm_view_mode');
-        if (savedMode === 'kanban' || savedMode === 'list') {
+        if (savedMode === 'kanban' || savedMode === 'list' || savedMode === 'report') {
           setViewMode(savedMode);
         }
       } catch {
@@ -765,98 +780,554 @@ export default function CRMPage() {
     }
   };
 
-  const filteredLeads = leads
-    .filter(l => {
-      if (statusFilter !== 'all' && l.status !== statusFilter) return false;
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      return l.contact_name.toLowerCase().includes(q) || (l.company && l.company.toLowerCase().includes(q));
-    })
-    .sort((a, b) => {
-      let comparison = 0;
-      if (sortField === 'last_activity_at') {
-        const dateA = new Date(a.last_activity_at || '').getTime();
-        const dateB = new Date(b.last_activity_at || '').getTime();
-        comparison = dateA - dateB;
-      } else if (sortField === 'platform') {
-        const valA = (a.platform || a.source || '').toLowerCase();
-        const valB = (b.platform || b.source || '').toLowerCase();
-        comparison = valA.localeCompare(valB, 'pt-BR');
-      } else if (sortField === 'city') {
-        const valA = (a.city || '').toLowerCase();
-        const valB = (b.city || '').toLowerCase();
-        comparison = valA.localeCompare(valB, 'pt-BR');
-      } else {
-        const valA = ((a as any)[sortField] || '').toLowerCase();
-        const valB = ((b as any)[sortField] || '').toLowerCase();
-        comparison = valA.localeCompare(valB, 'pt-BR');
+  const isAnyFilterActive =
+    statusFilter !== 'all' ||
+    cityFilter !== 'all' ||
+    segmentFilter !== 'all' ||
+    dateFilterPreset !== 'all' ||
+    dateFrom !== '' ||
+    dateTo !== '' ||
+    searchQuery !== '';
+
+  const handleResetFilters = () => {
+    setStatusFilter('all');
+    setCityFilter('all');
+    setSegmentFilter('all');
+    setDateFilterPreset('all');
+    setDateFrom('');
+    setDateTo('');
+    setSearchQuery('');
+  };
+
+  const availableCities = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach((l) => {
+      if (l.city && l.city.trim()) {
+        set.add(l.city.trim());
       }
-      return sortDirection === 'asc' ? comparison : -comparison;
     });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [leads]);
+
+  const availableSegments = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach((l) => {
+      if (l.segment && l.segment.trim()) {
+        set.add(l.segment.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    return leads
+      .filter((l) => {
+        // Status filter
+        if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+
+        // City filter
+        if (cityFilter !== 'all') {
+          const leadCity = (l.city || '').trim().toLowerCase();
+          if (leadCity !== cityFilter.trim().toLowerCase()) return false;
+        }
+
+        // Segment / Área de atuação filter
+        if (segmentFilter !== 'all') {
+          const leadSeg = (l.segment || '').trim().toLowerCase();
+          if (leadSeg !== segmentFilter.trim().toLowerCase()) return false;
+        }
+
+        // Date filter
+        if (dateFilterPreset !== 'all') {
+          const rawDate = l.first_contact_date || l.created_at;
+          if (!rawDate) return false;
+          const leadDate = new Date(rawDate);
+          if (isNaN(leadDate.getTime())) return false;
+
+          const now = new Date();
+
+          if (dateFilterPreset === 'today') {
+            const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+            if (leadDate < startToday || leadDate > endToday) return false;
+          } else if (dateFilterPreset === '7days') {
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            if (leadDate < sevenDaysAgo) return false;
+          } else if (dateFilterPreset === '30days') {
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            if (leadDate < thirtyDaysAgo) return false;
+          } else if (dateFilterPreset === 'this_month') {
+            const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+            if (leadDate < startMonth || leadDate > endMonth) return false;
+          } else if (dateFilterPreset === 'last_month') {
+            const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+            const endLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+            if (leadDate < startLastMonth || leadDate > endLastMonth) return false;
+          } else if (dateFilterPreset === 'this_year') {
+            const startYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+            const endYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+            if (leadDate < startYear || leadDate > endYear) return false;
+          } else if (dateFilterPreset === 'custom') {
+            if (dateFrom) {
+              const startCustom = new Date(dateFrom + 'T00:00:00');
+              if (leadDate < startCustom) return false;
+            }
+            if (dateTo) {
+              const endCustom = new Date(dateTo + 'T23:59:59.999');
+              if (leadDate > endCustom) return false;
+            }
+          }
+        }
+
+        // Search Query
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          l.contact_name.toLowerCase().includes(q) ||
+          (l.company && l.company.toLowerCase().includes(q)) ||
+          (l.city && l.city.toLowerCase().includes(q)) ||
+          (l.segment && l.segment.toLowerCase().includes(q)) ||
+          (l.platform && l.platform.toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => {
+        let comparison = 0;
+        if (sortField === 'last_activity_at') {
+          const dateA = new Date(a.last_activity_at || '').getTime();
+          const dateB = new Date(b.last_activity_at || '').getTime();
+          comparison = dateA - dateB;
+        } else if (sortField === 'platform') {
+          const valA = (a.platform || a.source || '').toLowerCase();
+          const valB = (b.platform || b.source || '').toLowerCase();
+          comparison = valA.localeCompare(valB, 'pt-BR');
+        } else if (sortField === 'city') {
+          const valA = (a.city || '').toLowerCase();
+          const valB = (b.city || '').toLowerCase();
+          comparison = valA.localeCompare(valB, 'pt-BR');
+        } else {
+          const valA = ((a as any)[sortField] || '').toLowerCase();
+          const valB = ((b as any)[sortField] || '').toLowerCase();
+          comparison = valA.localeCompare(valB, 'pt-BR');
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+  }, [leads, statusFilter, cityFilter, segmentFilter, dateFilterPreset, dateFrom, dateTo, searchQuery, sortField, sortDirection]);
+
+  // RELATÓRIO DO CRM: Dados consolidados e diagnóstico inteligente de situação
+  const crmReportData = useMemo(() => {
+    const total = filteredLeads.length;
+    const novos = filteredLeads.filter((l) => l.status === 'Novo');
+    const emAndamento = filteredLeads.filter((l) => l.status === 'Em andamento');
+    const aguardando = filteredLeads.filter((l) => l.status === 'Aguardando resposta');
+    const semResposta = filteredLeads.filter((l) => l.status === 'Sem resposta');
+    const positivo = filteredLeads.filter((l) => l.status === 'Finalizado positivo');
+    const negativo = filteredLeads.filter((l) => l.status === 'Finalizado negativo');
+
+    const totalValor = filteredLeads.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0);
+    const valorGanho = positivo.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0);
+    const valorEmNegociacao = [...novos, ...emAndamento, ...aguardando].reduce(
+      (acc, l) => acc + (Number(l.estimated_value) || 0),
+      0
+    );
+
+    const concluidos = positivo.length + negativo.length;
+    const taxaConversao =
+      concluidos > 0
+        ? (positivo.length / concluidos) * 100
+        : total > 0
+        ? (positivo.length / total) * 100
+        : 0;
+    const taxaPerda = concluidos > 0 ? (negativo.length / concluidos) * 100 : 0;
+    const taxaSemResposta = total > 0 ? (semResposta.length / total) * 100 : 0;
+    const taxaAtivos =
+      total > 0
+        ? ((novos.length + emAndamento.length + aguardando.length) / total) * 100
+        : 0;
+
+    // Etapas detalhadas do funil
+    const stages = [
+      {
+        status: 'Novo' as CRMLeadStatus,
+        label: 'Novos Contatos',
+        count: novos.length,
+        percentage: total > 0 ? (novos.length / total) * 100 : 0,
+        value: novos.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0),
+        barColor: 'bg-blue-500',
+        badgeBg: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+        description: 'Contatos recém-adicionados que aguardam primeiro contato ou qualificação inicial.',
+      },
+      {
+        status: 'Em andamento' as CRMLeadStatus,
+        label: 'Em Andamento',
+        count: emAndamento.length,
+        percentage: total > 0 ? (emAndamento.length / total) * 100 : 0,
+        value: emAndamento.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0),
+        barColor: 'bg-amber-500',
+        badgeBg: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+        description: 'Contatos em negociação ativa, levantamento de necessidades ou proposta.',
+      },
+      {
+        status: 'Aguardando resposta' as CRMLeadStatus,
+        label: 'Aguardando Resposta',
+        count: aguardando.length,
+        percentage: total > 0 ? (aguardando.length / total) * 100 : 0,
+        value: aguardando.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0),
+        barColor: 'bg-purple-500',
+        badgeBg: 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+        description: 'Proposta ou contato enviado ao cliente, aguardando resposta para fechamento.',
+      },
+      {
+        status: 'Sem resposta' as CRMLeadStatus,
+        label: 'Sem Resposta',
+        count: semResposta.length,
+        percentage: total > 0 ? (semResposta.length / total) * 100 : 0,
+        value: semResposta.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0),
+        barColor: 'bg-gray-400',
+        badgeBg: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700',
+        description: 'Contatos que não responderam às mensagens ou tentativas de follow-up.',
+      },
+      {
+        status: 'Finalizado positivo' as CRMLeadStatus,
+        label: 'Finalizado Positivo (Ganhos)',
+        count: positivo.length,
+        percentage: total > 0 ? (positivo.length / total) * 100 : 0,
+        value: valorGanho,
+        barColor: 'bg-emerald-500',
+        badgeBg: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+        description: 'Negócios fechados com sucesso e convertidos em contratos ou clientes.',
+      },
+      {
+        status: 'Finalizado negativo' as CRMLeadStatus,
+        label: 'Finalizado Negativo (Perdidos)',
+        count: negativo.length,
+        percentage: total > 0 ? (negativo.length / total) * 100 : 0,
+        value: negativo.reduce((acc, l) => acc + (Number(l.estimated_value) || 0), 0),
+        barColor: 'bg-rose-500',
+        badgeBg: 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+        description: 'Oportunidades encerradas sem fechamento por preço, timing ou desistência.',
+      },
+    ];
+
+    // Cidades breakdown
+    const cityMap: Record<string, { total: number; positivos: number; valor: number }> = {};
+    filteredLeads.forEach((l) => {
+      const c = (l.city || 'Não informada').trim();
+      if (!cityMap[c]) cityMap[c] = { total: 0, positivos: 0, valor: 0 };
+      cityMap[c].total += 1;
+      if (l.status === 'Finalizado positivo') cityMap[c].positivos += 1;
+      cityMap[c].valor += Number(l.estimated_value) || 0;
+    });
+    const topCities = Object.entries(cityMap)
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        convRate: data.total > 0 ? (data.positivos / data.total) * 100 : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6);
+
+    // Segmentos breakdown (Áreas de atuação)
+    const segmentMap: Record<string, { total: number; positivos: number; valor: number }> = {};
+    filteredLeads.forEach((l) => {
+      const s = (l.segment || 'Não informada').trim();
+      if (!segmentMap[s]) segmentMap[s] = { total: 0, positivos: 0, valor: 0 };
+      segmentMap[s].total += 1;
+      if (l.status === 'Finalizado positivo') segmentMap[s].positivos += 1;
+      segmentMap[s].valor += Number(l.estimated_value) || 0;
+    });
+    const topSegments = Object.entries(segmentMap)
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        convRate: data.total > 0 ? (data.positivos / data.total) * 100 : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6);
+
+    // LÓGICA DE SITUAÇÃO DOS CONTATOS (Avalia se estamos indo bem ou mal)
+    let situationState: 'excelente' | 'bom' | 'atencao' | 'critico' | 'neutro' = 'neutro';
+    let situationTitle = '';
+    let situationBadge = '';
+    let situationDescription = '';
+    let situationTip = '';
+
+    if (total === 0) {
+      situationState = 'neutro';
+      situationBadge = 'Nenhum Contato no Filtro';
+      situationTitle = 'Sem contatos para os critérios selecionados';
+      situationDescription =
+        'Não há contatos cadastrados que correspondam aos filtros de cidade, área de atuação ou data. Ajuste ou limpe os filtros para visualizar a análise completa.';
+      situationTip = 'Dica: Selecione "Todo o Período" ou remova filtros específicos para ver todo o histórico de contatos.';
+    } else if (
+      (positivo.length > 0 && positivo.length >= negativo.length && taxaSemResposta <= 25) ||
+      (taxaConversao >= 40 && positivo.length >= 2)
+    ) {
+      situationState = 'excelente';
+      situationBadge = '🟢 Situação Excelente: Desempenho em Alta';
+      situationTitle = 'Estamos indo muito bem! Conversões em ritmo acelerado';
+      situationDescription = `O desempenho comercial está excelente! A taxa de conversão positiva está alta, com ${positivo.length} negócio(s) fechado(s) com sucesso${
+        valorGanho > 0 ? ` somando R$ ${valorGanho.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em receita estimada` : ''
+      }, superando as perdas registradas no período. Além disso, o índice de contatos sem resposta está controlado em ${taxaSemResposta.toFixed(0)}%, o que demonstra que as abordagens iniciais e o atendimento estão muito bem calibrados e despertando o interesse dos clientes.`;
+      situationTip = `Recomendação: Temos ${novos.length} novo(s) contato(s) na entrada do funil. Mantenha a velocidade de resposta no primeiro contato para sustentar essa excelente taxa de conversão.`;
+    } else if (
+      (positivo.length >= negativo.length &&
+        novos.length + emAndamento.length >= total * 0.35 &&
+        taxaSemResposta <= 40) ||
+      (positivo.length > 0 && negativo.length === 0)
+    ) {
+      situationState = 'bom';
+      situationBadge = '🟢 Situação Positiva: Operação Comercial Saudável';
+      situationTitle = 'Estamos indo bem! Pipeline aquecido e em movimento';
+      situationDescription = `A situação dos contatos é positiva e demonstra boa saúde operacional. Temos ${
+        novos.length + emAndamento.length + aguardando.length
+      } contato(s) ativos no funil (${novos.length} novo(s), ${emAndamento.length} em andamento e ${aguardando.length} aguardando resposta), com ${
+        positivo.length
+      } fechamento(s) positivo(s) já concretizado(s). A esteira comercial possui bastante potencial em fase de negociação.`;
+      situationTip = `Recomendação: Foque em fazer o acompanhamento dos ${aguardando.length} contato(s) que estão "Aguardando resposta", utilizando mensagens personalizadas para agilizar a decisão de compra.`;
+    } else if (
+      (taxaSemResposta > 30 && taxaSemResposta <= 50) ||
+      aguardando.length + semResposta.length >= total * 0.5 ||
+      (novos.length > 0 && emAndamento.length === 0 && positivo.length === 0)
+    ) {
+      situationState = 'atencao';
+      situationBadge = '🟡 Ponto de Atenção: Gargalo de Respostas';
+      situationTitle = 'Atenção necessária: Oportunidades correndo risco de esfriar';
+      situationDescription = `A situação atual exige atenção: identificamos um gargalo no fluxo de contato. Temos ${
+        semResposta.length + aguardando.length
+      } contato(s) (${(((semResposta.length + aguardando.length) / total) * 100).toFixed(0)}% da base filtrada) parados sem retorno ou aguardando resposta. Embora existam ${
+        novos.length
+      } novo(s) contato(s), o avanço para as etapas de proposta e fechamento está lento, o que pode esfriar negociações importantes.`;
+      situationTip = `Ação prática: Ative uma régua de reengajamento com as mensagens pré-configuradas de WhatsApp do CRM, oferecendo uma condição especial ou retomando o contato com uma pergunta aberta.`;
+    } else if (
+      negativo.length > positivo.length * 1.5 ||
+      taxaSemResposta > 50 ||
+      (concluidos > 0 && positivo.length === 0 && total >= 3)
+    ) {
+      situationState = 'critico';
+      situationBadge = '🔴 Situação Crítica: Alto Volume de Perdas ou Desengajamento';
+      situationTitle = 'Estamos indo mal no momento: Ajustes urgentes na abordagem';
+      situationDescription = `O diagnóstico indica que o resultado atual está abaixo do esperado: o número de contatos sem resposta (${
+        semResposta.length
+      } lead(s) - ${taxaSemResposta.toFixed(0)}%) e/ou com fechamento negativo (${
+        negativo.length
+      } lead(s)) está expressivamente superior às conversões positivas (${
+        positivo.length
+      }). Isso aponta para possíveis falhas no alinhamento do público-alvo (perfil do cliente), abordagem inicial pouco persuasiva ou demora excessiva no primeiro contato após a entrada do lead.`;
+      situationTip = `Plano de correção imediato: Reavalie os canais de captação dos contatos, faça o primeiro contato via WhatsApp em até 10 minutos após o cadastro e investigue o motivo das ${negativo.length} perdas para contornar objeções.`;
+    } else {
+      situationState = 'neutro';
+      situationBadge = '🔵 Situação em Formação: Base Inicial';
+      situationTitle = 'Contatos em fase de prospecção e qualificação';
+      situationDescription = `O pipeline conta com ${total} contato(s) analisados. Temos ${novos.length} novo(s) contato(s) cadastrados e ${emAndamento.length} em andamento. À medida que o time comercial registrar as interações e os desfechos das propostas, a inteligência trará métricas mais aprofundadas sobre o índice de sucesso.`;
+      situationTip = `Continue registrando cada ligação, WhatsApp e reunião na aba do lead para que o diagnóstico identifique com precisão as tendências do funil.`;
+    }
+
+    return {
+      total,
+      novos: novos.length,
+      emAndamento: emAndamento.length,
+      aguardando: aguardando.length,
+      semResposta: semResposta.length,
+      positivo: positivo.length,
+      negativo: negativo.length,
+      totalValor,
+      valorGanho,
+      valorEmNegociacao,
+      concluidos,
+      taxaConversao,
+      taxaPerda,
+      taxaSemResposta,
+      taxaAtivos,
+      stages,
+      topCities,
+      topSegments,
+      situation: {
+        state: situationState,
+        badge: situationBadge,
+        title: situationTitle,
+        description: situationDescription,
+        tip: situationTip,
+      },
+    };
+  }, [filteredLeads]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Actions & Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98]"
-          >
-            <Plus size={16} className="stroke-[2.5]" />
-            <span>Adicionar Novo Item</span>
-          </button>
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98]"
+            >
+              <Plus size={16} className="stroke-[2.5]" />
+              <span>Adicionar Novo Item</span>
+            </button>
 
-          <a
-            href="/settings?tab=whatsapp"
-            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-700 border border-gray-200 hover:border-emerald-200 rounded-xl text-xs font-semibold shadow-2xs transition-all active:scale-[0.98]"
-            title="Abrir configurações de Mensagens CRM"
-          >
-            <MessageCircle size={15} className="text-emerald-600" />
-            <span>Mensagens CRM</span>
-          </a>
+            <a
+              href="/settings?tab=whatsapp"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 dark:bg-gray-750 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-gray-700 dark:text-gray-300 hover:text-emerald-700 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-700 hover:border-emerald-200 dark:hover:border-emerald-800 rounded-xl text-xs font-semibold shadow-2xs transition-all active:scale-[0.98]"
+              title="Abrir configurações de Mensagens CRM"
+            >
+              <MessageCircle size={15} className="text-emerald-600 dark:text-emerald-400" />
+              <span>Mensagens CRM</span>
+            </a>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* View Mode Toggle: Kanban | Lista | Relatório */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-750 p-1 rounded-xl border border-gray-200/80 dark:border-gray-700/80">
+              <button
+                onClick={() => handleViewModeChange('kanban')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  viewMode === 'kanban'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                )}
+              >
+                <Kanban size={14} /> Kanban
+              </button>
+              <button
+                onClick={() => handleViewModeChange('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                )}
+              >
+                <List size={14} /> Lista
+              </button>
+              <button
+                onClick={() => handleViewModeChange('report')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  viewMode === 'report'
+                    ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                )}
+              >
+                <BarChart3 size={14} /> Relatório
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-gray-500 font-medium">Status:</span>
+        {/* Filtros: Busca, Cidade, Área de Atuação, Status, Datas */}
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60 flex flex-wrap items-center gap-2 text-xs">
+          {/* Busca rápida */}
+          <div className="relative min-w-[170px] flex-1 sm:flex-initial">
+            <Search className="absolute left-2.5 top-2 text-gray-400" size={13} />
+            <input
+              type="text"
+              placeholder="Buscar contato ou empresa..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Filtro Cidade */}
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2.5 py-1">
+            <MapPin size={13} className="text-gray-400 shrink-0" />
+            <select
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="bg-transparent border-0 text-gray-700 dark:text-gray-300 font-medium text-xs focus:ring-0 focus:outline-none pr-1"
+            >
+              <option value="all">Todas as Cidades ({availableCities.length})</option>
+              {availableCities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro Área de Atuação */}
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2.5 py-1">
+            <Briefcase size={13} className="text-gray-400 shrink-0" />
+            <select
+              value={segmentFilter}
+              onChange={(e) => setSegmentFilter(e.target.value)}
+              className="bg-transparent border-0 text-gray-700 dark:text-gray-300 font-medium text-xs focus:ring-0 focus:outline-none pr-1"
+            >
+              <option value="all">Todas as Áreas ({availableSegments.length})</option>
+              {availableSegments.map((seg) => (
+                <option key={seg} value={seg}>{seg}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro Status */}
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2.5 py-1">
+            <span className="text-gray-400 font-medium">Status:</span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-gray-700 font-semibold px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-transparent border-0 text-gray-700 dark:text-gray-300 font-medium text-xs focus:ring-0 focus:outline-none pr-1"
             >
               <option value="all">Todos os Status</option>
-              {CRM_STATUSES.map(s => (
+              {CRM_STATUSES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
 
-          <span className="text-xs text-gray-400 font-medium">
-            {filteredLeads.length} leads
-          </span>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-gray-100 p-1 rounded-xl">
-            <button
-              onClick={() => handleViewModeChange('kanban')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                viewMode === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
-              )}
+          {/* Filtro Datas */}
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2.5 py-1">
+            <Calendar size={13} className="text-gray-400 shrink-0" />
+            <select
+              value={dateFilterPreset}
+              onChange={(e) => setDateFilterPreset(e.target.value)}
+              className="bg-transparent border-0 text-gray-700 dark:text-gray-300 font-medium text-xs focus:ring-0 focus:outline-none pr-1"
             >
-              <Kanban size={14} /> Kanban
-            </button>
-            <button
-              onClick={() => handleViewModeChange('list')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
-              )}
-            >
-              <List size={14} /> Lista
-            </button>
+              <option value="all">Todo o Período</option>
+              <option value="today">Hoje</option>
+              <option value="7days">Últimos 7 dias</option>
+              <option value="this_month">Este Mês</option>
+              <option value="last_month">Mês Anterior</option>
+              <option value="30days">Últimos 30 dias</option>
+              <option value="this_year">Este Ano</option>
+              <option value="custom">Personalizado</option>
+            </select>
           </div>
+
+          {/* Inputs de data personalizada se preset for custom */}
+          {dateFilterPreset === 'custom' && (
+            <div className="flex items-center gap-1 animate-in fade-in">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-gray-400 text-xs">até</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+
+          {/* Botão Limpar Filtros */}
+          {isAnyFilterActive && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-1 px-2.5 py-1 text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-xs font-semibold transition-all"
+              title="Limpar todos os filtros"
+            >
+              <RotateCcw size={12} />
+              <span>Limpar filtros</span>
+            </button>
+          )}
+
+          <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 font-medium">
+            {filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'}
+          </span>
         </div>
       </div>
 
@@ -1237,6 +1708,478 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+
+      {/* REPORT VIEW */}
+      {viewMode === 'report' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 1. TEXTO DE SITUAÇÃO DOS CONTATOS (Lógica de como andam os contatos: indo bem ou mal) */}
+          <div
+            className={cn(
+              'p-5 sm:p-6 rounded-2xl border transition-all shadow-sm space-y-3.5',
+              crmReportData.situation.state === 'excelente' &&
+                'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/70 text-emerald-950 dark:text-emerald-100',
+              crmReportData.situation.state === 'bom' &&
+                'bg-teal-50/70 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/70 text-teal-950 dark:text-teal-100',
+              crmReportData.situation.state === 'atencao' &&
+                'bg-amber-50/70 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800/70 text-amber-950 dark:text-amber-100',
+              crmReportData.situation.state === 'critico' &&
+                'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800/70 text-rose-950 dark:text-rose-100',
+              crmReportData.situation.state === 'neutro' &&
+                'bg-blue-50/70 dark:bg-blue-950/30 border-blue-300 dark:border-blue-800/70 text-blue-950 dark:text-blue-100'
+            )}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={cn(
+                    'px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase shadow-2xs flex items-center gap-1.5',
+                    crmReportData.situation.state === 'excelente' &&
+                      'bg-emerald-600 text-white dark:bg-emerald-500',
+                    crmReportData.situation.state === 'bom' &&
+                      'bg-teal-600 text-white dark:bg-teal-500',
+                    crmReportData.situation.state === 'atencao' &&
+                      'bg-amber-600 text-white dark:bg-amber-500',
+                    crmReportData.situation.state === 'critico' &&
+                      'bg-rose-600 text-white dark:bg-rose-500',
+                    crmReportData.situation.state === 'neutro' &&
+                      'bg-blue-600 text-white dark:bg-blue-500'
+                  )}
+                >
+                  <Activity size={13} className="animate-pulse" />
+                  <span>{crmReportData.situation.badge}</span>
+                </span>
+                <span className="text-xs font-semibold opacity-75 hidden sm:inline">
+                  Diagnóstico Comercial Automatizado
+                </span>
+              </div>
+
+              {/* Indicadores rápidos de apoio */}
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                <span className="px-2.5 py-1 bg-white/80 dark:bg-gray-800/80 rounded-lg border border-black/5 dark:border-white/10 shadow-2xs">
+                  Taxa de Conversão: <strong>{crmReportData.taxaConversao.toFixed(1)}%</strong>
+                </span>
+                <span className="px-2.5 py-1 bg-white/80 dark:bg-gray-800/80 rounded-lg border border-black/5 dark:border-white/10 shadow-2xs">
+                  Sem Resposta: <strong>{crmReportData.taxaSemResposta.toFixed(1)}%</strong>
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-base sm:text-lg font-bold">
+                {crmReportData.situation.title}
+              </h2>
+              <p className="text-xs sm:text-sm leading-relaxed opacity-90">
+                {crmReportData.situation.description}
+              </p>
+            </div>
+
+            {crmReportData.situation.tip && (
+              <div className="p-3 bg-white/70 dark:bg-gray-800/70 border border-black/5 dark:border-white/10 rounded-xl text-xs flex items-start gap-2.5 shadow-2xs">
+                <Sparkles size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <span className="font-bold">Estratégia Recomendada: </span>
+                  <span className="opacity-90">{crmReportData.situation.tip}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 2. CARDS DE RESUMO ESTRATÉGICO: Quantos contatos são novos e métricas principais */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: NOVOS CONTATOS (Requisito chave) */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-2 relative overflow-hidden group">
+              <div className="absolute -right-2 -bottom-2 opacity-5 dark:opacity-10 pointer-events-none">
+                <Sparkles size={80} className="text-blue-600" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Novos Contatos
+                </span>
+                <span className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-2xs">
+                  <Sparkles size={16} />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
+                  {crmReportData.novos}
+                </span>
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                  {crmReportData.total > 0
+                    ? `${((crmReportData.novos / crmReportData.total) * 100).toFixed(0)}% do funil`
+                    : '0%'}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                Leads recém-adicionados que aguardam primeiro contato.
+              </p>
+            </div>
+
+            {/* Card 2: EM NEGOCIAÇÃO ATIVA */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-2 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Em Negociação
+                </span>
+                <span className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-2xs">
+                  <Activity size={16} />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
+                  {crmReportData.emAndamento + crmReportData.aguardando}
+                </span>
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                  Ativos no pipeline
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                {crmReportData.emAndamento} em andamento e {crmReportData.aguardando} aguardando resposta.
+              </p>
+            </div>
+
+            {/* Card 3: FINALIZADOS POSITIVOS (Ganhos) */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-2 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Ganhos / Convertidos
+                </span>
+                <span className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-2xs">
+                  <CheckCircle2 size={16} />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {crmReportData.positivo}
+                </span>
+                <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">
+                  {crmReportData.taxaConversao.toFixed(1)}% conversão
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                {crmReportData.valorGanho > 0
+                  ? `R$ ${crmReportData.valorGanho.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em valor ganho`
+                  : 'Negócios concluídos com sucesso.'}
+              </p>
+            </div>
+
+            {/* Card 4: SEM RESPOSTA / PERDIDOS */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-2 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Sem Resposta / Perdidos
+                </span>
+                <span className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-2xs">
+                  <AlertTriangle size={16} />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
+                  {crmReportData.semResposta + crmReportData.negativo}
+                </span>
+                <span className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
+                  {crmReportData.semResposta} sem retorno
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                {crmReportData.negativo} finalizados negativos no período.
+              </p>
+            </div>
+          </div>
+
+          {/* 3. QUANTOS EM CADA ETAPA DO CRM (Funil detalhado) */}
+          <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <BarChart3 size={18} className="text-blue-600 dark:text-blue-400" />
+                  <span>Distribuição por Etapa do CRM</span>
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Total de {crmReportData.total} contatos analisados no período filtrado
+                </p>
+              </div>
+
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-750 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700">
+                Valor Total Estimado:{' '}
+                <strong className="text-gray-900 dark:text-white">
+                  R$ {crmReportData.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </strong>
+              </div>
+            </div>
+
+            <div className="space-y-3.5">
+              {crmReportData.stages.map((stage) => (
+                <div
+                  key={stage.status}
+                  className="p-3.5 bg-gray-50/70 dark:bg-gray-750/50 rounded-xl border border-gray-200/80 dark:border-gray-700/80 space-y-2 transition-all hover:border-gray-300 dark:hover:border-gray-600"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={cn('px-2.5 py-0.5 rounded-md text-[11px] font-bold border', stage.badgeBg)}>
+                        {stage.label}
+                      </span>
+                      <span className="text-gray-400 dark:text-gray-500 text-[11px] hidden sm:inline">
+                        — {stage.description}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 font-semibold">
+                      <span className="text-gray-900 dark:text-white text-sm">
+                        {stage.count} {stage.count === 1 ? 'contato' : 'contatos'}
+                      </span>
+                      <span className="text-gray-400 font-mono text-xs">
+                        ({stage.percentage.toFixed(1)}%)
+                      </span>
+                      {stage.value > 0 && (
+                        <span className="text-emerald-700 dark:text-emerald-400 text-xs">
+                          R$ {stage.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Barra de Progresso Visual */}
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full overflow-hidden">
+                    <div
+                      className={cn('h-full rounded-full transition-all duration-500', stage.barColor)}
+                      style={{ width: `${Math.min(100, Math.max(stage.count > 0 ? 3 : 0, stage.percentage))}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. VISÃO CRUZADA: DISTRIBUIÇÃO POR CIDADE E POR ÁREA DE ATUAÇÃO */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Top Cidades */}
+            <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <MapPin size={16} className="text-blue-500" />
+                  <span>Distribuição por Cidade</span>
+                </h3>
+                <span className="text-xs text-gray-400 font-medium">
+                  {crmReportData.topCities.length} cidades no filtro
+                </span>
+              </div>
+
+              {crmReportData.topCities.length === 0 ? (
+                <p className="text-xs text-gray-400 italic py-4 text-center">
+                  Nenhuma cidade registrada nos contatos filtrados.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {crmReportData.topCities.map((city) => (
+                    <div key={city.name} className="space-y-1 text-xs">
+                      <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">{city.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 dark:text-white">
+                            {city.total} {city.total === 1 ? 'lead' : 'leads'}
+                          </span>
+                          {city.positivos > 0 && (
+                            <span className="text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold">
+                              ({city.positivos} ganhos)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-blue-500 h-full rounded-full transition-all"
+                          style={{
+                            width: `${(city.total / (crmReportData.total || 1)) * 100}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Top Áreas de Atuação (Segmentos) */}
+            <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Briefcase size={16} className="text-emerald-500" />
+                  <span>Distribuição por Área de Atuação</span>
+                </h3>
+                <span className="text-xs text-gray-400 font-medium">
+                  {crmReportData.topSegments.length} áreas no filtro
+                </span>
+              </div>
+
+              {crmReportData.topSegments.length === 0 ? (
+                <p className="text-xs text-gray-400 italic py-4 text-center">
+                  Nenhuma área de atuação registrada nos contatos filtrados.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {crmReportData.topSegments.map((seg) => (
+                    <div key={seg.name} className="space-y-1 text-xs">
+                      <div className="flex items-center justify-between text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">{seg.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 dark:text-white">
+                            {seg.total} {seg.total === 1 ? 'lead' : 'leads'}
+                          </span>
+                          {seg.positivos > 0 && (
+                            <span className="text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold">
+                              ({seg.positivos} ganhos)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full rounded-full transition-all"
+                          style={{
+                            width: `${(seg.total / (crmReportData.total || 1)) * 100}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 5. TABELA DE CONTATOS DO RELATÓRIO */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden space-y-0">
+            <div className="p-4 sm:p-5 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                  Contatos Analisados ({filteredLeads.length})
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Clique em um contato para visualizar a timeline, registrar interações ou enviar mensagens.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleViewModeChange('list')}
+                  className="px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all flex items-center gap-1"
+                >
+                  <List size={14} /> Abrir na Lista
+                </button>
+                <button
+                  onClick={() => handleViewModeChange('kanban')}
+                  className="px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all flex items-center gap-1"
+                >
+                  <Kanban size={14} /> Abrir no Kanban
+                </button>
+              </div>
+            </div>
+
+            {filteredLeads.length === 0 ? (
+              <div className="p-10 text-center space-y-2">
+                <p className="text-gray-500 text-xs font-medium">Nenhum contato encontrado com os filtros aplicados.</p>
+                {isAnyFilterActive && (
+                  <button
+                    onClick={handleResetFilters}
+                    className="text-xs text-blue-600 hover:underline font-semibold"
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-50/70 dark:bg-gray-750 text-gray-500 dark:text-gray-400 font-semibold border-b border-gray-100 dark:border-gray-700">
+                      <th className="py-3 px-4">Contato / Empresa</th>
+                      <th className="py-3 px-4">Cidade</th>
+                      <th className="py-3 px-4">Área de Atuação</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Data do Contato</th>
+                      <th className="py-3 px-4 text-right">Valor Estimado</th>
+                      <th className="py-3 px-4 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60 text-gray-800 dark:text-gray-200">
+                    {filteredLeads.map((lead) => {
+                      const displayDate = lead.first_contact_date
+                        ? formatDate(lead.first_contact_date)
+                        : formatDate(lead.created_at);
+
+                      return (
+                        <tr
+                          key={lead.id}
+                          className="hover:bg-gray-50/60 dark:hover:bg-gray-750/50 transition-colors cursor-pointer"
+                          onClick={() => setSelectedLead(lead)}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-gray-900 dark:text-white">{lead.contact_name}</div>
+                            {lead.company && (
+                              <div className="text-[11px] text-gray-500 dark:text-gray-400">{lead.company}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
+                            {lead.city || '—'}
+                          </td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
+                            {lead.segment || '—'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={cn(
+                                'inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs',
+                                lead.status === 'Novo' &&
+                                  'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+                                lead.status === 'Em andamento' &&
+                                  'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+                                lead.status === 'Aguardando resposta' &&
+                                  'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+                                lead.status === 'Sem resposta' &&
+                                  'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700',
+                                lead.status === 'Finalizado positivo' &&
+                                  'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+                                lead.status === 'Finalizado negativo' &&
+                                  'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                              )}
+                            >
+                              {lead.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-gray-500 dark:text-gray-400 text-[11px]">
+                            {displayDate}
+                          </td>
+                          <td className="py-3 px-4 text-right font-medium">
+                            {lead.estimated_value && Number(lead.estimated_value) > 0 ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                R$ {Number(lead.estimated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLead(lead);
+                              }}
+                              className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-all"
+                            >
+                              Ver
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* LEAD DETAILS & TIMELINE MODAL (Requisito 35) */}
       {selectedLead && (
