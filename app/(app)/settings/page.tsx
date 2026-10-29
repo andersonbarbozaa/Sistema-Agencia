@@ -3460,31 +3460,6 @@ function SettingsContent() {
             </div>
           )}
 
-          {/* Guia de Tags Dinâmicas */}
-          <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl p-4 text-xs space-y-2">
-            <div className="flex items-center gap-2 font-bold text-blue-900 dark:text-blue-300">
-              <Sparkles size={15} className="text-blue-600" />
-              <span>Variáveis Dinâmicas (Reconhece o Contato e a Empresa Automaticamente)</span>
-            </div>
-            <p className="text-blue-800 dark:text-blue-300/90 text-[11px] leading-relaxed">
-              Insira as tags abaixo no texto da mensagem. Quando você clicar para usar no CRM, elas serão substituídas automaticamente pelo nome ou empresa do lead:
-            </p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
-                {"{primeiro_nome}"} &rarr; Primeiro nome do contato
-              </span>
-              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
-                {"{nome}"} &rarr; Nome completo do contato
-              </span>
-              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
-                {"{empresa}"} &rarr; Nome da empresa do lead
-              </span>
-              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
-                {"{minha_empresa}"} &rarr; Nome da sua agência
-              </span>
-            </div>
-          </div>
-
           {/* Lista de Modelos */}
           <div className="space-y-4">
             {whatsappTemplates.map((tpl, index) => {
