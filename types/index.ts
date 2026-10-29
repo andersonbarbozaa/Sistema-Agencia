@@ -307,6 +307,12 @@ export interface CRMInteraction {
   created_at: string;
 }
 
+export interface CRMWhatsAppTemplate {
+  id: string;
+  title: string;
+  message: string;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;

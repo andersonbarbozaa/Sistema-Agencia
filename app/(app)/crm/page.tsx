@@ -32,7 +32,9 @@ import {
   ExternalLink,
   Briefcase,
   FileText,
+  Sparkles,
 } from 'lucide-react';
+import { DEFAULT_WHATSAPP_TEMPLATES, parseWhatsAppTemplates, formatWhatsAppTemplate } from '@/lib/whatsapp-templates';
 
 function InstagramIcon({ size = 14, className }: { size?: number; className?: string }) {
   return (
@@ -137,7 +139,7 @@ function renderPlatformBadge(platform?: string | null) {
     </span>
   );
 }
-import { CRMLead, CRMInteraction, CRMLeadStatus } from '@/types';
+import { CRMLead, CRMInteraction, CRMLeadStatus, CRMWhatsAppTemplate } from '@/types';
 import { formatDate, formatDateTime, cn } from '@/lib/utils';
 
 const CRM_STATUSES: CRMLeadStatus[] = [
@@ -325,7 +327,9 @@ export default function CRMPage() {
     mode: 'edit' | 'create';
   }>({ isOpen: false, mode: 'edit' });
 
-  // WhatsApp sending modal
+  // WhatsApp sending modal & Pre-configured Templates
+  const [whatsAppTemplates, setWhatsAppTemplates] = useState<CRMWhatsAppTemplate[]>(DEFAULT_WHATSAPP_TEMPLATES);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [whatsAppModal, setWhatsAppModal] = useState<{
     isOpen: boolean;
     lead: CRMLead | null;
@@ -353,11 +357,20 @@ export default function CRMPage() {
       showToast('Este lead não possui número de WhatsApp ou telefone cadastrado.', 'error');
       return;
     }
+
+    const firstTemplate = whatsAppTemplates[0];
+    const initialTplId = firstTemplate?.id || '';
+    setSelectedTemplateId(initialTplId);
+
+    const initialMessage = firstTemplate
+      ? formatWhatsAppTemplate(firstTemplate.message, lead)
+      : getDefaultWhatsAppMessage(lead);
+
     setWhatsAppModal({
       isOpen: true,
       lead,
       phone: digits,
-      message: getDefaultWhatsAppMessage(lead),
+      message: initialMessage,
     });
   };
 
@@ -575,6 +588,16 @@ export default function CRMPage() {
       }
     }
     fetchLeads();
+    // Carrega modelos pré-definidos de mensagens do WhatsApp
+    fetch('/api/settings')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        if (d?.settings?.crm_whatsapp_templates) {
+          setWhatsAppTemplates(parseWhatsAppTemplates(d.settings.crm_whatsapp_templates));
+        }
+      })
+      .catch((err) => console.warn('Erro ao carregar templates de WhatsApp:', err));
+
     const handleOpenCreate = () => setShowCreateModal(true);
     window.addEventListener('open-create-lead', handleOpenCreate);
     window.addEventListener('ai-action-completed', fetchLeads);
@@ -2170,6 +2193,68 @@ export default function CRMPage() {
               </div>
 
               <div className="space-y-3.5">
+                {/* Seleção de Modelos Pré-configurados */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-500" />
+                      <span>Modelos Pré-configurados:</span>
+                    </label>
+                    <a
+                      href="/settings?tab=whatsapp"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 transition-colors"
+                      title="Abrir configurações de mensagens em nova aba"
+                    >
+                      <span>Configurar modelos</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-gray-50 border border-gray-200 rounded-xl">
+                    {whatsAppTemplates.map((tpl) => {
+                      const isSelected = selectedTemplateId === tpl.id;
+                      return (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTemplateId(tpl.id);
+                            const formatted = formatWhatsAppTemplate(tpl.message, whatsAppModal.lead);
+                            setWhatsAppModal((prev) => ({ ...prev, message: formatted }));
+                          }}
+                          className={cn(
+                            'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer text-left',
+                            isSelected
+                              ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600'
+                              : 'bg-white hover:bg-emerald-50 text-gray-700 border border-gray-200 hover:border-emerald-300'
+                          )}
+                          title="Clique para aplicar este modelo com os dados do lead"
+                        >
+                          {tpl.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {whatsAppModal.lead && (
+                    <div className="text-[10px] text-gray-500 bg-gray-50/70 px-2.5 py-1 rounded-lg flex items-center justify-between flex-wrap gap-1">
+                      <span>
+                        Contato: <strong className="text-gray-800">{whatsAppModal.lead.contact_name}</strong>
+                      </span>
+                      {whatsAppModal.lead.company && (
+                        <span>
+                          Empresa: <strong className="text-gray-800">{whatsAppModal.lead.company}</strong>
+                        </span>
+                      )}
+                      <span className="text-emerald-600 font-medium ml-auto">
+                        ✓ Variáveis reconhecidas
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                     Mensagem (você pode editar o texto antes de enviar):

@@ -46,12 +46,14 @@ import {
   ChevronUp,
   Zap,
   Crown,
+  MessageCircle,
 } from 'lucide-react';
-import { Position, TaskCategory, FinancialCategory, BankAccount } from '@/types';
+import { Position, TaskCategory, FinancialCategory, BankAccount, CRMWhatsAppTemplate } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { TextFormatPreset, DEFAULT_TEXT_PRESETS } from '@/components/RichTextEditor';
+import { DEFAULT_WHATSAPP_TEMPLATES, parseWhatsAppTemplates, formatWhatsAppTemplate } from '@/lib/whatsapp-templates';
 
-const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting', 'plans'] as const;
+const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting', 'plans', 'whatsapp'] as const;
 type SettingsTab = (typeof VALID_SETTINGS_TABS)[number];
 
 const SUBSCRIPTION_PLANS = [
@@ -149,7 +151,7 @@ function SettingsContent() {
   );
 
   useEffect(() => {
-    if (isClientUser && ['users', 'categories', 'finance', 'ai', 'formatting', 'plans'].includes(activeTab)) {
+    if (isClientUser && ['users', 'categories', 'finance', 'ai', 'formatting', 'plans', 'whatsapp'].includes(activeTab)) {
       setActiveTabState('company');
     }
   }, [isClientUser, activeTab]);
@@ -315,6 +317,75 @@ function SettingsContent() {
     try {
       localStorage.setItem('agency_text_formatting_presets', JSON.stringify(DEFAULT_TEXT_PRESETS));
     } catch (e) {}
+  };
+
+  // CRM WHATSAPP TEMPLATES
+  const [whatsappTemplates, setWhatsappTemplates] = useState<CRMWhatsAppTemplate[]>(DEFAULT_WHATSAPP_TEMPLATES);
+  const [savingTemplates, setSavingTemplates] = useState(false);
+  const [templateSaveSuccess, setTemplateSaveSuccess] = useState<string | null>(null);
+
+  const handleAddTemplate = () => {
+    const newTpl: CRMWhatsAppTemplate = {
+      id: 'tpl_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+      title: `Nova Mensagem ${whatsappTemplates.length + 1}`,
+      message: 'Olá, {primeiro_nome}! Tudo bem? Sou da equipe da {minha_empresa}. Estamos entrando em contato sobre a sua solicitação com a {empresa}...',
+    };
+    setWhatsappTemplates((prev) => [...prev, newTpl]);
+  };
+
+  const handleUpdateTemplate = (id: string, field: 'title' | 'message', value: string) => {
+    setWhatsappTemplates((prev) =>
+      prev.map((tpl) => (tpl.id === id ? { ...tpl, [field]: value } : tpl))
+    );
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    if (whatsappTemplates.length <= 1) {
+      alert('Você deve manter pelo menos um modelo de mensagem configurado.');
+      return;
+    }
+    setWhatsappTemplates((prev) => prev.filter((tpl) => tpl.id !== id));
+  };
+
+  const handleResetTemplates = () => {
+    setWhatsappTemplates(DEFAULT_WHATSAPP_TEMPLATES);
+  };
+
+  const handleInsertVariable = (templateId: string, variableTag: string) => {
+    setWhatsappTemplates((prev) =>
+      prev.map((tpl) => {
+        if (tpl.id === templateId) {
+          const currentMsg = tpl.message || '';
+          const separator = currentMsg.endsWith(' ') || currentMsg.length === 0 ? '' : ' ';
+          return { ...tpl, message: currentMsg + separator + variableTag };
+        }
+        return tpl;
+      })
+    );
+  };
+
+  const handleSaveWhatsappTemplates = async () => {
+    try {
+      setSavingTemplates(true);
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          crm_whatsapp_templates: JSON.stringify(whatsappTemplates),
+        }),
+      });
+      if (res.ok) {
+        setTemplateSaveSuccess('Modelos de mensagens do WhatsApp salvos com sucesso!');
+        setTimeout(() => setTemplateSaveSuccess(null), 5000);
+      } else {
+        alert('Erro ao salvar modelos de mensagens.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao salvar modelos de mensagens.');
+    } finally {
+      setSavingTemplates(false);
+    }
   };
 
   // Entities
@@ -553,6 +624,9 @@ function SettingsContent() {
             ai_system_instructions: d.settings.ai_system_instructions || '',
             ai_require_confirmation: d.settings.ai_require_confirmation || 'true',
           });
+          if (d.settings.crm_whatsapp_templates) {
+            setWhatsappTemplates(parseWhatsAppTemplates(d.settings.crm_whatsapp_templates));
+          }
         }
       }
       if (cliRes.ok) {
@@ -1625,6 +1699,27 @@ function SettingsContent() {
                 <div className="flex items-center gap-2.5 shrink-0">
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold">
                     {formattingPresets.length} modelos
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
+              {/* Mensagens WhatsApp (CRM) */}
+              <div
+                onClick={() => setActiveTab('whatsapp')}
+                className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <MessageCircle className="w-5 h-5" />
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    Mensagens WhatsApp (CRM)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold">
+                    {whatsappTemplates.length} modelos
                   </span>
                   <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
                 </div>
@@ -3313,6 +3408,193 @@ function SettingsContent() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 10: MODELOS DE MENSAGENS WHATSAPP (CRM)               */}
+      {/* ======================================================== */}
+      {activeTab === 'whatsapp' && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 mb-2 transition-colors cursor-pointer"
+              >
+                &larr; Voltar para Configurações
+              </button>
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-emerald-600" />
+                Mensagens Pré-configuradas para WhatsApp (CRM)
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Configure os modelos de mensagens que estarão disponíveis no botão de WhatsApp dos leads no CRM.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetTemplates}
+                className="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition-colors cursor-pointer"
+                title="Restaurar mensagens padrão recomendadas"
+              >
+                Restaurar Padrões
+              </button>
+              <button
+                type="button"
+                onClick={handleAddTemplate}
+                className="px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Nova Mensagem</span>
+              </button>
+            </div>
+          </div>
+
+          {templateSaveSuccess && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 size={16} /> {templateSaveSuccess}
+            </div>
+          )}
+
+          {/* Guia de Tags Dinâmicas */}
+          <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl p-4 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-bold text-blue-900 dark:text-blue-300">
+              <Sparkles size={15} className="text-blue-600" />
+              <span>Variáveis Dinâmicas (Reconhece o Contato e a Empresa Automaticamente)</span>
+            </div>
+            <p className="text-blue-800 dark:text-blue-300/90 text-[11px] leading-relaxed">
+              Insira as tags abaixo no texto da mensagem. Quando você clicar para usar no CRM, elas serão substituídas automaticamente pelo nome ou empresa do lead:
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
+                {"{primeiro_nome}"} &rarr; Primeiro nome do contato
+              </span>
+              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
+                {"{nome}"} &rarr; Nome completo do contato
+              </span>
+              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
+                {"{empresa}"} &rarr; Nome da empresa do lead
+              </span>
+              <span className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-blue-800 dark:text-blue-300 font-mono text-[11px] font-semibold">
+                {"{minha_empresa}"} &rarr; Nome da sua agência
+              </span>
+            </div>
+          </div>
+
+          {/* Lista de Modelos */}
+          <div className="space-y-4">
+            {whatsappTemplates.map((tpl, index) => {
+              const samplePreview = formatWhatsAppTemplate(
+                tpl.message,
+                { contact_name: 'Anderson Barboza', company: 'Casal em Dobro' },
+                profileForm.company_name || 'PixelCraft Studio'
+              );
+
+              return (
+                <div
+                  key={tpl.id}
+                  className="p-4 sm:p-5 bg-gray-50/70 dark:bg-gray-750/50 border border-gray-200 dark:border-gray-700 rounded-2xl space-y-3.5 transition-all hover:border-gray-300 dark:hover:border-gray-600"
+                >
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                      <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0">
+                        {index + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={tpl.title}
+                        onChange={(e) => handleUpdateTemplate(tpl.id, 'title', e.target.value)}
+                        placeholder="Título do modelo (ex: Primeiro Contato)"
+                        className="w-full text-xs font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTemplate(tpl.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                        title="Excluir este modelo"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                      <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                        Texto da Mensagem:
+                      </label>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-gray-400">Inserir tag rápida:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertVariable(tpl.id, '{primeiro_nome}')}
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-white dark:bg-gray-800 hover:bg-emerald-50 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-md transition-colors cursor-pointer"
+                        >
+                          + {"{primeiro_nome}"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertVariable(tpl.id, '{nome}')}
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-white dark:bg-gray-800 hover:bg-emerald-50 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-md transition-colors cursor-pointer"
+                        >
+                          + {"{nome}"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertVariable(tpl.id, '{empresa}')}
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-white dark:bg-gray-800 hover:bg-emerald-50 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-md transition-colors cursor-pointer"
+                        >
+                          + {"{empresa}"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertVariable(tpl.id, '{minha_empresa}')}
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-white dark:bg-gray-800 hover:bg-emerald-50 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-md transition-colors cursor-pointer"
+                        >
+                          + {"{minha_empresa}"}
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={tpl.message}
+                      onChange={(e) => handleUpdateTemplate(tpl.id, 'message', e.target.value)}
+                      placeholder="Digite a mensagem pré-configurada..."
+                      className="w-full p-3 text-xs border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed resize-y"
+                    />
+                  </div>
+
+                  {/* Exemplo ao vivo */}
+                  <div className="bg-white dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700/80 rounded-xl p-3 text-[11px] space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
+                      Exemplo como o cliente receberá:
+                    </span>
+                    <p className="text-gray-700 dark:text-gray-300 italic leading-relaxed">
+                      "{samplePreview}"
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Botão de Salvar no Rodapé */}
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={handleSaveWhatsappTemplates}
+              disabled={savingTemplates}
+              className="px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <Save size={14} />
+              <span>{savingTemplates ? 'Salvando...' : 'Salvar Modelos de WhatsApp'}</span>
+            </button>
           </div>
         </div>
       )}
