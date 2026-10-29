@@ -1704,7 +1704,7 @@ function SettingsContent() {
                 </div>
               </div>
 
-              {/* Mensagens WhatsApp (CRM) */}
+              {/* Mensagens CRM */}
               <div
                 onClick={() => setActiveTab('whatsapp')}
                 className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
@@ -1714,7 +1714,7 @@ function SettingsContent() {
                     <MessageCircle className="w-5 h-5" />
                   </div>
                   <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    Mensagens WhatsApp (CRM)
+                    Mensagens CRM
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5 shrink-0">
@@ -3413,7 +3413,7 @@ function SettingsContent() {
       )}
 
       {/* ======================================================== */}
-      {/* TAB 10: MODELOS DE MENSAGENS WHATSAPP (CRM)               */}
+      {/* TAB 10: MENSAGENS CRM                                     */}
       {/* ======================================================== */}
       {activeTab === 'whatsapp' && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-6">
@@ -3428,7 +3428,7 @@ function SettingsContent() {
               </button>
               <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <MessageCircle className="w-5 h-5 text-emerald-600" />
-                Mensagens Pré-configuradas para WhatsApp (CRM)
+                Mensagens CRM
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 Configure os modelos de mensagens que estarão disponíveis no botão de WhatsApp dos leads no CRM.

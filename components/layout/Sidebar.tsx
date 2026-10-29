@@ -26,6 +26,7 @@ import {
   LogOut,
   ShieldCheck,
   Crown,
+  MessageCircle,
 } from 'lucide-react';
 import { User } from '@/types';
 import { isMasterAdmin } from '@/lib/auth-constants';
@@ -65,6 +66,7 @@ const settingsSubItems: SubMenuItem[] = [
   { tab: 'ai', href: '/settings?tab=ai', label: 'IA', icon: Bot },
   { tab: 'appearance', href: '/settings?tab=appearance', label: 'Tema', icon: Sun },
   { tab: 'formatting', href: '/settings?tab=formatting', label: 'Padrões de Roteiro', icon: Type },
+  { tab: 'whatsapp', href: '/settings?tab=whatsapp', label: 'Mensagens CRM', icon: MessageCircle },
 ];
 
 interface SidebarProps {

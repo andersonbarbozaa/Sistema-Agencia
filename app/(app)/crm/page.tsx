@@ -798,13 +798,24 @@ export default function CRMPage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Actions & Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98]"
-        >
-          <Plus size={16} className="stroke-[2.5]" />
-          <span>Adicionar Novo Item</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98]"
+          >
+            <Plus size={16} className="stroke-[2.5]" />
+            <span>Adicionar Novo Item</span>
+          </button>
+
+          <a
+            href="/settings?tab=whatsapp"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-700 border border-gray-200 hover:border-emerald-200 rounded-xl text-xs font-semibold shadow-2xs transition-all active:scale-[0.98]"
+            title="Abrir configurações de Mensagens CRM"
+          >
+            <MessageCircle size={15} className="text-emerald-600" />
+            <span>Mensagens CRM</span>
+          </a>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs">
@@ -2198,16 +2209,16 @@ export default function CRMPage() {
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
                       <Sparkles size={13} className="text-amber-500" />
-                      <span>Modelos Pré-configurados:</span>
+                      <span>Mensagens CRM:</span>
                     </label>
                     <a
                       href="/settings?tab=whatsapp"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[11px] text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 transition-colors"
-                      title="Abrir configurações de mensagens em nova aba"
+                      title="Abrir Mensagens CRM em nova aba"
                     >
-                      <span>Configurar modelos</span>
+                      <span>Configurar Mensagens CRM</span>
                       <ExternalLink size={10} />
                     </a>
                   </div>
