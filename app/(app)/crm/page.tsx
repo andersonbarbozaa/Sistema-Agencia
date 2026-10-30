@@ -67,7 +67,6 @@ import { CRMLeadDetailModal } from '@/components/crm/CRMLeadDetailModal';
 import { CRMQuickContactModal } from '@/components/crm/CRMQuickContactModal';
 import { CRMMissingDataModal } from '@/components/crm/CRMMissingDataModal';
 import { CRMReactivateModal } from '@/components/crm/CRMReactivateModal';
-import { CRMStatusMoveModal } from '@/components/crm/CRMStatusMoveModal';
 import { CRMReportView } from '@/components/crm/CRMReportView';
 
 const SOCIAL_NETWORK_OPTIONS = [
@@ -109,7 +108,6 @@ export default function CRMPage() {
   const [quickContactLead, setQuickContactLead] = useState<CRMLead | null>(null);
   const [missingDataLead, setMissingDataLead] = useState<CRMLead | null>(null);
   const [reactivateModalLead, setReactivateModalLead] = useState<CRMLead | null>(null);
-  const [statusMoveModal, setStatusMoveModal] = useState<{ lead: CRMLead; newStatus: CRMLeadStatus } | null>(null);
 
   // Drag and Drop State
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
@@ -881,7 +879,7 @@ export default function CRMPage() {
                   if (leadId) {
                     const leadObj = leads.find((l) => l.id === leadId);
                     if (leadObj && leadObj.status !== status) {
-                      setStatusMoveModal({ lead: leadObj, newStatus: status });
+                      handleUpdateStatus(leadObj.id, status);
                     }
                   }
                   setDraggedLeadId(null);
@@ -1101,20 +1099,6 @@ export default function CRMPage() {
         />
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL 5: CONFIRMAÇÃO DE MOVIMENTAÇÃO COM NOTA (Requisito 2) */}
-      {/* ============================================================ */}
-      {statusMoveModal && (
-        <CRMStatusMoveModal
-          lead={statusMoveModal.lead}
-          newStatus={statusMoveModal.newStatus}
-          isOpen={Boolean(statusMoveModal)}
-          onClose={() => setStatusMoveModal(null)}
-          onConfirm={async (leadId, newStatus, notes) => {
-            await handleUpdateStatus(leadId, newStatus, notes);
-          }}
-        />
-      )}
 
       {/* ============================================================ */}
       {/* MODAL 6: WHATSAPP COM TEMPLATES DINÂMICOS */}
