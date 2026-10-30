@@ -151,6 +151,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       'company',
       'email',
       'phone',
+      'phone2',
       'whatsapp',
       'city',
       'address',

@@ -151,6 +151,7 @@ export default function CRMPage() {
     contact_name: '',
     company: '',
     phone: '',
+    phone2: '',
     whatsapp: '',
     email: '',
     city: '',
@@ -178,6 +179,7 @@ export default function CRMPage() {
     contact_name: '',
     company: '',
     phone: '',
+    phone2: '',
     whatsapp: '',
     email: '',
     city: '',
@@ -197,6 +199,51 @@ export default function CRMPage() {
   };
   const [showEditModal, setShowEditModal] = useState(false);
   const [editLead, setEditLead] = useState(EMPTY_EDIT_LEAD);
+
+  // Funções para gerenciar redes sociais dinâmicas
+  const handleAddSocialLink = (isEdit: boolean) => {
+    if (isEdit) {
+      setEditLead((prev) => ({
+        ...prev,
+        social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+      }));
+    } else {
+      setNewLead((prev) => ({
+        ...prev,
+        social_links: [...prev.social_links, { network: 'Instagram', value: '' }],
+      }));
+    }
+  };
+
+  const handleUpdateSocialLink = (isEdit: boolean, index: number, field: 'network' | 'value', val: string) => {
+    if (isEdit) {
+      setEditLead((prev) => {
+        const next = [...prev.social_links];
+        next[index] = { ...next[index], [field]: val };
+        return { ...prev, social_links: next };
+      });
+    } else {
+      setNewLead((prev) => {
+        const next = [...prev.social_links];
+        next[index] = { ...next[index], [field]: val };
+        return { ...prev, social_links: next };
+      });
+    }
+  };
+
+  const handleRemoveSocialLink = (isEdit: boolean, index: number) => {
+    if (isEdit) {
+      setEditLead((prev) => ({
+        ...prev,
+        social_links: prev.social_links.filter((_, i) => i !== index),
+      }));
+    } else {
+      setNewLead((prev) => ({
+        ...prev,
+        social_links: prev.social_links.filter((_, i) => i !== index),
+      }));
+    }
+  };
 
   // ============================================================
   // FETCH LEADS
@@ -422,6 +469,7 @@ export default function CRMPage() {
       contact_name: lead.contact_name || '',
       company: lead.company || '',
       phone: lead.phone || '',
+      phone2: lead.phone2 || '',
       whatsapp: lead.whatsapp || '',
       email: lead.email || '',
       city: lead.city || '',
@@ -1295,6 +1343,19 @@ export default function CRMPage() {
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Segundo Telefone / Fixo
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="(11) 3456-7890 ou celular alternativo"
+                        value={newLead.phone2}
+                        onChange={(e) => setNewLead({ ...newLead, phone2: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         E-mail
                       </label>
                       <input
@@ -1302,6 +1363,20 @@ export default function CRMPage() {
                         placeholder="contato@cliente.com"
                         value={newLead.email}
                         onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
+                        <Globe size={13} className="text-blue-600" />
+                        Site / Website
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://www.empresa.com.br"
+                        value={newLead.website}
+                        onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
                         className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
@@ -1332,7 +1407,7 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         Valor Estimado (R$)
                       </label>
@@ -1344,6 +1419,60 @@ export default function CRMPage() {
                         className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
+                  </div>
+
+                  {/* Redes Sociais Dinâmicas */}
+                  <div className="space-y-2 pt-3 border-t border-gray-150 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 text-xs">
+                        Redes Sociais
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSocialLink(false)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg text-[11px] font-bold transition-colors shadow-2xs"
+                      >
+                        <Plus size={12} />
+                        <span>Adicionar Rede Social</span>
+                      </button>
+                    </div>
+
+                    {newLead.social_links.length === 0 ? (
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 italic">
+                        Nenhuma rede social adicionada. Clique no botão acima para vincular Instagram, Facebook, LinkedIn, etc.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {newLead.social_links.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={item.network}
+                              onChange={(e) => handleUpdateSocialLink(false, idx, 'network', e.target.value)}
+                              className="w-36 px-2.5 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none shrink-0"
+                            >
+                              {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                                <option key={net} value={net}>{net}</option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="Ex: @clinica ou link do perfil"
+                              value={item.value}
+                              onChange={(e) => handleUpdateSocialLink(false, idx, 'value', e.target.value)}
+                              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSocialLink(false, idx)}
+                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl transition-colors"
+                              title="Remover rede social"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1484,12 +1613,39 @@ export default function CRMPage() {
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Segundo Telefone / Fixo
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="(11) 3456-7890 ou celular alternativo"
+                        value={editLead.phone2}
+                        onChange={(e) => setEditLead({ ...editLead, phone2: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         E-mail
                       </label>
                       <input
                         type="email"
                         value={editLead.email}
                         onChange={(e) => setEditLead({ ...editLead, email: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
+                        <Globe size={13} className="text-blue-600" />
+                        Site / Website
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://www.empresa.com.br"
+                        value={editLead.website}
+                        onChange={(e) => setEditLead({ ...editLead, website: e.target.value })}
                         className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
@@ -1518,7 +1674,7 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         Valor Estimado (R$)
                       </label>
@@ -1529,6 +1685,60 @@ export default function CRMPage() {
                         className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
+                  </div>
+
+                  {/* Redes Sociais Dinâmicas */}
+                  <div className="space-y-2 pt-3 border-t border-gray-150 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 text-xs">
+                        Redes Sociais
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSocialLink(true)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg text-[11px] font-bold transition-colors shadow-2xs"
+                      >
+                        <Plus size={12} />
+                        <span>Adicionar Rede Social</span>
+                      </button>
+                    </div>
+
+                    {editLead.social_links.length === 0 ? (
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 italic">
+                        Nenhuma rede social vinculada. Clique no botão acima para adicionar Instagram, Facebook, LinkedIn, etc.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {editLead.social_links.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={item.network}
+                              onChange={(e) => handleUpdateSocialLink(true, idx, 'network', e.target.value)}
+                              className="w-36 px-2.5 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none shrink-0"
+                            >
+                              {SOCIAL_NETWORK_OPTIONS.map((net) => (
+                                <option key={net} value={net}>{net}</option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              placeholder="Ex: @clinica ou link do perfil"
+                              value={item.value}
+                              onChange={(e) => handleUpdateSocialLink(true, idx, 'value', e.target.value)}
+                              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSocialLink(true, idx)}
+                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl transition-colors"
+                              title="Remover rede social"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>

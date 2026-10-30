@@ -16,6 +16,7 @@ export async function ensureCrmLeadsSchema(db: any) {
           company TEXT,
           email TEXT,
           phone TEXT,
+          phone2 TEXT,
           whatsapp TEXT,
           city TEXT,
           address TEXT,
@@ -79,6 +80,7 @@ export async function ensureCrmLeadsSchema(db: any) {
     'ALTER TABLE crm_leads ADD COLUMN platform TEXT',
     'ALTER TABLE crm_leads ADD COLUMN source TEXT',
     'ALTER TABLE crm_leads ADD COLUMN whatsapp TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN phone2 TEXT',
     'ALTER TABLE crm_leads ADD COLUMN primary_channel TEXT DEFAULT "WhatsApp"',
     'ALTER TABLE crm_leads ADD COLUMN last_contact_at TEXT',
     'ALTER TABLE crm_leads ADD COLUMN last_reply_at TEXT',
@@ -304,6 +306,7 @@ export async function POST(request: NextRequest) {
     const company = body.company ?? null;
     const email = body.email ?? null;
     const phone = body.phone ?? null;
+    const phone2 = body.phone2 ?? null;
     const whatsapp = body.whatsapp ?? null;
     const city = body.city ?? null;
     const address = body.address ?? null;
@@ -341,8 +344,8 @@ export async function POST(request: NextRequest) {
     await db
       .prepare(
         `INSERT INTO crm_leads
-          (id, contact_name, company, email, phone, whatsapp, city, address, platform, source, primary_channel, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, status_entered_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, contact_name, company, email, phone, phone2, whatsapp, city, address, platform, source, primary_channel, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, status_entered_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -350,6 +353,7 @@ export async function POST(request: NextRequest) {
         company,
         email,
         phone,
+        phone2,
         whatsapp,
         city,
         address,

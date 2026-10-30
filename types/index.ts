@@ -55,6 +55,7 @@ export interface Client {
   document?: string | null;
   email?: string | null;
   phone?: string | null;
+  phone2?: string | null;
   whatsapp?: string | null;
   address?: string | null;
   city?: string | null;
@@ -292,6 +293,7 @@ export interface CRMLead {
   contact_name: string;
   company?: string | null;
   phone?: string | null;
+  phone2?: string | null;
   whatsapp?: string | null;
   email?: string | null;
   city?: string | null;

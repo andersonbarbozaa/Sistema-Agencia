@@ -73,7 +73,7 @@ export function CRMLeadDetailModal({
   onReactivate,
   showToast,
 }: CRMLeadDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'interactions' | 'status_history' | 'info'>('interactions');
+  const [activeTab, setActiveTab] = useState<'info' | 'interactions' | 'status_history'>('info');
   const [interactions, setInteractions] = useState<CRMInteraction[]>(lead.interactions || []);
   const [statusHistory, setStatusHistory] = useState<CRMStatusHistory[]>(lead.status_history || []);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>(lead.status_counts || {});
@@ -285,6 +285,19 @@ export function CRMLeadDetailModal({
           {/* 3. NAVEGAÇÃO DE SUB-ABAS NO DETALHE */}
           <div className="px-5 sm:px-6 pt-3 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700 flex gap-2 overflow-x-auto text-xs">
             <button
+              onClick={() => setActiveTab('info')}
+              className={cn(
+                'px-4 py-2 rounded-t-xl font-bold transition-all border-b-2 flex items-center gap-2 shrink-0',
+                activeTab === 'info'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400'
+              )}
+            >
+              <FileText size={14} />
+              <span>Dados & Informações</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('interactions')}
               className={cn(
                 'px-4 py-2 rounded-t-xl font-bold transition-all border-b-2 flex items-center gap-2 shrink-0',
@@ -314,19 +327,6 @@ export function CRMLeadDetailModal({
               <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300">
                 {statusHistory.length}
               </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('info')}
-              className={cn(
-                'px-4 py-2 rounded-t-xl font-bold transition-all border-b-2 flex items-center gap-2 shrink-0',
-                activeTab === 'info'
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400'
-              )}
-            >
-              <FileText size={14} />
-              <span>Dados & Informações</span>
             </button>
           </div>
 
@@ -629,7 +629,7 @@ export function CRMLeadDetailModal({
                 {/* Grid de Informações de Contato */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="p-3 bg-gray-50 dark:bg-gray-750 rounded-xl space-y-1">
-                    <span className="text-gray-400 block text-[11px]">Telefone:</span>
+                    <span className="text-gray-400 block text-[11px]">Telefone Principal:</span>
                     <p className="font-semibold text-gray-800 dark:text-gray-200">{lead.phone || '—'}</p>
                   </div>
 
@@ -647,6 +647,21 @@ export function CRMLeadDetailModal({
                       )}
                     </div>
                     <p className="font-semibold text-gray-800 dark:text-gray-200">{lead.whatsapp || lead.phone || '—'}</p>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 dark:bg-gray-750 rounded-xl space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-[11px]">Segundo Telefone / Fixo:</span>
+                      {lead.phone2 && (
+                        <a
+                          href={`tel:${lead.phone2.replace(/\D/g, '')}`}
+                          className="text-[11px] text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1"
+                        >
+                          <PhoneCall size={11} /> Ligar
+                        </a>
+                      )}
+                    </div>
+                    <p className="font-semibold text-gray-800 dark:text-gray-200">{lead.phone2 || '—'}</p>
                   </div>
 
                   <div className="p-3 bg-gray-50 dark:bg-gray-750 rounded-xl space-y-1">

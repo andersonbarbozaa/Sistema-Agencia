@@ -123,9 +123,25 @@ export function CRMLeadCard({
         ) : null}
       </div>
 
-      {/* 4. REDES SOCIAIS E LINKS (Secundários) */}
-      {(hasWebsite || socials.length > 0) && (
-        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+      {/* 4. AÇÃO EXPLÍCITA DE REATIVAÇÃO PARA LEADS FECHADOS OU PERDIDOS (Requisito 1) */}
+      {isClosed && (
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={(e) => onReactivate(lead, e)}
+            className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl text-[10px] font-bold shadow-2xs transition-all active:scale-[0.98]"
+            title="Reabrir ou reativar negociação preservando histórico anterior"
+          >
+            <RefreshCw size={11} className="text-blue-600 dark:text-blue-400" />
+            <span>Reativar Oportunidade</span>
+          </button>
+        </div>
+      )}
+
+      {/* 5. ÁREA DE REDES/SITE À ESQUERDA & AÇÕES À DIREITA (Registrar acima, Contato Principal abaixo) */}
+      <div className="pt-1 flex items-end justify-between gap-2">
+        {/* Lado Esquerdo: Redes sociais e Website */}
+        <div className="flex items-center gap-1 flex-wrap min-h-[24px]">
           {hasWebsite && (
             <a
               href={normalizeWebsiteUrl(lead.website!)}
@@ -160,77 +176,62 @@ export function CRMLeadCard({
             </a>
           ))}
         </div>
-      )}
 
-      {/* 5. AÇÃO EXPLÍCITA DE REATIVAÇÃO PARA LEADS FECHADOS OU PERDIDOS (Requisito 1) */}
-      {isClosed && (
-        <div className="pt-1">
+        {/* Lado Direito: Botão "Registrar" fica ACIMA do botão do "Contato Principal" */}
+        <div className="flex flex-col items-end gap-1 shrink-0 ml-auto">
+          {/* Botão Registrar acima */}
           <button
             type="button"
-            onClick={(e) => onReactivate(lead, e)}
-            className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl text-[10px] font-bold shadow-2xs transition-all active:scale-[0.98]"
-            title="Reabrir ou reativar negociação preservando histórico anterior"
+            onClick={(e) => onQuickContact(lead, e)}
+            className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 hover:bg-blue-50 dark:bg-gray-750 dark:hover:bg-blue-950/50 text-gray-700 hover:text-blue-700 dark:text-gray-300 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 rounded-lg font-semibold text-[10px] transition-colors shadow-2xs"
+            title="Registrar contato ou interação realizada"
           >
-            <RefreshCw size={11} className="text-blue-600 dark:text-blue-400" />
-            <span>Reativar Oportunidade</span>
-          </button>
-        </div>
-      )}
-
-      {/* 6. RODAPÉ: AÇÃO RÁPIDA "REGISTRAR CONTATO" + CANAL PRINCIPAL NO LADO DIREITO */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 flex items-center justify-between gap-1.5">
-        {/* Requisito 3: Ação rápida "Registrar contato" no card */}
-        <button
-          type="button"
-          onClick={(e) => onQuickContact(lead, e)}
-          className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 hover:bg-blue-50 dark:bg-gray-750 dark:hover:bg-blue-950/50 text-gray-700 hover:text-blue-700 dark:text-gray-300 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 rounded-lg font-semibold text-[10px] transition-colors shadow-2xs"
-          title="Registrar contato ou interação realizada"
-        >
-          <PhoneCall size={10} className="text-blue-600 dark:text-blue-400 shrink-0" />
-          <span>Registrar</span>
-        </button>
-
-        {/* Requisito 5: Canal Principal de Contato no lado direito do card */}
-        <div className="flex items-center gap-1 ml-auto">
-          <button
-            type="button"
-            onClick={(e) => onExecutePrimaryChannel(lead, e)}
-            className={cn(
-              'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border shadow-2xs transition-all active:scale-[0.98]',
-              channelTarget.hasData
-                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-            )}
-            title={
-              channelTarget.hasData
-                ? `Contatar via ${lead.primary_channel || 'WhatsApp'}`
-                : `Clique para cadastrar ${channelTarget.missingField} de ${lead.contact_name}`
-            }
-          >
-            {renderChannelIcon(lead.primary_channel || 'WhatsApp', 11)}
-            <span className="truncate max-w-[85px]">{lead.primary_channel || 'WhatsApp'}</span>
-            {!channelTarget.hasData && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" title="Dados ausentes" />
-            )}
+            <PhoneCall size={9} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <span>Registrar</span>
           </button>
 
-          {/* Seletor rápido para trocar o canal principal diretamente pelo card */}
-          <select
-            value={lead.primary_channel || 'WhatsApp'}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              e.stopPropagation();
-              onChangePrimaryChannel(lead.id, e.target.value);
-            }}
-            className="p-1 text-[9px] bg-transparent border-0 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer focus:ring-0 focus:outline-none"
-            title="Alterar canal principal deste lead"
-          >
-            {CRM_CHANNELS.map((ch) => (
-              <option key={ch} value={ch} className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">
-                {ch}
-              </option>
-            ))}
-          </select>
+          {/* Botão Contato Principal à frente/ao lado dos ícones de redes sociais e site */}
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={(e) => onExecutePrimaryChannel(lead, e)}
+              className={cn(
+                'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border shadow-2xs transition-all active:scale-[0.98]',
+                channelTarget.hasData
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+              )}
+              title={
+                channelTarget.hasData
+                  ? `Contatar via ${lead.primary_channel || 'WhatsApp'}`
+                  : `Clique para cadastrar ${channelTarget.missingField} de ${lead.contact_name}`
+              }
+            >
+              {renderChannelIcon(lead.primary_channel || 'WhatsApp', 11)}
+              <span className="truncate max-w-[80px]">{lead.primary_channel || 'WhatsApp'}</span>
+              {!channelTarget.hasData && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" title="Dados ausentes" />
+              )}
+            </button>
+
+            {/* Seletor rápido para trocar o canal principal diretamente pelo card */}
+            <select
+              value={lead.primary_channel || 'WhatsApp'}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                onChangePrimaryChannel(lead.id, e.target.value);
+              }}
+              className="p-0.5 text-[9px] bg-transparent border-0 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer focus:ring-0 focus:outline-none"
+              title="Alterar canal principal deste lead"
+            >
+              {CRM_CHANNELS.map((ch) => (
+                <option key={ch} value={ch} className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">
+                  {ch}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>

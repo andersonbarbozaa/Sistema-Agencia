@@ -171,6 +171,7 @@ function getLocalDatabase(): D1DatabaseInterface {
         ALTER TABLE crm_leads ADD COLUMN platform TEXT;
         ALTER TABLE crm_leads ADD COLUMN source TEXT;
         ALTER TABLE crm_leads ADD COLUMN whatsapp TEXT;
+        ALTER TABLE crm_leads ADD COLUMN phone2 TEXT;
         ALTER TABLE crm_leads ADD COLUMN primary_channel TEXT DEFAULT 'WhatsApp';
         ALTER TABLE crm_leads ADD COLUMN last_contact_at TEXT;
         ALTER TABLE crm_leads ADD COLUMN last_reply_at TEXT;
