@@ -257,12 +257,35 @@ export interface Contract {
 }
 
 export type CRMLeadStatus = 
+  | 'Novo lead'
+  | 'Em contato'
+  | 'Qualificação'
+  | 'Proposta enviada'
+  | 'Em negociação'
+  | 'Fechado — ganho'
+  | 'Perdido'
+  // Suporte a transição legada
   | 'Novo'
   | 'Em andamento'
   | 'Aguardando resposta'
   | 'Sem resposta'
   | 'Finalizado positivo'
   | 'Finalizado negativo';
+
+export type CRMContactChannel = 'WhatsApp' | 'Instagram Direct' | 'Telefone' | 'E-mail' | 'Outro';
+
+export interface CRMStatusHistory {
+  id: string;
+  lead_id: string;
+  previous_status?: string | null;
+  new_status: string;
+  moved_at: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  duration_seconds?: number | null;
+  notes?: string | null;
+  created_at?: string;
+}
 
 export interface CRMLead {
   id: string;
@@ -276,6 +299,7 @@ export interface CRMLead {
   first_contact_date?: string;
   platform?: string | null;
   source?: string | null;
+  primary_channel?: CRMContactChannel | string | null;
   estimated_value?: number | null;
   assignee_id?: string | null;
   assignee_name?: string | null;
@@ -289,11 +313,27 @@ export interface CRMLead {
   description?: string | null;
   social_links?: string | null;
   last_activity_at: string;
+  last_contact_at?: string | null;
+  last_reply_at?: string | null;
+  last_interaction_at?: string | null;
+  status_entered_at?: string | null;
   is_inactive?: boolean; // True se last_activity_at > 7 dias
   created_at: string;
   updated_at: string;
   interactions_count?: number;
+  interactions?: CRMInteraction[];
+  status_history?: CRMStatusHistory[];
+  status_counts?: Record<string, number>;
+  business_days_without_contact?: number | null;
+  follow_up_status?: 'green' | 'yellow' | 'red' | 'none' | 'closed';
 }
+
+export type CRMInteractionType =
+  | 'Mensagem enviada'
+  | 'Resposta recebida'
+  | 'Ligação'
+  | 'Reunião'
+  | 'Outro';
 
 export interface CRMInteraction {
   id: string;
@@ -302,6 +342,8 @@ export interface CRMInteraction {
   user_name?: string;
   interaction_date: string;
   platform: string;
+  channel?: string;
+  type?: CRMInteractionType | string;
   message: string;
   notes?: string | null;
   created_at: string;

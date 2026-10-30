@@ -14,9 +14,10 @@ async function ensureCrmInteractionsSchema(db: any) {
           user_id TEXT NOT NULL,
           interaction_date TEXT NOT NULL DEFAULT (datetime('now')),
           platform TEXT DEFAULT 'WhatsApp',
+          channel TEXT DEFAULT 'WhatsApp',
           message TEXT DEFAULT '',
           notes TEXT,
-          type TEXT,
+          type TEXT DEFAULT 'Mensagem enviada',
           created_at TEXT DEFAULT (datetime('now'))
         )
       `)
@@ -25,10 +26,14 @@ async function ensureCrmInteractionsSchema(db: any) {
 
   const alters = [
     'ALTER TABLE crm_interactions ADD COLUMN platform TEXT',
+    'ALTER TABLE crm_interactions ADD COLUMN channel TEXT',
     'ALTER TABLE crm_interactions ADD COLUMN message TEXT',
     'ALTER TABLE crm_interactions ADD COLUMN type TEXT',
     'ALTER TABLE crm_interactions ADD COLUMN notes TEXT',
     'ALTER TABLE crm_interactions ADD COLUMN created_at TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN last_contact_at TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN last_reply_at TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN last_interaction_at TEXT',
   ];
   for (const sql of alters) {
     try {
@@ -59,10 +64,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           i.lead_id,
           i.user_id,
           i.interaction_date,
-          COALESCE(i.platform, i.type, 'WhatsApp') AS platform,
+          COALESCE(i.channel, i.platform, 'WhatsApp') AS platform,
+          COALESCE(i.channel, i.platform, 'WhatsApp') AS channel,
           COALESCE(i.message, i.notes, '') AS message,
           COALESCE(i.notes, i.message, '') AS notes,
-          COALESCE(i.type, i.platform, 'WhatsApp') AS type,
+          COALESCE(i.type, 'Mensagem enviada') AS type,
           COALESCE(i.created_at, i.interaction_date) AS created_at,
           u.name AS author_name
         FROM crm_interactions i
@@ -74,8 +80,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .all();
 
     return NextResponse.json({
-      data: interactions.results,
-      interactions: interactions.results,
+      data: interactions.results || [],
+      interactions: interactions.results || [],
     });
   } catch (error) {
     console.error('GET /api/crm/[id]/interactions error:', error);
@@ -83,7 +89,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// POST /api/crm/[id]/interactions - Add interaction and update lead activity
+// POST /api/crm/[id]/interactions - Add real contact interaction and update lead contact dates (Requisito 3)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getApiUser(request);
@@ -101,78 +107,89 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!lead) return NextResponse.json({ error: 'Lead não encontrado.' }, { status: 404 });
 
     const body = await request.json().catch(() => ({}));
-    const platform = (body.platform || body.type || 'WhatsApp').trim();
+    const channel = (body.channel || body.platform || 'WhatsApp').trim();
+    const type = (body.type || 'Mensagem enviada').trim();
     const message = (body.message || body.notes || '').trim();
-    const notes = body.notes || message; // Preenche notes com message caso haja constraint NOT NULL
-    const type = body.type || platform;  // Preenche type com platform caso haja constraint NOT NULL
+    const notes = body.notes || message;
     const now = new Date().toISOString();
     const interactionDate = body.interaction_date || now;
 
     if (!message) {
-      return NextResponse.json({ error: 'A descrição da interação é obrigatória.' }, { status: 400 });
+      return NextResponse.json({ error: 'A descrição ou observação do contato é obrigatória.' }, { status: 400 });
     }
 
     const interactionId =
       'intr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 
-    // Inserção com fallback para schemas diferentes de SQLite / D1
     try {
+      await db
+        .prepare(
+          `INSERT INTO crm_interactions (id, lead_id, user_id, interaction_date, platform, channel, message, notes, type, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(interactionId, id, user.id, interactionDate, channel, channel, message, notes, type, now)
+        .run();
+    } catch {
+      // Fallback para schema legado
       await db
         .prepare(
           `INSERT INTO crm_interactions (id, lead_id, user_id, interaction_date, platform, message, notes, type, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(interactionId, id, user.id, interactionDate, platform, message, notes, type, now)
-        .run();
-    } catch (insertErr) {
-      // Fallback para schema original (type, notes)
-      await db
-        .prepare(
-          `INSERT INTO crm_interactions (id, lead_id, user_id, interaction_date, type, notes)
-          VALUES (?, ?, ?, ?, ?, ?)`
-        )
-        .bind(interactionId, id, user.id, interactionDate, type, notes)
+        .bind(interactionId, id, user.id, interactionDate, channel, message, notes, type, now)
         .run();
     }
 
-    // Atualiza data de última atividade do Lead
+    // Requisito 3: Atualiza data do último contato SOMENTE quando uma interação real for registrada!
+    // Mantém separadas as datas de último contato realizado pela equipe e última resposta recebida do lead
+    const isReply = type === 'Resposta recebida';
     try {
-      await db
-        .prepare(`UPDATE crm_leads SET last_activity_at = ?, updated_at = ? WHERE id = ?`)
-        .bind(now, now, id)
-        .run();
+      if (isReply) {
+        await db
+          .prepare(
+            `UPDATE crm_leads
+             SET last_reply_at = ?,
+                 last_interaction_at = ?,
+                 last_activity_at = ?,
+                 updated_at = ?
+             WHERE id = ?`
+          )
+          .bind(interactionDate, interactionDate, now, now, id)
+          .run();
+      } else {
+        await db
+          .prepare(
+            `UPDATE crm_leads
+             SET last_contact_at = ?,
+                 last_interaction_at = ?,
+                 last_activity_at = ?,
+                 updated_at = ?
+             WHERE id = ?`
+          )
+          .bind(interactionDate, interactionDate, now, now, id)
+          .run();
+      }
+    } catch (updateErr) {
+      console.warn('Erro ao atualizar datas de contato do lead:', updateErr);
+    }
+
+    try {
+      await logAudit(user.id, 'crm_interactions', 'CREATE', interactionId, {
+        lead_id: id,
+        channel,
+        type,
+        message,
+        interactionDate,
+      });
     } catch {}
 
-    try {
-      await logAudit(user.id, 'crm_interactions', 'CREATE', interactionId, { lead_id: id, platform, message });
-    } catch {}
-
-    const rawInteraction = await db
-      .prepare(
-        `SELECT
-          i.id,
-          i.lead_id,
-          i.user_id,
-          i.interaction_date,
-          COALESCE(i.platform, i.type, ?) AS platform,
-          COALESCE(i.message, i.notes, ?) AS message,
-          COALESCE(i.notes, i.message, ?) AS notes,
-          COALESCE(i.type, i.platform, ?) AS type,
-          COALESCE(i.created_at, i.interaction_date) AS created_at,
-          u.name AS author_name
-        FROM crm_interactions i
-        LEFT JOIN users u ON u.id = i.user_id
-        WHERE i.id = ?`
-      )
-      .bind(platform, message, message, platform, interactionId)
-      .first();
-
-    const formattedInteraction = rawInteraction || {
+    const formattedInteraction = {
       id: interactionId,
       lead_id: id,
       user_id: user.id,
       interaction_date: interactionDate,
-      platform,
+      platform: channel,
+      channel,
       message,
       notes,
       type,

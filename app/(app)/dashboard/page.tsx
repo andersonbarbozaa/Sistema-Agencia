@@ -605,12 +605,13 @@ export default function DashboardPage() {
                     onChange={(e) => setEditLeadForm({ ...editLeadForm, status: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold"
                   >
-                    <option value="Novo">Novo</option>
-                    <option value="Em andamento">Em andamento</option>
-                    <option value="Aguardando resposta">Aguardando resposta</option>
-                    <option value="Sem resposta">Sem resposta</option>
-                    <option value="Finalizado positivo">Finalizado positivo</option>
-                    <option value="Finalizado negativo">Finalizado negativo</option>
+                    <option value="Novo lead">Novo lead</option>
+                    <option value="Em contato">Em contato</option>
+                    <option value="Qualificação">Qualificação</option>
+                    <option value="Proposta enviada">Proposta enviada</option>
+                    <option value="Em negociação">Em negociação</option>
+                    <option value="Fechado — ganho">Fechado — ganho</option>
+                    <option value="Perdido">Perdido</option>
                   </select>
                 </div>
               </div>

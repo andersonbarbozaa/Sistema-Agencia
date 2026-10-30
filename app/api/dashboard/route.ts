@@ -180,7 +180,7 @@ export async function GET(request: Request) {
                CASE WHEN CAST((julianday('now') - julianday(l.last_activity_at)) AS INTEGER) > 7 THEN 1 ELSE 0 END as is_inactive
         FROM crm_leads l
         LEFT JOIN users u ON l.assignee_id = u.id
-        WHERE l.status NOT IN ('Finalizado positivo', 'Finalizado negativo')
+        WHERE l.status NOT IN ('Fechado — ganho', 'Perdido', 'Finalizado positivo', 'Finalizado negativo')
           AND (l.workspace_id = ? OR (l.workspace_id IS NULL AND ? = 'ws_default'))
         ORDER BY l.last_activity_at DESC
         LIMIT 5

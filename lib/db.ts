@@ -148,13 +148,34 @@ function getLocalDatabase(): D1DatabaseInterface {
         ALTER TABLE crm_interactions ADD COLUMN platform TEXT;
         ALTER TABLE crm_interactions ADD COLUMN message TEXT;
         ALTER TABLE crm_interactions ADD COLUMN type TEXT;
+        ALTER TABLE crm_interactions ADD COLUMN channel TEXT;
         ALTER TABLE crm_interactions ADD COLUMN notes TEXT;
         ALTER TABLE crm_interactions ADD COLUMN created_at TEXT;
+
+        CREATE TABLE IF NOT EXISTS crm_status_history (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL,
+          previous_status TEXT,
+          new_status TEXT NOT NULL,
+          moved_at TEXT NOT NULL DEFAULT (datetime('now')),
+          user_id TEXT,
+          user_name TEXT,
+          duration_seconds INTEGER DEFAULT 0,
+          notes TEXT,
+          workspace_id TEXT DEFAULT 'ws_default',
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_crm_status_history_lead ON crm_status_history(lead_id);
 
         ALTER TABLE crm_leads ADD COLUMN city TEXT;
         ALTER TABLE crm_leads ADD COLUMN platform TEXT;
         ALTER TABLE crm_leads ADD COLUMN source TEXT;
         ALTER TABLE crm_leads ADD COLUMN whatsapp TEXT;
+        ALTER TABLE crm_leads ADD COLUMN primary_channel TEXT DEFAULT 'WhatsApp';
+        ALTER TABLE crm_leads ADD COLUMN last_contact_at TEXT;
+        ALTER TABLE crm_leads ADD COLUMN last_reply_at TEXT;
+        ALTER TABLE crm_leads ADD COLUMN last_interaction_at TEXT;
+        ALTER TABLE crm_leads ADD COLUMN status_entered_at TEXT;
         ALTER TABLE crm_leads ADD COLUMN estimated_value REAL DEFAULT 0;
         ALTER TABLE crm_leads ADD COLUMN first_contact_date TEXT;
         ALTER TABLE crm_leads ADD COLUMN website TEXT;
