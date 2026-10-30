@@ -53,7 +53,6 @@ export function CRMLeadCard({
   onChangePrimaryChannel,
   onReactivate,
 }: CRMLeadCardProps) {
-  const followUp = getFollowUpInfo(lead);
   const channelTarget = getChannelTarget(lead.primary_channel, lead);
   const socials = parseSocialLinks(lead);
   const hasWebsite = Boolean(lead.website && lead.website.trim());
@@ -73,31 +72,7 @@ export function CRMLeadCard({
         'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
       )}
     >
-      {/* 1. TOPO: Indicador de Tempo Sem Contato (Bolinha) + Plataforma de Origem */}
-      <div className="flex items-center justify-between gap-2 text-[10px]">
-        {/* Requisito 4: Indicador de tempo sem contato com bolinha colorida */}
-        <div
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 dark:bg-gray-750 border border-gray-150 dark:border-gray-700 max-w-[170px]"
-          title={followUp.description}
-        >
-          <span className={cn('w-2 h-2 rounded-full inline-block shrink-0', followUp.dotClass)} />
-          <span className="truncate font-semibold text-gray-600 dark:text-gray-300">
-            {followUp.label}
-          </span>
-        </div>
-
-        {/* Plataforma / Origem */}
-        {(lead.platform || lead.source) && (
-          <span
-            className="text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate"
-            title={`Origem: ${lead.platform || lead.source}`}
-          >
-            {lead.platform || lead.source}
-          </span>
-        )}
-      </div>
-
-      {/* 2. NOME DO CONTATO E EMPRESA */}
+      {/* 1. NOME DO CONTATO E EMPRESA */}
       <div>
         <div className="flex items-center justify-between gap-1">
           <span className="font-bold text-xs text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
@@ -111,7 +86,7 @@ export function CRMLeadCard({
         )}
       </div>
 
-      {/* 3. CIDADE, ÁREA E VALOR ESTIMADO */}
+      {/* 2. CIDADE, ÁREA E VALOR ESTIMADO */}
       <div className="flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
         <span className="truncate">
           {lead.city ? lead.city : lead.segment ? lead.segment : '—'}
@@ -123,7 +98,7 @@ export function CRMLeadCard({
         ) : null}
       </div>
 
-      {/* 4. AÇÃO EXPLÍCITA DE REATIVAÇÃO PARA LEADS FECHADOS OU PERDIDOS (Requisito 1) */}
+      {/* 3. AÇÃO EXPLÍCITA DE REATIVAÇÃO PARA LEADS FECHADOS OU PERDIDOS */}
       {isClosed && (
         <div className="pt-1">
           <button
@@ -138,17 +113,17 @@ export function CRMLeadCard({
         </div>
       )}
 
-      {/* 5. ÁREA DE REDES/SITE À ESQUERDA & AÇÕES À DIREITA (Registrar acima, Contato Principal abaixo) */}
+      {/* 4. ÁREA DE REDES/SITE À ESQUERDA & AÇÕES À DIREITA (Registrar acima, Contato Principal abaixo) */}
       <div className="pt-1 flex items-end justify-between gap-2">
-        {/* Lado Esquerdo: Redes sociais e Website */}
-        <div className="flex items-center gap-1 flex-wrap min-h-[24px]">
+        {/* Lado Esquerdo: Redes sociais e Website lado a lado na horizontal */}
+        <div className="flex flex-row items-center gap-1.5 flex-nowrap overflow-x-auto min-h-[24px]">
           {hasWebsite && (
             <a
               href={normalizeWebsiteUrl(lead.website!)}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="p-1 bg-gray-50 dark:bg-gray-750 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-gray-500 dark:text-gray-400 hover:text-blue-600 rounded-md transition-colors border border-gray-200 dark:border-gray-700"
+              className="p-1 bg-gray-50 dark:bg-gray-750 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-gray-500 dark:text-gray-400 hover:text-blue-600 rounded-md transition-colors border border-gray-200 dark:border-gray-700 shrink-0"
               title={`Website: ${lead.website}`}
             >
               <Globe size={11} />
@@ -161,7 +136,7 @@ export function CRMLeadCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="p-1 bg-gray-50 dark:bg-gray-750 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-gray-500 dark:text-gray-400 hover:text-blue-600 rounded-md transition-colors border border-gray-200 dark:border-gray-700"
+              className="p-1 bg-gray-50 dark:bg-gray-750 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-gray-500 dark:text-gray-400 hover:text-blue-600 rounded-md transition-colors border border-gray-200 dark:border-gray-700 shrink-0"
               title={`${s.network}: ${s.value}`}
             >
               {s.network.toLowerCase().includes('instagram') ? (
@@ -190,48 +165,28 @@ export function CRMLeadCard({
             <span>Registrar</span>
           </button>
 
-          {/* Botão Contato Principal à frente/ao lado dos ícones de redes sociais e site */}
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={(e) => onExecutePrimaryChannel(lead, e)}
-              className={cn(
-                'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border shadow-2xs transition-all active:scale-[0.98]',
-                channelTarget.hasData
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-              )}
-              title={
-                channelTarget.hasData
-                  ? `Contatar via ${lead.primary_channel || 'WhatsApp'}`
-                  : `Clique para cadastrar ${channelTarget.missingField} de ${lead.contact_name}`
-              }
-            >
-              {renderChannelIcon(lead.primary_channel || 'WhatsApp', 11)}
-              <span className="truncate max-w-[80px]">{lead.primary_channel || 'WhatsApp'}</span>
-              {!channelTarget.hasData && (
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" title="Dados ausentes" />
-              )}
-            </button>
-
-            {/* Seletor rápido para trocar o canal principal diretamente pelo card */}
-            <select
-              value={lead.primary_channel || 'WhatsApp'}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                onChangePrimaryChannel(lead.id, e.target.value);
-              }}
-              className="p-0.5 text-[9px] bg-transparent border-0 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer focus:ring-0 focus:outline-none"
-              title="Alterar canal principal deste lead"
-            >
-              {CRM_CHANNELS.map((ch) => (
-                <option key={ch} value={ch} className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">
-                  {ch}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Botão Contato Principal (sem dropdown) */}
+          <button
+            type="button"
+            onClick={(e) => onExecutePrimaryChannel(lead, e)}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border shadow-2xs transition-all active:scale-[0.98]',
+              channelTarget.hasData
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+            )}
+            title={
+              channelTarget.hasData
+                ? `Contatar via ${lead.primary_channel || 'WhatsApp'}`
+                : `Clique para cadastrar ${channelTarget.missingField} de ${lead.contact_name}`
+            }
+          >
+            {renderChannelIcon(lead.primary_channel || 'WhatsApp', 11)}
+            <span className="truncate max-w-[85px]">{lead.primary_channel || 'WhatsApp'}</span>
+            {!channelTarget.hasData && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" title="Dados ausentes" />
+            )}
+          </button>
         </div>
       </div>
     </div>

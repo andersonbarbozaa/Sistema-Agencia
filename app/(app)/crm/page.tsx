@@ -1315,21 +1315,6 @@ export default function CRMPage() {
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Canal Principal de Contato (Requisito 5)
-                      </label>
-                      <select
-                        value={newLead.primary_channel}
-                        onChange={(e) => setNewLead({ ...newLead, primary_channel: e.target.value as any })}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      >
-                        {CRM_CHANNELS.map((ch) => (
-                          <option key={ch} value={ch}>{ch}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         WhatsApp / Celular
                       </label>
                       <input
@@ -1407,7 +1392,22 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Contato
+                      </label>
+                      <select
+                        value={newLead.primary_channel}
+                        onChange={(e) => setNewLead({ ...newLead, primary_channel: e.target.value as any })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        {CRM_CHANNELS.map((ch) => (
+                          <option key={ch} value={ch}>{ch}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         Valor Estimado (R$)
                       </label>
@@ -1586,21 +1586,6 @@ export default function CRMPage() {
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Canal Principal de Contato (Requisito 5)
-                      </label>
-                      <select
-                        value={editLead.primary_channel}
-                        onChange={(e) => setEditLead({ ...editLead, primary_channel: e.target.value as any })}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      >
-                        {CRM_CHANNELS.map((ch) => (
-                          <option key={ch} value={ch}>{ch}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         WhatsApp / Celular
                       </label>
                       <input
@@ -1674,7 +1659,22 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Contato
+                      </label>
+                      <select
+                        value={editLead.primary_channel}
+                        onChange={(e) => setEditLead({ ...editLead, primary_channel: e.target.value as any })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        {CRM_CHANNELS.map((ch) => (
+                          <option key={ch} value={ch}>{ch}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         Valor Estimado (R$)
                       </label>
