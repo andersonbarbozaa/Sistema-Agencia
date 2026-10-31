@@ -691,7 +691,7 @@ export default function CRMPage() {
   }, [leads, statusFilter, followUpFilter, cityFilter, segmentFilter, dateFilterPreset, dateFrom, dateTo, searchQuery, sortField, sortDirection]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <div className="space-y-6 w-full pb-10">
       {/* Toast de Notificação */}
       {toast.show && (
         <div
