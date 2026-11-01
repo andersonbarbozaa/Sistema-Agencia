@@ -148,9 +148,13 @@ function buildSocialUrl(network: string, rawValue: string): string {
 }
 
 function getWhatsAppUrl(rawPhone: string): string {
-  const digits = (rawPhone || '').replace(/\D/g, '');
+  let digits = (rawPhone || '').replace(/\D/g, '');
   if (!digits) return '';
-  return `https://wa.me/${digits.length <= 11 ? '55' + digits : digits}`;
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+  const finalDigits = (digits.length === 10 || digits.length === 11) ? `55${digits}` : digits;
+  return `https://wa.me/${finalDigits}`;
 }
 
 export default function ClientsPage() {
@@ -564,6 +568,28 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header com Título e Botão de Novo Cliente */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <Users className="text-blue-600" size={26} />
+            <span>Clientes</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+            Gerencie sua carteira de clientes, contatos, dados de acesso e histórico.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm hover:shadow transition-all active:scale-[0.98] cursor-pointer shrink-0"
+        >
+          <Plus size={18} className="stroke-[2.5]" />
+          <span>Cadastrar Novo Cliente</span>
+        </button>
+      </div>
+
       {/* Search & Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
@@ -623,10 +649,22 @@ export default function ClientsPage() {
       ) : filteredClients.length === 0 ? (
         <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-gray-200">
           <Users size={36} className="mx-auto text-gray-400 mb-2" />
-          <h4 className="font-bold text-sm text-gray-800">Nenhum cliente cadastrado</h4>
+          <h4 className="font-bold text-sm text-gray-800">
+            {searchQuery || statusFilter !== 'todos' ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+          </h4>
           <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-            Cadastre um novo cliente ou adicione usuários com perfil de Cliente em Usuários para exibi-los aqui.
+            {searchQuery || statusFilter !== 'todos'
+              ? 'Nenhum cliente corresponde aos filtros aplicados. Tente ajustar sua busca.'
+              : 'Cadastre seu primeiro cliente para gerenciar projetos, tarefas e acessos.'}
           </p>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
+          >
+            <Plus size={16} className="stroke-[2.5]" />
+            <span>Cadastrar Novo Cliente</span>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -687,14 +725,28 @@ export default function ClientsPage() {
                   )}
                   {client.email && (
                     <div className="flex items-center gap-2">
-                      <Mail size={13} className="text-gray-400 flex-shrink-0" />
-                      <span className="truncate">{client.email}</span>
+                      <Mail size={13} className="text-blue-500 flex-shrink-0" />
+                      <a
+                        href={`mailto:${client.email}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="truncate text-gray-700 hover:text-blue-600 hover:underline font-medium transition-colors"
+                        title={`Enviar e-mail para ${client.email}`}
+                      >
+                        {client.email}
+                      </a>
                     </div>
                   )}
                   {client.phone && (
                     <div className="flex items-center gap-2">
                       <Phone size={13} className="text-gray-400 flex-shrink-0" />
-                      <span>{client.phone}</span>
+                      <a
+                        href={`tel:${client.phone.replace(/\D/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="truncate text-gray-700 hover:text-blue-600 hover:underline font-medium transition-colors"
+                        title={`Ligar para ${client.phone}`}
+                      >
+                        {client.phone}
+                      </a>
                     </div>
                   )}
                   {client.whatsapp && (
@@ -705,7 +757,7 @@ export default function ClientsPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="hover:underline text-emerald-700 font-medium"
+                        className="hover:underline text-emerald-700 font-medium truncate"
                         title="Abrir WhatsApp para enviar mensagem"
                       >
                         {client.whatsapp}
@@ -914,7 +966,19 @@ export default function ClientsPage() {
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-400 font-medium">E-mail Comercial:</span>
-                      <p className="font-semibold text-gray-800 mt-1 truncate">{selectedClient.email || '-'}</p>
+                      {selectedClient.email ? (
+                        <p className="font-semibold text-gray-800 mt-1 truncate">
+                          <a
+                            href={`mailto:${selectedClient.email}`}
+                            className="text-blue-600 hover:underline"
+                            title={`Enviar e-mail para ${selectedClient.email}`}
+                          >
+                            {selectedClient.email}
+                          </a>
+                        </p>
+                      ) : (
+                        <p className="font-semibold text-gray-800 mt-1">-</p>
+                      )}
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
                       <span className="text-gray-400 font-medium">Endereço:</span>
