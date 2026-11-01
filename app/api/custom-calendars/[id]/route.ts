@@ -17,7 +17,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, color, visibility } = body;
+    const { name, description, color, visibility, external_platform, external_url, external_account, sync_enabled } = body;
 
     const db = getDb();
     const wsId = user.workspace_id || 'ws_default';
@@ -39,13 +39,30 @@ export async function PATCH(
     const updatedDesc = description !== undefined ? description?.trim() : existing.description;
     const updatedColor = color !== undefined ? color : existing.color;
     const updatedVis = visibility !== undefined ? (visibility === 'private' ? 'private' : 'group') : existing.visibility;
+    const updatedExtPlatform = external_platform !== undefined ? external_platform : (existing.external_platform || 'none');
+    const updatedExtUrl = external_url !== undefined ? (external_url?.trim() || null) : existing.external_url;
+    const updatedExtAccount = external_account !== undefined ? (external_account?.trim() || null) : existing.external_account;
+    const updatedSyncEnabled = sync_enabled !== undefined ? (sync_enabled ? 1 : 0) : (existing.sync_enabled ? 1 : 0);
     const now = new Date().toISOString();
 
     await db.prepare(`
       UPDATE custom_calendars
-      SET name = ?, description = ?, color = ?, visibility = ?, updated_at = ?
+      SET name = ?, description = ?, color = ?, visibility = ?,
+          external_platform = ?, external_url = ?, external_account = ?, sync_enabled = ?,
+          updated_at = ?
       WHERE id = ?
-    `).bind(updatedName, updatedDesc, updatedColor, updatedVis, now, id).run();
+    `).bind(
+      updatedName,
+      updatedDesc,
+      updatedColor,
+      updatedVis,
+      updatedExtPlatform,
+      updatedExtUrl,
+      updatedExtAccount,
+      updatedSyncEnabled,
+      now,
+      id
+    ).run();
 
     const updated = await db.prepare(`SELECT * FROM custom_calendars WHERE id = ?`).bind(id).first();
 

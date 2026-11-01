@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import ProfileAvatarUpload from '@/components/ProfileAvatarUpload';
 import {
   Settings,
@@ -47,13 +48,16 @@ import {
   Zap,
   Crown,
   MessageCircle,
+  Calendar,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import { Position, TaskCategory, FinancialCategory, BankAccount, CRMWhatsAppTemplate } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { TextFormatPreset, DEFAULT_TEXT_PRESETS } from '@/components/RichTextEditor';
 import { DEFAULT_WHATSAPP_TEMPLATES, parseWhatsAppTemplates, formatWhatsAppTemplate } from '@/lib/whatsapp-templates';
 
-const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'finance', 'ai', 'appearance', 'formatting', 'plans', 'whatsapp'] as const;
+const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'calendars', 'finance', 'ai', 'appearance', 'formatting', 'plans', 'whatsapp'] as const;
 type SettingsTab = (typeof VALID_SETTINGS_TABS)[number];
 
 const SUBSCRIPTION_PLANS = [
@@ -151,7 +155,7 @@ function SettingsContent() {
   );
 
   useEffect(() => {
-    if (isClientUser && ['users', 'categories', 'finance', 'ai', 'formatting', 'plans', 'whatsapp'].includes(activeTab)) {
+    if (isClientUser && ['users', 'categories', 'calendars', 'finance', 'ai', 'formatting', 'plans', 'whatsapp'].includes(activeTab)) {
       setActiveTabState('company');
     }
   }, [isClientUser, activeTab]);
@@ -522,6 +526,159 @@ function SettingsContent() {
   const [aiSaving, setAiSaving] = useState(false);
   const [aiSuccess, setAiSuccess] = useState(false);
 
+  // CUSTOM CALENDARS SETTINGS
+  interface CustomCalendarItem {
+    id: string;
+    workspace_id?: string;
+    name: string;
+    description?: string | null;
+    color?: string;
+    visibility: 'group' | 'private';
+    external_platform?: 'none' | 'google' | 'outlook' | 'apple' | 'ical';
+    external_url?: string | null;
+    external_account?: string | null;
+    sync_enabled?: number | boolean;
+    created_by?: string | null;
+    created_by_name?: string | null;
+    events_count?: number;
+    tasks_count?: number;
+    created_at?: string;
+    updated_at?: string;
+  }
+
+  const [customCalendars, setCustomCalendars] = useState<CustomCalendarItem[]>([]);
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [editingCalendar, setEditingCalendar] = useState<CustomCalendarItem | null>(null);
+  const [calendarForm, setCalendarForm] = useState({
+    name: '',
+    description: '',
+    color: '#3B82F6',
+    visibility: 'group' as 'group' | 'private',
+    external_platform: 'none' as 'none' | 'google' | 'outlook' | 'apple' | 'ical',
+    external_url: '',
+    external_account: '',
+    sync_enabled: true,
+  });
+  const [savingCalendar, setSavingCalendar] = useState(false);
+
+  const fetchCustomCalendars = async () => {
+    try {
+      setLoadingCalendars(true);
+      const res = await fetch('/api/custom-calendars');
+      if (res.ok) {
+        const d = await res.json();
+        setCustomCalendars(d.calendars || []);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar agendas:', err);
+    } finally {
+      setLoadingCalendars(false);
+    }
+  };
+
+  const openCreateCalendar = () => {
+    setEditingCalendar(null);
+    setCalendarForm({
+      name: '',
+      description: '',
+      color: '#3B82F6',
+      visibility: 'group',
+      external_platform: 'none',
+      external_url: '',
+      external_account: '',
+      sync_enabled: true,
+    });
+    setShowCalendarModal(true);
+  };
+
+  const openEditCalendar = (cal: CustomCalendarItem) => {
+    setEditingCalendar(cal);
+    setCalendarForm({
+      name: cal.name || '',
+      description: cal.description || '',
+      color: cal.color || '#3B82F6',
+      visibility: cal.visibility === 'private' ? 'private' : 'group',
+      external_platform: (cal.external_platform as any) || 'none',
+      external_url: cal.external_url || '',
+      external_account: cal.external_account || '',
+      sync_enabled: cal.sync_enabled !== 0 && cal.sync_enabled !== false,
+    });
+    setShowCalendarModal(true);
+  };
+
+  const handleSaveCalendar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!calendarForm.name.trim()) return;
+
+    try {
+      setSavingCalendar(true);
+      const payload = {
+        name: calendarForm.name.trim(),
+        description: calendarForm.description ? calendarForm.description.trim() : null,
+        color: calendarForm.color || '#3B82F6',
+        visibility: calendarForm.visibility,
+        external_platform: calendarForm.external_platform,
+        external_url: calendarForm.external_platform !== 'none' ? calendarForm.external_url.trim() : null,
+        external_account: calendarForm.external_platform !== 'none' ? calendarForm.external_account.trim() : null,
+        sync_enabled: calendarForm.sync_enabled ? 1 : 0,
+      };
+
+      let res: Response;
+      if (editingCalendar) {
+        res = await fetch(`/api/custom-calendars/${editingCalendar.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch('/api/custom-calendars', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (res.ok) {
+        setShowCalendarModal(false);
+        setEditingCalendar(null);
+        await fetchCustomCalendars();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao salvar agenda');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro ao processar agenda');
+    } finally {
+      setSavingCalendar(false);
+    }
+  };
+
+  const handleDeleteCalendar = (cal: CustomCalendarItem) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Agenda?',
+      message: `Tem certeza que deseja remover a agenda "${cal.name}"? Os eventos e tarefas permanecerão salvos, mas não estarão mais vinculados a esta agenda.`,
+      confirmText: 'Sim, Excluir',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/custom-calendars/${cal.id}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            await fetchCustomCalendars();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'Erro ao excluir agenda');
+          }
+        } catch (err: any) {
+          alert(err.message || 'Erro ao excluir agenda');
+        }
+      },
+    });
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync tab with URL
@@ -536,7 +693,7 @@ function SettingsContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [uRes, pRes, cRes, aRes, sRes, cliRes, meRes, wsRes] = await Promise.all([
+      const [uRes, pRes, cRes, aRes, sRes, cliRes, meRes, wsRes, calRes] = await Promise.all([
         fetch('/api/users'),
         fetch('/api/positions'),
         fetch('/api/categories?type=all'),
@@ -545,6 +702,7 @@ function SettingsContent() {
         fetch('/api/clients'),
         fetch('/api/auth/me'),
         fetch('/api/workspaces/current'),
+        fetch('/api/custom-calendars'),
       ]);
 
       let fetchedMe = null;
@@ -632,6 +790,10 @@ function SettingsContent() {
       if (cliRes.ok) {
         const d = await cliRes.json();
         setClients(d.clients || d.data || []);
+      }
+      if (calRes && calRes.ok) {
+        const d = await calRes.json();
+        setCustomCalendars(d.calendars || []);
       }
     } catch (err) {
       console.error(err);
@@ -1495,6 +1657,22 @@ function SettingsContent() {
         {!isClientUser && (
           <button
             type="button"
+            onClick={() => setActiveTab('calendars')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'calendars'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            <span>Agendas</span>
+          </button>
+        )}
+
+        {!isClientUser && (
+          <button
+            type="button"
             onClick={() => setActiveTab('finance')}
             className={cn(
               'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
@@ -1796,6 +1974,32 @@ function SettingsContent() {
                     <div className="flex items-center gap-2.5 shrink-0">
                       <span className="px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 text-xs font-semibold">
                         {taskCategories.length} categorias
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </div>
+
+                  {/* Gerenciador de Agendas */}
+                  <div
+                    onClick={() => setActiveTab('calendars')}
+                    className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 pr-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors block">
+                          Gerenciador de Agendas
+                        </span>
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          Agendas da equipe e sincronização com Google, Outlook e iCal
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-xs font-semibold">
+                        {customCalendars.length} {customCalendars.length === 1 ? 'agenda' : 'agendas'}
                       </span>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
                     </div>
@@ -2595,6 +2799,8 @@ function SettingsContent() {
         </div>
       )}
 
+
+
       {/* ======================================================== */}
       {/* TAB 3: CATEGORIAS DO SISTEMA (Apenas Tarefas/Sistema)      */}
       {/* ======================================================== */}
@@ -2658,6 +2864,241 @@ function SettingsContent() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+
+
+            {/* ======================================================== */}
+      {/* TAB: AGENDAS & INTEGRAÇÃO COM OUTRAS PLATAFORMAS         */}
+      {/* ======================================================== */}
+      {activeTab === 'calendars' && (
+        <div className="space-y-6">
+          {/* Cabeçalho da Seção */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                Gerenciador de Agendas & Sincronização Externa
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Crie e configure agendas para sua equipe ou projetos, e vincule compromissos com Google Calendar, Outlook, Apple Calendar ou links iCal/Webcal.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={openCreateCalendar}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl transition-all shadow-sm shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nova Agenda</span>
+            </button>
+          </div>
+
+          {/* Banner de Integrações Suportadas */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                G
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">Google Calendar</div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">Via link iCal secreto</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-sky-50/60 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 rounded-xl flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-sky-600/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold text-xs shrink-0">
+                O
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">Outlook 365</div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">Microsoft Exchange</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-purple-50/60 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 rounded-xl flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-600/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs shrink-0">
+                
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">Apple Calendar</div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">iCloud / Webcal</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">Feed iCal / Webcal</div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">Qualquer URL pública</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de Agendas */}
+          {loadingCalendars ? (
+            <div className="py-12 text-center text-xs text-gray-500 dark:text-gray-400">
+              <RefreshCw className="w-5 h-5 mx-auto animate-spin mb-2 text-blue-600" />
+              Carregando agendas...
+            </div>
+          ) : customCalendars.length === 0 ? (
+            <div className="p-8 text-center bg-gray-50 dark:bg-gray-800/40 border border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1">
+                Nenhuma agenda cadastrada ainda
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-4">
+                Crie agendas para separar compromissos de projetos, setores da agência ou sincronizar com o Google Calendar / Outlook.
+              </p>
+              <button
+                type="button"
+                onClick={openCreateCalendar}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl transition-all shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Criar Primeira Agenda</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {customCalendars.map((cal) => {
+                const isExternal = cal.external_platform && cal.external_platform !== 'none';
+                return (
+                  <div
+                    key={cal.id}
+                    className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs hover:border-gray-300 dark:hover:border-gray-600 transition-all flex flex-col justify-between group"
+                  >
+                    <div>
+                      {/* Topo do Card */}
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className="w-4 h-4 rounded-full shrink-0 shadow-xs"
+                            style={{ backgroundColor: cal.color || '#3B82F6' }}
+                          />
+                          <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                            {cal.name}
+                          </h4>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openEditCalendar(cal)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            title="Editar Agenda"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCalendar(cal)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            title="Excluir Agenda"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Descrição */}
+                      {cal.description && (
+                        <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2 mb-3">
+                          {cal.description}
+                        </p>
+                      )}
+
+                      {/* Badges de Plataforma e Visibilidade */}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                        {/* Visibilidade */}
+                        {cal.visibility === 'private' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            <Lock className="w-3 h-3" /> Privada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400">
+                            <Users className="w-3 h-3" /> Equipe
+                          </span>
+                        )}
+
+                        {/* Plataforma */}
+                        {cal.external_platform === 'google' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400">
+                            Google Calendar
+                          </span>
+                        )}
+                        {cal.external_platform === 'outlook' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400">
+                            Outlook 365
+                          </span>
+                        )}
+                        {cal.external_platform === 'apple' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400">
+                            Apple iCloud
+                          </span>
+                        )}
+                        {cal.external_platform === 'ical' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+                            Feed iCal
+                          </span>
+                        )}
+                        {(!cal.external_platform || cal.external_platform === 'none') && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                            Agenda Local
+                          </span>
+                        )}
+
+                        {/* Status de Sincronização */}
+                        {isExternal && (
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold',
+                              cal.sync_enabled
+                                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                                : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+                            )}
+                          >
+                            <span className={cn('w-1.5 h-1.5 rounded-full', cal.sync_enabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500')} />
+                            {cal.sync_enabled ? 'Sincronização Ativa' : 'Pausada'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Informações de Conexão Externa */}
+                      {isExternal && (
+                        <div className="p-2.5 bg-gray-50 dark:bg-gray-750 rounded-xl text-xs space-y-1 mb-3">
+                          {cal.external_account && (
+                            <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                              <span className="text-[10px] text-gray-400 uppercase font-bold">Conta:</span>
+                              <span className="font-medium truncate">{cal.external_account}</span>
+                            </div>
+                          )}
+                          {cal.external_url && (
+                            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                              <span className="text-[10px] truncate max-w-[280px]" title={cal.external_url}>
+                                {cal.external_url}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Rodapé do Card com Métricas */}
+                    <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                      <span>{cal.events_count || 0} compromissos agendados</span>
+                      <span>{cal.tasks_count || 0} tarefas</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -2878,6 +3319,8 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+
 
       {/* ======================================================== */}
       {/* TAB 5: ASSISTENTE DE IA (Configurações)                   */}
@@ -3270,6 +3713,8 @@ function SettingsContent() {
         </div>
       )}
 
+
+
       {/* ======================================================== */}
       {/* TAB 9: ASSINATURAS E PLANOS (Responsivo)                  */}
       {/* ======================================================== */}
@@ -3583,6 +4028,8 @@ function SettingsContent() {
         </div>
       )}
 
+
+
       {/* ======================================================== */}
       {/* TAB 10: MENSAGENS CRM                                     */}
       {/* ======================================================== */}
@@ -3744,6 +4191,8 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+
 
       {/* ======================================================== */}
       {/* MODAL: CRIAR / EDITAR PADRÃO DE FORMATAÇÃO               */}
@@ -3946,6 +4395,8 @@ function SettingsContent() {
         </div>
       )}
 
+
+
       {/* ======================================================== */}
       {/* MODAL: CONVIDAR USUÁRIO POR E-MAIL                        */}
       {/* ======================================================== */}
@@ -4086,6 +4537,8 @@ function SettingsContent() {
         </div>
       )}
 
+
+
       {/* ======================================================== */}
       {/* MODAL: CRIAR NOVO USUÁRIO                                 */}
       {/* ======================================================== */}
@@ -4223,6 +4676,8 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+
 
       {/* ======================================================== */}
       {/* MODAL: EDITAR USUÁRIO                                    */}
@@ -4374,6 +4829,8 @@ function SettingsContent() {
         </div>
       )}
 
+
+
       {/* ======================================================== */}
       {/* MODAL: EDITAR CARGO                                       */}
       {/* ======================================================== */}
@@ -4445,6 +4902,8 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+
 
       {/* ======================================================== */}
       {/* MODAL: EDITAR CATEGORIA                                   */}
@@ -4537,6 +4996,8 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+
 
       {/* ======================================================== */}
       {/* MODAL: CRIAR OU EDITAR CONTA BANCÁRIA                      */}
@@ -4688,6 +5149,260 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+
+      {/* ======================================================== */}
+      {/* MODAL: CRIAR / EDITAR AGENDA COM VÍNCULO EXTERNO           */}
+      {/* ======================================================== */}
+      {showCalendarModal && (
+        <SafeModalBackdrop
+          onClose={() => setShowCalendarModal(false)}
+          isDirty={Boolean(calendarForm.name || calendarForm.description || calendarForm.external_url)}
+          confirmTitle="Descartar alterações da agenda?"
+          confirmMessage="Você tem campos preenchidos nesta agenda. Deseja realmente fechar e perder essas informações?"
+        >
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 text-gray-900 dark:text-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowCalendarModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg p-1 transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-1">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
+                style={{ backgroundColor: calendarForm.color || '#3B82F6' }}
+              >
+                <Calendar className="w-4 h-4" />
+              </div>
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                {editingCalendar ? 'Editar Agenda' : 'Nova Agenda'}
+              </h2>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
+              Personalize o nome, cor, visibilidade e conecte com Google Calendar, Outlook, Apple ou links iCal.
+            </p>
+
+            <form onSubmit={handleSaveCalendar} className="space-y-4">
+              {/* Nome da Agenda */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Nome da Agenda *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Produção de Vídeos, Reuniões com Clientes, Pessoal..."
+                  value={calendarForm.name}
+                  onChange={(e) => setCalendarForm({ ...calendarForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Descrição */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Descrição (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Breve resumo da finalidade desta agenda..."
+                  value={calendarForm.description}
+                  onChange={(e) => setCalendarForm({ ...calendarForm, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Cor e Identificação */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Cor da Agenda
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#64748B'].map(
+                    (hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => setCalendarForm({ ...calendarForm, color: hex })}
+                        className={cn(
+                          'w-6 h-6 rounded-full transition-transform shrink-0',
+                          calendarForm.color === hex ? 'scale-125 ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-110'
+                        )}
+                        style={{ backgroundColor: hex }}
+                      />
+                    )
+                  )}
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200 dark:border-gray-700">
+                    <input
+                      type="color"
+                      value={calendarForm.color}
+                      onChange={(e) => setCalendarForm({ ...calendarForm, color: e.target.value })}
+                      className="w-7 h-7 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer bg-transparent p-0.5"
+                    />
+                    <span className="text-[11px] text-gray-400 font-mono uppercase">{calendarForm.color}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visibilidade */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Visibilidade de Acesso
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarForm({ ...calendarForm, visibility: 'group' })}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer',
+                      calendarForm.visibility === 'group'
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    )}
+                  >
+                    <Users className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-xs font-bold">Equipe / Grupo</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400">Todos os membros podem visualizar</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCalendarForm({ ...calendarForm, visibility: 'private' })}
+                    className={cn(
+                      'p-2.5 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer',
+                      calendarForm.visibility === 'private'
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    )}
+                  >
+                    <Lock className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-xs font-bold">Privada</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400">Apenas você e administradores</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Plataforma Externa */}
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60">
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Vincular com Plataforma Externa
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                  {[
+                    { id: 'none', label: 'Local (Sem vínculo)', sub: 'Agenda interna' },
+                    { id: 'google', label: 'Google Calendar', sub: 'Google Agenda' },
+                    { id: 'outlook', label: 'Outlook 365', sub: 'Microsoft Office' },
+                    { id: 'apple', label: 'Apple Calendar', sub: 'iCloud' },
+                    { id: 'ical', label: 'Link iCal / Webcal', sub: 'Qualquer URL' },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setCalendarForm({ ...calendarForm, external_platform: p.id as any })}
+                      className={cn(
+                        'p-2 rounded-xl border text-left transition-all cursor-pointer',
+                        calendarForm.external_platform === p.id
+                          ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      )}
+                    >
+                      <div className="text-xs font-bold truncate">{p.label}</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{p.sub}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {calendarForm.external_platform !== 'none' && (
+                  <div className="p-3 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl space-y-3 animate-in fade-in duration-150">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Conta ou E-mail Vinculado (Opcional)
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="ex: seuemail@gmail.com ou contato@empresa.com"
+                        value={calendarForm.external_account}
+                        onChange={(e) => setCalendarForm({ ...calendarForm, external_account: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        URL do Calendário (iCal / .ics / webcal://) *
+                      </label>
+                      <input
+                        type="url"
+                        required
+                        placeholder={
+                          calendarForm.external_platform === 'google'
+                            ? 'https://calendar.google.com/calendar/ical/.../basic.ics'
+                            : 'https://... ou webcal://...'
+                        }
+                        value={calendarForm.external_url}
+                        onChange={(e) => setCalendarForm({ ...calendarForm, external_url: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                        {calendarForm.external_platform === 'google' && (
+                          <span>💡 No Google Agenda: Configurações &gt; Selecione sua agenda &gt; Integrar agenda &gt; copie o <b>"Endereço secreto no formato iCal"</b>.</span>
+                        )}
+                        {calendarForm.external_platform === 'outlook' && (
+                          <span>💡 No Outlook Web: Configurações &gt; Exibir todas as configurações &gt; Calendário &gt; Calendários compartilhados &gt; Publicar um calendário &gt; copie o link <b>ICS</b>.</span>
+                        )}
+                        {calendarForm.external_platform === 'apple' && (
+                          <span>💡 No Apple Calendar: Clique no ícone de compartilhamento ao lado da agenda e habilite <b>"Calendário Público"</b> para obter a URL webcal://.</span>
+                        )}
+                        {calendarForm.external_platform === 'ical' && (
+                          <span>💡 Cole o link público ou com token de autenticação de qualquer serviço que forneça feed iCalendar (.ics).</span>
+                        )}
+                      </p>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer pt-1">
+                      <input
+                        type="checkbox"
+                        checked={calendarForm.sync_enabled}
+                        onChange={(e) => setCalendarForm({ ...calendarForm, sync_enabled: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Ativar sincronização automática periódica
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Botões do Rodapé */}
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowCalendarModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingCalendar}
+                  className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {savingCalendar ? 'Salvando...' : editingCalendar ? 'Salvar Alterações' : 'Criar Agenda'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </SafeModalBackdrop>
+      )}
+
       <ConfirmModal
         isOpen={confirmState.isOpen}
         title={confirmState.title}

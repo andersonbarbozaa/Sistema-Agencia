@@ -768,14 +768,6 @@ export default function CRMPage() {
       <div className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98]"
-            >
-              <Plus size={16} className="stroke-[2.5]" />
-              <span>Adicionar Novo Lead</span>
-            </button>
-
             <a
               href="/settings?tab=whatsapp"
               className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 dark:bg-gray-750 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-gray-700 dark:text-gray-300 hover:text-emerald-700 dark:hover:text-emerald-400 border border-gray-200 dark:border-gray-700 hover:border-emerald-200 dark:hover:border-emerald-800 rounded-xl text-xs font-semibold shadow-2xs transition-all active:scale-[0.98]"

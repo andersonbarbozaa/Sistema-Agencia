@@ -744,28 +744,6 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header com Título e Botão de Novo Cliente */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2.5">
-            <Users className="text-blue-600" size={26} />
-            <span>Clientes</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Gerencie sua carteira de clientes, contatos, dados de acesso e histórico.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm hover:shadow transition-all active:scale-[0.98] cursor-pointer shrink-0"
-        >
-          <Plus size={18} className="stroke-[2.5]" />
-          <span>Cadastrar Novo Cliente</span>
-        </button>
-      </div>
-
       {/* Search & Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
