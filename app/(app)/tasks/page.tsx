@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import ModalPortal from '@/components/ModalPortal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -112,6 +113,46 @@ export default function TasksPage() {
     calendar_id: '',
     assignee_ids: [] as string[],
   });
+
+  const isNewTaskDirty = Boolean(
+    newTask.name.trim() ||
+    newTask.description.trim() ||
+    newTask.client_id ||
+    newTask.category_id ||
+    newTask.delivery_date ||
+    newTask.value > 0 ||
+    newTask.assignee_ids.length > 0
+  );
+
+  const handleCloseCreateTaskModal = () => {
+    if (isNewTaskDirty) {
+      const ok = window.confirm('Você possui informações preenchidas para a nova tarefa. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowCreateModal(false);
+    setNewTask({
+      name: '',
+      description: '',
+      client_id: '',
+      category_id: '',
+      delivery_date: '',
+      value: 0,
+      assignee_ids: [],
+      visibility: 'grupo',
+      calendar_id: '',
+    });
+  };
+
+  const [initialEditTaskState, setInitialEditTaskState] = useState('');
+  const isEditTaskDirty = Boolean(initialEditTaskState && JSON.stringify(editTaskForm) !== initialEditTaskState);
+
+  const handleCloseEditTaskModal = () => {
+    if (isEditTaskDirty) {
+      const ok = window.confirm('Você possui alterações não salvas na tarefa. Deseja realmente descartar as alterações e fechar?');
+      if (!ok) return;
+    }
+    setShowEditTaskModal(false);
+  };
 
   // Change request description modal
   const [showChangeRequestModal, setShowChangeRequestModal] = useState(false);
@@ -1135,8 +1176,8 @@ export default function TasksPage() {
       {/* TASK DETAIL MODAL / DRAWER                               */}
       {/* ======================================================== */}
       {selectedTask && (<ModalPortal>
-        <div
-          onClick={() => setSelectedTask(null)}
+        <SafeModalBackdrop
+          onClose={() => setSelectedTask(null)}
           className="fixed inset-0 !m-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
         >
           <div
@@ -1430,15 +1471,15 @@ export default function TasksPage() {
               </button>
             </div>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: SOLICITAR ALTERAÇÃO (Obrigatório descrever)       */}
       {/* ======================================================== */}
       {showChangeRequestModal && (<ModalPortal>
-        <div
-          onClick={() => setShowChangeRequestModal(false)}
+        <SafeModalBackdrop
+          onClose={() => setShowChangeRequestModal(false)}
           className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         >
           <div
@@ -1477,15 +1518,15 @@ export default function TasksPage() {
               </button>
             </div>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: ADICIONAR LINK DE MÍDIA                           */}
       {/* ======================================================== */}
       {showAddMediaModal && (<ModalPortal>
-        <div
-          onClick={() => setShowAddMediaModal(false)}
+        <SafeModalBackdrop
+          onClose={() => setShowAddMediaModal(false)}
           className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         >
           <div
@@ -1553,15 +1594,17 @@ export default function TasksPage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: CRIAR NOVA TAREFA                                 */}
       {/* ======================================================== */}
       {showCreateModal && (<ModalPortal>
-        <div
-          onClick={() => setShowCreateModal(false)}
+        <SafeModalBackdrop
+          onClose={handleCloseCreateTaskModal}
+          isDirty={isNewTaskDirty}
+          confirmMessage="Você possui informações preenchidas para a nova tarefa. Deseja realmente descartar e fechar?"
           className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         >
           <div
@@ -1569,7 +1612,7 @@ export default function TasksPage() {
             className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
           >
             <button
-              onClick={() => setShowCreateModal(false)}
+              onClick={handleCloseCreateTaskModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-1"
             >
               <X size={20} />
@@ -1786,7 +1829,7 @@ export default function TasksPage() {
               <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={handleCloseCreateTaskModal}
                   className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                 >
                   Cancelar
@@ -1800,15 +1843,17 @@ export default function TasksPage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* ======================================================== */}
       {/* MODAL: EDITAR TAREFA                                      */}
       {/* ======================================================== */}
       {showEditTaskModal && selectedTask && (<ModalPortal>
-        <div
-          onClick={() => setShowEditTaskModal(false)}
+        <SafeModalBackdrop
+          onClose={handleCloseEditTaskModal}
+          isDirty={isEditTaskDirty}
+          confirmMessage="Você possui alterações não salvas na tarefa. Deseja realmente descartar as alterações e fechar?"
           className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         >
           <div
@@ -1816,7 +1861,7 @@ export default function TasksPage() {
             className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
           >
             <button
-              onClick={() => setShowEditTaskModal(false)}
+              onClick={handleCloseEditTaskModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
             >
               <X size={20} />
@@ -2045,7 +2090,7 @@ export default function TasksPage() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setShowEditTaskModal(false)}
+                  onClick={handleCloseEditTaskModal}
                   className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                 >
                   Cancelar
@@ -2059,7 +2104,7 @@ export default function TasksPage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* MediaViewer Overlay */}

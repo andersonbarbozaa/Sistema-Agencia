@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import FinancialSummaryDashboard from '@/components/finance/FinancialSummaryDashboard';
 import {
   DollarSign,
@@ -160,6 +161,58 @@ export default function FinancePage() {
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const isNewTransDirty = Boolean(
+    newTrans.description.trim() ||
+    newTrans.amount ||
+    newTrans.client_id ||
+    newTrans.category_id ||
+    newTrans.notes.trim()
+  );
+
+  const handleCloseNewTransModal = () => {
+    if (isNewTransDirty) {
+      const ok = window.confirm('Você possui dados preenchidos no lançamento. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowTransModal(false);
+  };
+
+  const handleCloseEditTransModal = () => {
+    if (editingTrans) {
+      const ok = window.confirm('Deseja realmente fechar a edição do lançamento? Alterações não salvas serão perdidas.');
+      if (!ok) return;
+    }
+    setEditingTrans(null);
+  };
+
+  const isDebtDirty = Boolean(
+    debtForm.title.trim() ||
+    debtForm.total_amount ||
+    debtForm.company_name.trim() ||
+    debtForm.user_id ||
+    debtForm.notes.trim()
+  );
+
+  const handleCloseDebtModal = () => {
+    if (isDebtDirty) {
+      const ok = window.confirm('Você possui dados preenchidos na dívida. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowDebtModal(false);
+    setEditingDebt(null);
+  };
+
+  const isPayDirty = Boolean(payForm.amount || payForm.notes.trim());
+
+  const handleClosePayModal = () => {
+    if (isPayDirty) {
+      const ok = window.confirm('Você possui dados preenchidos no pagamento. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowPayModal(false);
+    setPayingDebt(null);
+  };
 
   const fetchDebts = async () => {
     try {
@@ -2045,10 +2098,19 @@ export default function FinancePage() {
       {/* MODAL: CRIAR NOVO LANÇAMENTO                              */}
       {/* ======================================================== */}
       {showTransModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+        <SafeModalBackdrop
+          onClose={handleCloseNewTransModal}
+          isDirty={isNewTransDirty}
+          confirmMessage="Você possui dados preenchidos no lançamento. Deseja realmente descartar e fechar?"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+          >
             <button
-              onClick={() => setShowTransModal(false)}
+              type="button"
+              onClick={handleCloseNewTransModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
             >
               <X className="w-5 h-5" />
@@ -2274,7 +2336,7 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       )}
 
       {/* ======================================================== */}
@@ -2282,10 +2344,19 @@ export default function FinancePage() {
       {/* MODAL: EDITAR LANÇAMENTO                                  */}
       {/* ======================================================== */}
       {editingTrans && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+        <SafeModalBackdrop
+          onClose={handleCloseEditTransModal}
+          isDirty={true}
+          confirmMessage="Deseja realmente fechar a edição do lançamento? Alterações não salvas serão perdidas."
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+          >
             <button
-              onClick={() => setEditingTrans(null)}
+              type="button"
+              onClick={handleCloseEditTransModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
             >
               <X className="w-5 h-5" />
@@ -2521,21 +2592,26 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       )}
 
       {/* ======================================================== */}
       {/* MODAL: CADASTRAR OU EDITAR DÍVIDA                        */}
       {/* ======================================================== */}
       {showDebtModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+        <SafeModalBackdrop
+          onClose={handleCloseDebtModal}
+          isDirty={isDebtDirty}
+          confirmMessage="Você possui dados preenchidos na dívida. Deseja realmente descartar e fechar?"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+          >
             <button
               type="button"
-              onClick={() => {
-                setShowDebtModal(false);
-                setEditingDebt(null);
-              }}
+              onClick={handleCloseDebtModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -2677,10 +2753,7 @@ export default function FinancePage() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowDebtModal(false);
-                    setEditingDebt(null);
-                  }}
+                  onClick={handleCloseDebtModal}
                   className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
                 >
                   Cancelar
@@ -2695,21 +2768,26 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       )}
 
       {/* ======================================================== */}
       {/* MODAL: PAGAR PARCELA OU AMORTIZAR DÍVIDA                 */}
       {/* ======================================================== */}
       {showPayModal && payingDebt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+        <SafeModalBackdrop
+          onClose={handleClosePayModal}
+          isDirty={isPayDirty}
+          confirmMessage="Você possui dados preenchidos no pagamento. Deseja realmente descartar e fechar?"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+          >
             <button
               type="button"
-              onClick={() => {
-                setShowPayModal(false);
-                setPayingDebt(null);
-              }}
+              onClick={handleClosePayModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -2861,10 +2939,7 @@ export default function FinancePage() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowPayModal(false);
-                    setPayingDebt(null);
-                  }}
+                  onClick={handleClosePayModal}
                   className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
                 >
                   Cancelar
@@ -2879,15 +2954,24 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       )}
 
       {/* ======================================================== */}
       {/* MODAL: HISTÓRICO DE PAGAMENTOS DA DÍVIDA                */}
       {/* ======================================================== */}
       {showHistoryModal && historyDebt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-xl shadow-2xl relative max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+        <SafeModalBackdrop
+          onClose={() => {
+            setShowHistoryModal(false);
+            setHistoryDebt(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-xl shadow-2xl relative max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200"
+          >
             <button
               type="button"
               onClick={() => {
@@ -2996,7 +3080,7 @@ export default function FinancePage() {
               </button>
             </div>
           </div>
-        </div>
+        </SafeModalBackdrop>
       )}
 
       <ConfirmModal

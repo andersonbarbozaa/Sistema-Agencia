@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ModalPortal from '@/components/ModalPortal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import ConfirmModal from '@/components/ConfirmModal';
 import {
   Calendar as CalendarIcon,
@@ -62,6 +63,38 @@ export default function AgendaPage() {
     notes: '',
   });
 
+  const isNewEventDirty = Boolean(newEvent.title.trim() || newEvent.description.trim() || newEvent.location.trim() || newEvent.notes.trim());
+
+  const handleCloseCreateModal = () => {
+    if (isNewEventDirty) {
+      const ok = window.confirm('Você possui dados preenchidos no compromisso. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowCreateModal(false);
+    setNewEvent({
+      title: '',
+      description: '',
+      event_date: new Date().toISOString().split('T')[0],
+      start_time: '10:00',
+      end_time: '11:00',
+      location: '',
+      client_id: '',
+      visibility: 'grupo',
+      calendar_id: '',
+      notes: '',
+    });
+  };
+
+  const isCalendarFormDirty = Boolean((calendarForm.name || '').trim() || (calendarForm.description || '').trim());
+
+  const handleCloseCalendarModal = () => {
+    if (isCalendarFormDirty) {
+      const ok = window.confirm('Você possui dados preenchidos na agenda. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowCalendarModal(false);
+  };
+
   // Edit / View Event Modal
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [selectedTaskPreview, setSelectedTaskPreview] = useState<any | null>(null);
@@ -77,6 +110,7 @@ export default function AgendaPage() {
     calendar_id: '',
     notes: '',
   });
+
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -776,10 +810,16 @@ export default function AgendaPage() {
 
       {/* CREATE EVENT MODAL */}
       {showCreateModal && (<ModalPortal>
-        <div onClick={() => setShowCreateModal(false)} className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <SafeModalBackdrop
+          onClose={handleCloseCreateModal}
+          isDirty={isNewEventDirty}
+          confirmMessage="Você possui dados preenchidos no compromisso. Deseja realmente descartar e fechar?"
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
           <div onClick={(e) => e.stopPropagation()} className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
-              onClick={() => setShowCreateModal(false)}
+              type="button"
+              onClick={handleCloseCreateModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
             >
               <X className="w-5 h-5" />
@@ -947,7 +987,7 @@ export default function AgendaPage() {
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={handleCloseCreateModal}
                   className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                 >
                   Cancelar
@@ -962,14 +1002,17 @@ export default function AgendaPage() {
               </div>
             </form>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* EDIT / DELETE EVENT MODAL */}
       
       {/* Modal de Pré-visualização de Tarefa */}
       {selectedTaskPreview && (<ModalPortal>
-        <div onClick={() => setSelectedTaskPreview(null)} className="fixed inset-0 !m-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4">
+        <SafeModalBackdrop
+          onClose={() => setSelectedTaskPreview(null)}
+          className="fixed inset-0 !m-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4 animate-in fade-in duration-200"
+        >
           <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-h-[90vh] max-w-md overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex justify-between items-center sticky top-0 z-10">
               <h3 className="text-sm font-bold text-gray-900">Detalhes da Tarefa</h3>
@@ -1046,11 +1089,14 @@ export default function AgendaPage() {
               </button>
             </div>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {selectedEvent && (<ModalPortal>
-        <div onClick={() => setSelectedEvent(null)} className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <SafeModalBackdrop
+          onClose={() => setSelectedEvent(null)}
+          className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
           <div onClick={(e) => e.stopPropagation()} className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setSelectedEvent(null)}
@@ -1282,7 +1328,7 @@ export default function AgendaPage() {
             </form>
             )}
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>)}
 
       {/* ======================================================== */}
@@ -1290,11 +1336,16 @@ export default function AgendaPage() {
       {/* ======================================================== */}
       {showCalendarModal && (
         <ModalPortal>
-          <div onClick={() => setShowCalendarModal(false)} className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <SafeModalBackdrop
+            onClose={handleCloseCalendarModal}
+            isDirty={isCalendarFormDirty}
+            confirmMessage="Você possui dados preenchidos na agenda. Deseja realmente descartar e fechar?"
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          >
             <div onClick={(e) => e.stopPropagation()} className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
               <button
                 type="button"
-                onClick={() => setShowCalendarModal(false)}
+                onClick={handleCloseCalendarModal}
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
               >
                 <X className="w-5 h-5" />
@@ -1405,7 +1456,7 @@ export default function AgendaPage() {
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowCalendarModal(false)}
+                      onClick={handleCloseCalendarModal}
                       className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                     >
                       Cancelar
@@ -1421,7 +1472,7 @@ export default function AgendaPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
     </div>

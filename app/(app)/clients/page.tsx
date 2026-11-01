@@ -33,12 +33,14 @@ import {
   Lock,
   MessageCircle,
   Trash2,
+  Globe,
 } from 'lucide-react';
 import { Client } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import ConfirmModal from '@/components/ConfirmModal';
 import ProfileAvatarUpload from '@/components/ProfileAvatarUpload';
 import ModalPortal from '@/components/ModalPortal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 
 async function compressClientImage(file: File, maxSize = 256): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -89,21 +91,28 @@ interface SocialLinkItem {
 
 function parseSocialLinks(client: any): SocialLinkItem[] {
   if (!client) return [];
+  const list: SocialLinkItem[] = [];
   if (client.social_links) {
     try {
       const parsed = typeof client.social_links === 'string' ? JSON.parse(client.social_links) : client.social_links;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((item: any) => item && item.value && String(item.value).trim());
+        parsed.forEach((item: any) => {
+          if (item && item.value && String(item.value).trim()) {
+            list.push({ network: String(item.network || 'Outro').trim(), value: String(item.value).trim() });
+          }
+        });
       }
     } catch {
       // ignore
     }
   }
-  const legacy: SocialLinkItem[] = [];
   if (client.instagram && String(client.instagram).trim()) {
-    legacy.push({ network: 'Instagram', value: String(client.instagram).trim() });
+    const hasIg = list.some((s) => s.network.toLowerCase().includes('instagram'));
+    if (!hasIg) {
+      list.push({ network: 'Instagram', value: String(client.instagram).trim() });
+    }
   }
-  return legacy;
+  return list;
 }
 
 function buildSocialUrl(network: string, rawValue: string): string {
@@ -155,6 +164,69 @@ function getWhatsAppUrl(rawPhone: string): string {
   }
   const finalDigits = (digits.length === 10 || digits.length === 11) ? `55${digits}` : digits;
   return `https://wa.me/${finalDigits}`;
+}
+
+function SocialNetworkIcon({ network, className = 'w-3.5 h-3.5 text-gray-500 shrink-0' }: { network: string; className?: string }) {
+  const net = (network || '').toLowerCase();
+
+  if (net.includes('instagram')) {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+        <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+      </svg>
+    );
+  }
+  if (net.includes('facebook')) {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+      </svg>
+    );
+  }
+  if (net.includes('linkedin')) {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/>
+        <circle cx="4" cy="4" r="2"/>
+      </svg>
+    );
+  }
+  if (net.includes('youtube')) {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43zM9.75 15.02V8.53l5.9 3.27-5.9 3.22z"/>
+      </svg>
+    );
+  }
+  if (net.includes('tiktok')) {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298-.002.595.042.88.13V9.4a6.33 6.33 0 0 0-1-.08A6.34 6.34 0 0 0 3 15.66a6.34 6.34 0 0 0 10.82 4.47 6.27 6.27 0 0 0 1.87-4.47V8.71a8.28 8.28 0 0 0 4.9 1.58V6.85a4.88 4.88 0 0 1-1-.16z"/>
+      </svg>
+    );
+  }
+  if (net.includes('twitter') || net.includes('x /') || net === 'x') {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    );
+  }
+  if (net.includes('threads')) {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16.5 12c0 3.038-2.015 5.5-5 5.5s-5-2.462-5-5.5 2.015-5.5 5-5.5c2.4 0 4.1 1.5 4.7 3.6"/>
+        <path d="M12 21a9 9 0 1 0-9-9c0 4.97 4.03 9 9 9a8.96 8.96 0 0 0 6.36-2.64"/>
+      </svg>
+    );
+  }
+  if (net.includes('whatsapp')) {
+    return <MessageCircle className={className} size={14} />;
+  }
+
+  return <Globe className={className} size={14} />;
 }
 
 export default function ClientsPage() {
@@ -214,6 +286,61 @@ export default function ClientsPage() {
     social_links: [] as SocialLinkItem[],
   });
   const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [initialEditClientState, setInitialEditClientState] = useState('');
+
+  const isNewClientDirty = Boolean(
+    newClient.name.trim() ||
+    newClient.company_name.trim() ||
+    newClient.corporate_name.trim() ||
+    newClient.trade_name.trim() ||
+    newClient.avatar_url ||
+    newClient.document.trim() ||
+    newClient.email.trim() ||
+    newClient.password ||
+    newClient.phone.trim() ||
+    newClient.whatsapp.trim() ||
+    newClient.address.trim() ||
+    newClient.city.trim() ||
+    newClient.website.trim() ||
+    newClient.notes.trim() ||
+    newClient.social_links.some((s) => s && s.value && s.value.trim())
+  );
+
+  const handleCloseCreateModal = () => {
+    if (isNewClientDirty) {
+      const ok = window.confirm('Você possui alterações não salvas no cadastro do cliente. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowCreateModal(false);
+    setNewClient({
+      name: '',
+      company_name: '',
+      corporate_name: '',
+      trade_name: '',
+      avatar_url: '',
+      document: '',
+      email: '',
+      password: '',
+      phone: '',
+      whatsapp: '',
+      address: '',
+      city: '',
+      website: '',
+      notes: '',
+      social_links: [],
+    });
+  };
+
+  const isPortalUserDirty = Boolean(portalUserForm.name.trim() || portalUserForm.email.trim() || portalUserForm.password.trim());
+
+  const handleClosePortalUserModal = () => {
+    if (isPortalUserDirty) {
+      const ok = window.confirm('Você possui dados preenchidos no formulário de acesso. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowPortalUserModal(false);
+  };
+
 
   const fetchClients = async () => {
     try {
@@ -453,8 +580,18 @@ export default function ClientsPage() {
     social_links: [] as SocialLinkItem[],
   });
 
+  const isEditClientDirty = Boolean(initialEditClientState && JSON.stringify(editClient) !== initialEditClientState);
+
+  const handleCloseEditModal = () => {
+    if (isEditClientDirty) {
+      const ok = window.confirm('Você possui alterações não salvas no cliente. Deseja realmente descartar as alterações e fechar?');
+      if (!ok) return;
+    }
+    setShowEditModal(false);
+  };
+
   const openEditModal = (client: any) => {
-    setEditClient({
+    const editData = {
       name: client.name || '',
       company_name: client.company_name || client.corporate_name || client.trade_name || '',
       corporate_name: client.corporate_name || client.company_name || '',
@@ -471,7 +608,9 @@ export default function ClientsPage() {
       status: client.status || 'ativo',
       notes: client.notes || '',
       social_links: parseSocialLinks(client),
-    });
+    };
+    setEditClient(editData);
+    setInitialEditClientState(JSON.stringify(editData));
     setShowEditPassword(false);
     setShowEditModal(true);
   };
@@ -787,20 +926,36 @@ export default function ClientsPage() {
                       </a>
                     </div>
                   )}
-                  {client.instagram && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-pink-600 flex-shrink-0">IG:</span>
-                      <a
-                        href={`https://instagram.com/${client.instagram.replace('@', '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-pink-600 hover:underline font-medium truncate"
-                      >
-                        {client.instagram.startsWith('@') ? client.instagram : `@${client.instagram}`}
-                      </a>
-                    </div>
-                  )}
+                  {/* Redes Sociais no Card: formato de botão, tom cinza, ícone ao lado */}
+                  {(() => {
+                    const socialLinks = parseSocialLinks(client);
+                    if (socialLinks.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                        {socialLinks.map((item, sIdx) => {
+                          const val = (item.value || '').trim();
+                          const isUrl = /^https?:\/\//i.test(val) || val.includes('.com') || val.includes('.net') || val.includes('.org') || val.includes('.me') || val.includes('.br') || val.includes('/');
+                          const label = isUrl ? item.network : val;
+                          const targetUrl = buildSocialUrl(item.network, item.value);
+
+                          return (
+                            <a
+                              key={sIdx}
+                              href={targetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`${item.network}: ${item.value}`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 border border-gray-200/80 rounded-lg text-xs font-medium transition-colors shadow-2xs max-w-full"
+                            >
+                              <SocialNetworkIcon network={item.network} className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                              <span className="truncate max-w-[150px]">{label}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {client.notes && (
@@ -819,8 +974,8 @@ export default function ClientsPage() {
       {/* ======================================================== */}
       {selectedClient && (
         <ModalPortal>
-          <div
-            onClick={() => setSelectedClient(null)}
+          <SafeModalBackdrop
+            onClose={() => setSelectedClient(null)}
             className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1209,7 +1364,7 @@ export default function ClientsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </SafeModalBackdrop>
       </ModalPortal>
       )}
 
@@ -1218,8 +1373,10 @@ export default function ClientsPage() {
       {/* ======================================================== */}
       {showCreateModal && (
         <ModalPortal>
-          <div
-            onClick={() => setShowCreateModal(false)}
+          <SafeModalBackdrop
+            onClose={handleCloseCreateModal}
+            isDirty={isNewClientDirty}
+            confirmMessage="Você possui alterações não salvas no cadastro do cliente. Deseja realmente descartar e fechar?"
             className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1237,7 +1394,7 @@ export default function ClientsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={handleCloseCreateModal}
                   className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
                   title="Fechar"
                 >
@@ -1488,7 +1645,7 @@ export default function ClientsPage() {
                 <div className="shrink-0 p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={handleCloseCreateModal}
                     className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
                   >
                     Cancelar
@@ -1502,7 +1659,7 @@ export default function ClientsPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
 
@@ -1511,8 +1668,10 @@ export default function ClientsPage() {
       {/* ======================================================== */}
       {showEditModal && (
         <ModalPortal>
-          <div
-            onClick={() => setShowEditModal(false)}
+          <SafeModalBackdrop
+            onClose={handleCloseEditModal}
+            isDirty={isEditClientDirty}
+            confirmMessage="Você possui alterações não salvas no cliente. Deseja realmente descartar as alterações e fechar?"
             className="fixed inset-0 !m-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1527,7 +1686,7 @@ export default function ClientsPage() {
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
+                  onClick={handleCloseEditModal}
                   className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
                   title="Fechar"
                 >
@@ -1797,7 +1956,7 @@ export default function ClientsPage() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowEditModal(false)}
+                      onClick={handleCloseEditModal}
                       className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
                     >
                       Cancelar
@@ -1812,15 +1971,17 @@ export default function ClientsPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
 
       {/* MODAL: CRIAR ACESSO AO PORTAL */}
       {showPortalUserModal && (
         <ModalPortal>
-          <div
-            onClick={() => setShowPortalUserModal(false)}
+          <SafeModalBackdrop
+            onClose={handleClosePortalUserModal}
+            isDirty={isPortalUserDirty}
+            confirmMessage="Você possui dados preenchidos no formulário de acesso. Deseja realmente descartar e fechar?"
             className="fixed inset-0 !m-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1837,7 +1998,7 @@ export default function ClientsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowPortalUserModal(false)}
+                  onClick={handleClosePortalUserModal}
                   className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
                 >
                   <X size={18} />
@@ -1913,7 +2074,7 @@ export default function ClientsPage() {
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={() => setShowPortalUserModal(false)}
+                    onClick={handleClosePortalUserModal}
                     className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
                   >
                     Cancelar
@@ -1928,15 +2089,15 @@ export default function ClientsPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
 
       {/* MODAL: SUCESSO AO CRIAR ACESSO */}
       {createdPortalUser && (
         <ModalPortal>
-          <div
-            onClick={() => setCreatedPortalUser(null)}
+          <SafeModalBackdrop
+            onClose={() => setCreatedPortalUser(null)}
             className="fixed inset-0 !m-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -2018,7 +2179,7 @@ export default function ClientsPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
 

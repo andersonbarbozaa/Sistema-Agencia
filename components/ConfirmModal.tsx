@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ModalPortal from './ModalPortal';
+import SafeModalBackdrop from './SafeModalBackdrop';
 
 export type ConfirmType = 'danger' | 'warning' | 'info';
 
@@ -26,9 +27,9 @@ export default function ConfirmModal({
 
   return (
     <ModalPortal>
-      <div
-        onClick={onCancel}
-        className="fixed inset-0 !m-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      <SafeModalBackdrop
+        onClose={onCancel}
+        className="fixed inset-0 !m-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200"
       >
         <div
           onClick={(e) => e.stopPropagation()}
@@ -61,7 +62,7 @@ export default function ConfirmModal({
             </button>
           </div>
         </div>
-      </div>
+      </SafeModalBackdrop>
     </ModalPortal>
   );
 }

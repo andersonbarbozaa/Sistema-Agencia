@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import ModalPortal from '@/components/ModalPortal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import { X, Send, Loader2, PhoneCall } from 'lucide-react';
 import { CRMLead } from '@/types';
 import { CRM_CHANNELS, CRM_INTERACTION_TYPES } from '@/lib/crm-utils';
@@ -72,8 +73,8 @@ export function CRMQuickContactModal({
 
   return (
     <ModalPortal>
-      <div
-        onClick={onClose}
+      <SafeModalBackdrop
+        onClose={onClose}
         className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       >
         <div
@@ -198,7 +199,7 @@ export function CRMQuickContactModal({
             </div>
           </form>
         </div>
-      </div>
+      </SafeModalBackdrop>
     </ModalPortal>
   );
 }

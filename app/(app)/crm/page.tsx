@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import ModalPortal from '@/components/ModalPortal';
+import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import {
   TrendingUp,
   Plus,
@@ -199,6 +200,37 @@ export default function CRMPage() {
   };
   const [showEditModal, setShowEditModal] = useState(false);
   const [editLead, setEditLead] = useState(EMPTY_EDIT_LEAD);
+  const isNewLeadDirty = Boolean(
+    newLead.contact_name.trim() ||
+    newLead.company.trim() ||
+    newLead.phone.trim() ||
+    newLead.whatsapp.trim() ||
+    newLead.email.trim() ||
+    newLead.city.trim() ||
+    newLead.description.trim() ||
+    newLead.estimated_value > 0
+  );
+
+  const handleCloseCreateModal = () => {
+    if (isNewLeadDirty) {
+      const ok = window.confirm('Você possui dados preenchidos no lead. Deseja realmente descartar e fechar?');
+      if (!ok) return;
+    }
+    setShowCreateModal(false);
+    setNewLead(EMPTY_NEW_LEAD);
+  };
+
+  const [initialEditLeadState, setInitialEditLeadState] = useState('');
+  const isEditLeadDirty = Boolean(initialEditLeadState && JSON.stringify(editLead) !== initialEditLeadState);
+
+  const handleCloseEditModal = () => {
+    if (isEditLeadDirty) {
+      const ok = window.confirm('Você possui alterações não salvas no lead. Deseja realmente descartar as alterações e fechar?');
+      if (!ok) return;
+    }
+    setShowEditModal(false);
+  };
+
 
   // Funções para gerenciar redes sociais dinâmicas
   const handleAddSocialLink = (isEdit: boolean) => {
@@ -464,7 +496,7 @@ export default function CRMPage() {
   };
 
   const openEditLead = (lead: CRMLead) => {
-    setEditLead({
+    const dataToEdit = {
       id: lead.id,
       contact_name: lead.contact_name || '',
       company: lead.company || '',
@@ -486,7 +518,9 @@ export default function CRMPage() {
       segment: lead.segment || '',
       description: lead.description || '',
       estimated_value: lead.estimated_value || 0,
-    });
+    };
+    setEditLead(dataToEdit);
+    setInitialEditLeadState(JSON.stringify(dataToEdit));
     setShowEditModal(true);
   };
 
@@ -1257,8 +1291,10 @@ export default function CRMPage() {
       {/* ============================================================ */}
       {showCreateModal && (
         <ModalPortal>
-          <div
-            onClick={() => setShowCreateModal(false)}
+          <SafeModalBackdrop
+            onClose={handleCloseCreateModal}
+            isDirty={isNewLeadDirty}
+            confirmMessage="Você possui dados preenchidos no lead. Deseja realmente descartar e fechar?"
             className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1276,7 +1312,7 @@ export default function CRMPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={handleCloseCreateModal}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg p-1.5"
                 >
                   <X size={18} />
@@ -1492,7 +1528,7 @@ export default function CRMPage() {
                 <div className="shrink-0 p-4 border-t border-gray-150 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={handleCloseCreateModal}
                     className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-150 dark:hover:bg-gray-700 rounded-xl font-semibold"
                   >
                     Cancelar
@@ -1506,7 +1542,7 @@ export default function CRMPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
 
@@ -1515,8 +1551,10 @@ export default function CRMPage() {
       {/* ============================================================ */}
       {showEditModal && (
         <ModalPortal>
-          <div
-            onClick={() => setShowEditModal(false)}
+          <SafeModalBackdrop
+            onClose={handleCloseEditModal}
+            isDirty={isEditLeadDirty}
+            confirmMessage="Você possui alterações não salvas no lead. Deseja realmente descartar as alterações e fechar?"
             className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1534,7 +1572,7 @@ export default function CRMPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
+                  onClick={handleCloseEditModal}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg p-1.5"
                 >
                   <X size={18} />
@@ -1773,7 +1811,7 @@ export default function CRMPage() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowEditModal(false)}
+                      onClick={handleCloseEditModal}
                       className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-150 dark:hover:bg-gray-700 rounded-xl font-semibold"
                     >
                       Cancelar
@@ -1788,7 +1826,7 @@ export default function CRMPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </SafeModalBackdrop>
         </ModalPortal>
       )}
 
