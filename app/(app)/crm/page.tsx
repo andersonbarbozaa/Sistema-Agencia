@@ -748,7 +748,7 @@ export default function CRMPage() {
   }, [leads, statusFilter, followUpFilter, cityFilter, segmentFilter, dateFilterPreset, dateFrom, dateTo, searchQuery, sortField, sortDirection]);
 
   return (
-    <div className="space-y-6 w-full pb-10">
+    <div className="flex flex-col h-[calc(100dvh-160px)] md:h-[calc(100dvh-115px)] w-full overflow-hidden space-y-3">
       {/* Toast de Notificação */}
       {toast.show && (
         <div
@@ -765,7 +765,7 @@ export default function CRMPage() {
       )}
 
       {/* BARRA DE AÇÕES & FILTROS GERAIS */}
-      <div className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+      <div className="shrink-0 bg-white dark:bg-gray-800 p-3.5 sm:p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <a
@@ -952,7 +952,7 @@ export default function CRMPage() {
       {/* 1. KANBAN VIEW COM AS 7 ETAPAS (Requisito 1) */}
       {/* ============================================================ */}
       {viewMode === 'kanban' && (
-        <div className="flex flex-row gap-4 overflow-x-auto pb-6 items-start w-full">
+        <div className="flex-1 min-h-0 flex flex-row gap-3.5 overflow-x-auto overflow-y-hidden pb-1 items-stretch w-full">
           {CRM_STATUSES.map((status) => {
             const statusLeads = filteredLeads.filter((l) => l.status === status);
             const isColumnOver = dragOverColumn === status;
@@ -982,7 +982,7 @@ export default function CRMPage() {
                   setDraggedLeadId(null);
                 }}
                 className={cn(
-                  'w-[300px] min-w-[300px] flex-shrink-0 bg-white dark:bg-gray-800 rounded-3xl p-3.5 border flex flex-col shadow-xs transition-all duration-150',
+                  'w-[290px] min-w-[290px] flex-shrink-0 bg-white dark:bg-gray-800 rounded-3xl p-3.5 border flex flex-col shadow-xs transition-all duration-150 h-full max-h-full',
                   isColumnOver
                     ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/20 dark:bg-blue-950/20'
                     : 'border-gray-200 dark:border-gray-700'
@@ -1020,7 +1020,7 @@ export default function CRMPage() {
                 </div>
 
                 {/* Cards da Coluna */}
-                <div className="space-y-3 flex-1 overflow-y-auto max-h-[72vh] pr-0.5">
+                <div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-0.5">
                   {isColumnOver && draggedLeadId && !statusLeads.some((l) => l.id === draggedLeadId) && (
                     <div className="p-3.5 rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/50 text-blue-600 text-center text-xs font-semibold animate-pulse">
                       Soltar lead em &ldquo;{status}&rdquo;
@@ -1076,19 +1076,19 @@ export default function CRMPage() {
       {/* 2. LIST VIEW COM AS NOVAS ETAPAS E SELETORES */}
       {/* ============================================================ */}
       {viewMode === 'list' && (
-        <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50/70 dark:bg-gray-750 text-gray-500 dark:text-gray-400 font-semibold border-b border-gray-150 dark:border-gray-700">
-                  <th className="py-3.5 px-4">Acompanhamento</th>
-                  <th className="py-3.5 px-4">Contato / Empresa</th>
-                  <th className="py-3.5 px-4">Cidade</th>
-                  <th className="py-3.5 px-4">Área de Atuação</th>
-                  <th className="py-3.5 px-4">Etapa do Funil</th>
-                  <th className="py-3.5 px-4">Canal Principal</th>
-                  <th className="py-3.5 px-4 text-right">Valor Estimado</th>
-                  <th className="py-3.5 px-4 text-center">Ações</th>
+                <tr className="bg-gray-50/70 dark:bg-gray-750 text-gray-500 dark:text-gray-400 font-semibold border-b border-gray-150 dark:border-gray-700 sticky top-0 z-10">
+                  <th className="py-3.5 px-4 bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Acompanhamento</th>
+                  <th className="py-3.5 px-4 bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Contato / Empresa</th>
+                  <th className="py-3.5 px-4 bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Cidade</th>
+                  <th className="py-3.5 px-4 bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Área de Atuação</th>
+                  <th className="py-3.5 px-4 bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Etapa do Funil</th>
+                  <th className="py-3.5 px-4 bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Canal Principal</th>
+                  <th className="py-3.5 px-4 text-right bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Valor Estimado</th>
+                  <th className="py-3.5 px-4 text-center bg-gray-50/95 dark:bg-gray-750/95 backdrop-blur-xs">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60 text-gray-800 dark:text-gray-200">
@@ -1121,13 +1121,15 @@ export default function CRMPage() {
       {/* 3. REPORT VIEW COM OS INDICADORES DO FUNIL (Requisito 6) */}
       {/* ============================================================ */}
       {viewMode === 'report' && (
-        <CRMReportView
-          filteredLeads={filteredLeads}
-          onSelectLead={(l) => setSelectedLead(l)}
-          onViewModeChange={handleViewModeChange}
-          isAnyFilterActive={isAnyFilterActive}
-          onResetFilters={handleResetFilters}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          <CRMReportView
+            filteredLeads={filteredLeads}
+            onSelectLead={(l) => setSelectedLead(l)}
+            onViewModeChange={handleViewModeChange}
+            isAnyFilterActive={isAnyFilterActive}
+            onResetFilters={handleResetFilters}
+          />
+        </div>
       )}
 
       {/* ============================================================ */}
