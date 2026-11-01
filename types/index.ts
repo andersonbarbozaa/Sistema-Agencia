@@ -427,3 +427,46 @@ export interface AIInterpretation {
   confirmed_at?: string | null;
   dismissed_at?: string | null;
 }
+
+export type DebtStatus = 'pendente' | 'parcial' | 'paga' | 'cancelada';
+
+export interface DebtPayment {
+  id: string;
+  debt_id: string;
+  workspace_id?: string;
+  amount: number;
+  payment_date: string;
+  installment_number?: number | null;
+  payment_method?: string | null;
+  notes?: string | null;
+  transaction_id?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
+export interface Debt {
+  id: string;
+  workspace_id?: string;
+  title: string;
+  total_amount: number;
+  remaining_amount: number;
+  paid_amount: number;
+  due_date?: string | null;
+  company_name?: string | null;
+  user_id?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  user_avatar_url?: string | null;
+  client_id?: string | null;
+  category_id?: string | null;
+  status: DebtStatus;
+  total_installments: number;
+  paid_installments: number;
+  notes?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+

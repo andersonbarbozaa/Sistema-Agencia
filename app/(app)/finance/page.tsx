@@ -33,13 +33,16 @@ import {
   Trophy,
   AlertTriangle,
   Scale,
+  Receipt,
+  History,
+  Banknote,
 } from 'lucide-react';
 
 const FULL_MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
-import { FinancialTransaction, BankAccount, FinancialCategory } from '@/types';
+import { FinancialTransaction, BankAccount, FinancialCategory, Debt, DebtPayment } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 
 export default function FinancePage() {
@@ -55,8 +58,8 @@ export default function FinancePage() {
 
   const [reportMonth, setReportMonth] = useState<string>(String(new Date().getMonth() + 1));
 
-  // Navigation View: 'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'reports'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'reports'>('dashboard');
+  // Navigation View: 'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'debts' | 'reports'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'debts' | 'reports'>('dashboard');
 
   // Filters for Transactions
   const [statusFilter, setStatusFilter] = useState('');
@@ -110,6 +113,77 @@ export default function FinancePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
+  // ==========================================
+  // ESTADOS PARA DÍVIDAS
+  // ==========================================
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtMetrics, setDebtMetrics] = useState({
+    total_amount: 0,
+    remaining_amount: 0,
+    paid_amount: 0,
+    total_count: 0,
+    active_count: 0,
+    paid_count: 0,
+  });
+  const [loadingDebts, setLoadingDebts] = useState(false);
+  const [debtStatusFilter, setDebtStatusFilter] = useState<'todos' | 'aberto' | 'paga'>('aberto');
+  const [debtUserFilter, setDebtUserFilter] = useState<string>('todos');
+  const [debtSearchQuery, setDebtSearchQuery] = useState('');
+
+  // Modais de Dívida
+  const [showDebtModal, setShowDebtModal] = useState(false);
+  const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
+  const [debtForm, setDebtForm] = useState({
+    title: '',
+    total_amount: '',
+    due_date: new Date().toISOString().split('T')[0],
+    company_name: '',
+    user_id: '',
+    total_installments: '1',
+    notes: '',
+  });
+
+  // Modal de Pagamento / Amortização
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payingDebt, setPayingDebt] = useState<Debt | null>(null);
+  const [payForm, setPayForm] = useState({
+    amount: '',
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_method: 'PIX',
+    notes: '',
+    create_transaction: true,
+  });
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  // Modal de Histórico de Pagamentos
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
+  const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchDebts = async () => {
+    try {
+      setLoadingDebts(true);
+      const params = new URLSearchParams();
+      if (debtStatusFilter) params.append('status', debtStatusFilter);
+      if (debtUserFilter) params.append('user_id', debtUserFilter);
+      if (debtSearchQuery) params.append('search', debtSearchQuery);
+
+      const res = await fetch(`/api/finance/debts?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setDebts(json.debts || []);
+        if (json.metrics) {
+          setDebtMetrics(json.metrics);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dívidas:', err);
+    } finally {
+      setLoadingDebts(false);
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -156,6 +230,7 @@ export default function FinancePage() {
         const d = await repRes.json();
         setReportsData(d);
       }
+      fetchDebts();
     } catch (err) {
       console.error(err);
     } finally {
@@ -166,6 +241,199 @@ export default function FinancePage() {
   useEffect(() => {
     fetchData();
   }, [reportYear, reportMonth]);
+
+  useEffect(() => {
+    fetchDebts();
+  }, [debtStatusFilter, debtUserFilter]);
+
+  const openCreateDebtModal = () => {
+    setEditingDebt(null);
+    setDebtForm({
+      title: '',
+      total_amount: '',
+      due_date: new Date().toISOString().split('T')[0],
+      company_name: '',
+      user_id: partners[0]?.id || '',
+      total_installments: '1',
+      notes: '',
+    });
+    setShowDebtModal(true);
+  };
+
+  const openEditDebtModal = (d: Debt) => {
+    setEditingDebt(d);
+    setDebtForm({
+      title: d.title || '',
+      total_amount: String(d.total_amount || ''),
+      due_date: d.due_date ? d.due_date.split('T')[0] : '',
+      company_name: d.company_name || '',
+      user_id: d.user_id || '',
+      total_installments: String(d.total_installments || '1'),
+      notes: d.notes || '',
+    });
+    setShowDebtModal(true);
+  };
+
+  const handleSaveDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!debtForm.title || !debtForm.total_amount) {
+      alert('Preencha a descrição/título e o valor total da dívida.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const url = editingDebt ? `/api/finance/debts/${editingDebt.id}` : '/api/finance/debts';
+      const method = editingDebt ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(debtForm),
+      });
+
+      if (res.ok) {
+        setShowDebtModal(false);
+        setEditingDebt(null);
+        fetchDebts();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Erro ao salvar dívida.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao salvar dívida.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteDebt = (d: Debt) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Dívida',
+      message: `Tem certeza que deseja excluir a dívida "${d.title}"? Todo o histórico de pagamentos dela também será removido.`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/finance/debts/${d.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            fetchDebts();
+          } else {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || 'Erro ao excluir dívida.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  const openPayModal = (d: Debt) => {
+    setPayingDebt(d);
+    // Sugestão de parcela
+    let suggestedAmount = d.remaining_amount;
+    if (d.total_installments > 1 && d.total_amount > 0) {
+      const perInstallment = Math.round((d.total_amount / d.total_installments) * 100) / 100;
+      suggestedAmount = Math.min(d.remaining_amount, perInstallment);
+    }
+
+    setPayForm({
+      amount: String(suggestedAmount > 0 ? suggestedAmount : d.remaining_amount),
+      payment_date: new Date().toISOString().split('T')[0],
+      payment_method: 'PIX',
+      notes: '',
+      create_transaction: true,
+    });
+    setShowPayModal(true);
+  };
+
+  const handleConfirmPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingDebt || !payForm.amount) return;
+
+    const val = Number(payForm.amount);
+    if (isNaN(val) || val <= 0) {
+      alert('Informe um valor válido maior que zero.');
+      return;
+    }
+
+    try {
+      setSubmittingPayment(true);
+      const res = await fetch(`/api/finance/debts/${payingDebt.id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payForm),
+      });
+
+      if (res.ok) {
+        setShowPayModal(false);
+        setPayingDebt(null);
+        fetchDebts();
+        fetchData(); // Atualiza saldo geral do caixa
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Erro ao registrar pagamento.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao registrar pagamento.');
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
+
+  const openHistoryModal = async (d: Debt) => {
+    setHistoryDebt(d);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/finance/debts/${d.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        setDebtPayments(json.payments || []);
+        if (json.debt) {
+          setHistoryDebt(json.debt);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleDeletePayment = (paymentId: string) => {
+    if (!historyDebt) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Estornar Pagamento',
+      message: 'Deseja estornar este pagamento? O valor será somado de volta ao saldo devedor da dívida.',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/finance/debts/${historyDebt.id}/payments/${paymentId}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.debt) setHistoryDebt(json.debt);
+            setDebtPayments((prev) => prev.filter((p) => p.id !== paymentId));
+            fetchDebts();
+            fetchData();
+          } else {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || 'Erro ao estornar pagamento.');
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
 
   useEffect(() => {
     const handleOpenCreate = () => {
@@ -530,6 +798,19 @@ export default function FinancePage() {
         >
           <ArrowUpDown className="w-3.5 h-3.5" />
           Comparativo
+        </button>
+
+        <button
+          onClick={() => setActiveTab('debts')}
+          className={cn(
+            'flex items-center justify-center flex-1 sm:flex-none gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all',
+            activeTab === 'debts'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-amber-800 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40'
+          )}
+        >
+          <Receipt className="w-3.5 h-3.5" />
+          Dívidas {debtMetrics.active_count > 0 ? `(${debtMetrics.active_count})` : ''}
         </button>
 
         <button
@@ -1413,6 +1694,354 @@ export default function FinancePage() {
         </div>
       )}
 
+      {/* ======================================================== */}
+      {/* VIEW: DÍVIDAS E AMORTIZAÇÕES                           */}
+      {/* ======================================================== */}
+      {activeTab === 'debts' && (
+        <div className="space-y-6">
+          {/* Header & Métricas de Dívidas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Saldo Devedor Restante */}
+            <div className="bg-white border border-amber-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Saldo Devedor</span>
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-black text-amber-700 mt-2">
+                {formatCurrency(debtMetrics.remaining_amount)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Valor pendente para quitação</p>
+            </div>
+
+            {/* Total Amortizado / Já Pago */}
+            <div className="bg-white border border-emerald-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Total Amortizado</span>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-black text-emerald-700 mt-2">
+                {formatCurrency(debtMetrics.paid_amount)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Total de parcelas já pagas</p>
+            </div>
+
+            {/* Total Original em Dívidas */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total em Dívidas</span>
+                <div className="p-2 rounded-xl bg-gray-100 text-gray-600">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-black text-gray-900 mt-2">
+                {formatCurrency(debtMetrics.total_amount)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Soma de todas as dívidas cadastradas</p>
+            </div>
+
+            {/* Quitação & Status */}
+            <div className="bg-white border border-blue-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Progresso de Quitação</span>
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <Receipt className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-black text-blue-700 mt-2">
+                {debtMetrics.total_amount > 0
+                  ? `${Math.round((debtMetrics.paid_amount / debtMetrics.total_amount) * 100)}%`
+                  : '0%'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {debtMetrics.active_count} em aberto • {debtMetrics.paid_count} quitadas
+              </p>
+            </div>
+          </div>
+
+          {/* Barra de Ações & Filtros */}
+          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={openCreateDebtModal}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <Plus size={16} className="stroke-[2.5]" />
+                <span>Cadastrar Nova Dívida</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Campo de Busca */}
+              <div className="relative flex-1 sm:w-64">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar dívida ou empresa..."
+                  value={debtSearchQuery}
+                  onChange={(e) => setDebtSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') fetchDebts();
+                  }}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Filtro de Status */}
+              <select
+                value={debtStatusFilter}
+                onChange={(e: any) => setDebtStatusFilter(e.target.value)}
+                className="bg-gray-50 border border-gray-200 text-gray-700 font-semibold px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="aberto">Em Aberto / Pendentes</option>
+                <option value="todos">Todas as Dívidas</option>
+                <option value="paga">Apenas Quitadas</option>
+              </select>
+
+              {/* Filtro de Usuário */}
+              <select
+                value={debtUserFilter}
+                onChange={(e) => setDebtUserFilter(e.target.value)}
+                className="bg-gray-50 border border-gray-200 text-gray-700 font-semibold px-2.5 py-1.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[160px]"
+              >
+                <option value="todos">Todos os Usuários</option>
+                {partners.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+
+              {(debtSearchQuery || debtStatusFilter !== 'aberto' || debtUserFilter !== 'todos') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDebtSearchQuery('');
+                    setDebtStatusFilter('aberto');
+                    setDebtUserFilter('todos');
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-800 underline px-1"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Grid de Dívidas */}
+          {loadingDebts ? (
+            <div className="p-12 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
+              <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              Carregando dívidas...
+            </div>
+          ) : debts.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-gray-200">
+              <Receipt size={40} className="mx-auto text-gray-400 mb-2" />
+              <h4 className="font-bold text-sm text-gray-800">Nenhuma dívida encontrada</h4>
+              <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                {debtSearchQuery || debtStatusFilter !== 'aberto' || debtUserFilter !== 'todos'
+                  ? 'Nenhuma dívida corresponde aos filtros aplicados.'
+                  : 'Cadastre dívidas, parcelas ou compromissos financeiros para acompanhar amortizações e saldos devedores.'}
+              </p>
+              <button
+                type="button"
+                onClick={openCreateDebtModal}
+                className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>Cadastrar Dívida</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {debts.map((d) => {
+                const isPaid = d.status === 'paga' || d.remaining_amount <= 0;
+                const pctPaid = d.total_amount > 0 ? Math.min(100, Math.round((d.paid_amount / d.total_amount) * 100)) : 0;
+
+                return (
+                  <div
+                    key={d.id}
+                    className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between group"
+                  >
+                    <div>
+                      {/* Topo do Card: Empresa/Credor & Status */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        {d.company_name ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-semibold max-w-[70%] truncate">
+                            <Building size={12} className="text-gray-500 shrink-0" />
+                            <span className="truncate">{d.company_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-400 font-medium">Empresa não especificada</span>
+                        )}
+
+                        <span
+                          className={cn(
+                            'px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0',
+                            isPaid
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : d.paid_amount > 0
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          )}
+                        >
+                          {isPaid ? 'Quitada' : d.paid_amount > 0 ? 'Em Pagamento' : 'Pendente'}
+                        </span>
+                      </div>
+
+                      {/* Título da Dívida */}
+                      <h3 className="font-bold text-base text-gray-900 group-hover:text-blue-600 transition-colors leading-snug">
+                        {d.title}
+                      </h3>
+
+                      {/* De qual usuário é essa dívida */}
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium mt-1">
+                        <Users size={12} className="text-gray-400 shrink-0" />
+                        <span className="text-gray-400 font-normal">Usuário:</span>
+                        <span className="font-semibold text-gray-800 truncate">
+                          {d.user_name || 'Usuário não vinculado'}
+                        </span>
+                      </div>
+
+                      {/* Barra de Progresso de Amortização */}
+                      <div className="mt-4 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                          <span className="text-gray-500">Progresso</span>
+                          <span className={cn(isPaid ? 'text-emerald-700' : 'text-blue-600')}>
+                            {pctPaid}% pago
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              'h-full transition-all duration-300',
+                              isPaid ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+                            )}
+                            style={{ width: `${pctPaid}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Grade de Valores: Restante, Total, Pago */}
+                      <div className="grid grid-cols-3 gap-2 mt-4 p-3 bg-gray-50 rounded-xl text-center">
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                            Saldo Restante
+                          </span>
+                          <span
+                            className={cn(
+                              'text-xs sm:text-sm font-black block mt-0.5 truncate',
+                              isPaid ? 'text-emerald-600' : 'text-rose-600'
+                            )}
+                          >
+                            {formatCurrency(d.remaining_amount)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                            Total
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-gray-800 block mt-0.5 truncate">
+                            {formatCurrency(d.total_amount)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                            Já Pago
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-emerald-600 block mt-0.5 truncate">
+                            {formatCurrency(d.paid_amount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Informações de Parcelas & Vencimento */}
+                      <div className="mt-3 flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-1">
+                          <Receipt size={13} className="text-gray-400" />
+                          <span>
+                            {d.total_installments > 1
+                              ? `Parcela ${d.paid_installments} de ${d.total_installments}`
+                              : 'Pagamento único'}
+                          </span>
+                        </div>
+                        {d.due_date && (
+                          <div className="flex items-center gap-1 font-medium text-gray-600">
+                            <Calendar size={13} className="text-gray-400" />
+                            <span>Venc: {formatDate(d.due_date)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Notas / Observações */}
+                      {d.notes && (
+                        <p className="mt-2.5 text-[11px] text-gray-500 italic line-clamp-2 bg-gray-50/70 p-2 rounded-lg border border-gray-100">
+                          {d.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Rodapé de Ações do Card */}
+                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-1">
+                        {!isPaid && (
+                          <button
+                            type="button"
+                            onClick={() => openPayModal(d)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-[0.98] cursor-pointer flex-1"
+                            title="Amortizar ou pagar uma parcela desta dívida"
+                          >
+                            <CreditCard size={14} />
+                            <span>Pagar Parcela</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => openHistoryModal(d)}
+                          className={cn(
+                            'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer',
+                            isPaid ? 'flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200' : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200'
+                          )}
+                          title="Ver histórico de parcelas e amortizações pagas"
+                        >
+                          <History size={13} />
+                          <span>Histórico</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditDebtModal(d)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="Editar informações da dívida"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDebt(d)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Excluir dívida"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* MODAL: CRIAR NOVO LANÇAMENTO                              */}
       {/* ======================================================== */}
       {showTransModal && (
@@ -1648,6 +2277,7 @@ export default function FinancePage() {
         </div>
       )}
 
+      {/* ======================================================== */}
       {/* ======================================================== */}
       {/* MODAL: EDITAR LANÇAMENTO                                  */}
       {/* ======================================================== */}
@@ -1890,6 +2520,481 @@ export default function FinancePage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CADASTRAR OU EDITAR DÍVIDA                        */}
+      {/* ======================================================== */}
+      {showDebtModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={() => {
+                setShowDebtModal(false);
+                setEditingDebt(null);
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-amber-600" />
+              {editingDebt ? 'Editar Dívida' : 'Cadastrar Nova Dívida'}
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              {editingDebt
+                ? 'Atualize os dados e condições desta dívida.'
+                : 'Cadastre uma nova dívida ou compromisso financeiro para controle de amortização.'}
+            </p>
+
+            <form onSubmit={handleSaveDebt} className="space-y-4">
+              {/* Título / Descrição */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Título / Descrição da Dívida *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Empréstimo Bancário, Compra de Câmeras, Cartão..."
+                  value={debtForm.title}
+                  onChange={(e) => setDebtForm({ ...debtForm, title: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Valor Total e Parcelas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Valor Total da Dívida (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="0,00"
+                    value={debtForm.total_amount}
+                    onChange={(e) => setDebtForm({ ...debtForm, total_amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Número de Parcelas
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="1"
+                    value={debtForm.total_installments}
+                    onChange={(e) => setDebtForm({ ...debtForm, total_installments: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">1 para pagamento único</span>
+                </div>
+              </div>
+
+              {/* Usuário Responsável */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  De qual usuário é essa dívida? *
+                </label>
+                <select
+                  required
+                  value={debtForm.user_id}
+                  onChange={(e) => setDebtForm({ ...debtForm, user_id: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">Selecione o usuário responsável...</option>
+                  {partners.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.job_title || u.role || 'Membro'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Empresa / Credor com livre digitação ou sugestão de clientes */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Qual empresa / credor?
+                </label>
+                <input
+                  type="text"
+                  list="debt-company-list"
+                  placeholder="Ex: Banco Santander, Apple, Fornecedor X (livre digitação)..."
+                  value={debtForm.company_name}
+                  onChange={(e) => setDebtForm({ ...debtForm, company_name: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <datalist id="debt-company-list">
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.company_name || c.name}>
+                      {c.company_name || c.name} (Cliente Cadastrado)
+                    </option>
+                  ))}
+                </datalist>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Não precisa ser uma empresa cadastrada. Você pode digitar apenas o nome que desejar.
+                </p>
+              </div>
+
+              {/* Data de Vencimento */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Data de Vencimento / Prazo
+                </label>
+                <input
+                  type="date"
+                  value={debtForm.due_date}
+                  onChange={(e) => setDebtForm({ ...debtForm, due_date: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Observações / Detalhes
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Informações adicionais, taxa de juros, chave pix, etc..."
+                  value={debtForm.notes}
+                  onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Rodapé com Botões */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDebtModal(false);
+                    setEditingDebt(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                >
+                  {isSubmitting ? 'Salvando...' : editingDebt ? 'Salvar Alterações' : 'Cadastrar Dívida'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: PAGAR PARCELA OU AMORTIZAR DÍVIDA                 */}
+      {/* ======================================================== */}
+      {showPayModal && payingDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={() => {
+                setShowPayModal(false);
+                setPayingDebt(null);
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-emerald-600" />
+              Pagar Parcela / Amortizar Dívida
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Ao registrar este pagamento, o saldo devedor da dívida será automaticamente reduzido.
+            </p>
+
+            {/* Resumo da Dívida */}
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl mb-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900 text-sm">{payingDebt.title}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-700 border border-emerald-200">
+                  {payingDebt.total_installments > 1
+                    ? `Parcela ${Number(payingDebt.paid_installments) + 1} de ${payingDebt.total_installments}`
+                    : 'Pagamento'}
+                </span>
+              </div>
+              {payingDebt.company_name && (
+                <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Building size={12} className="text-emerald-700" />
+                  <span>{payingDebt.company_name}</span>
+                </p>
+              )}
+              <div className="flex items-center justify-between pt-2 border-t border-emerald-200/60 text-xs">
+                <span className="text-gray-600">Saldo Devedor Atual:</span>
+                <span className="font-black text-rose-600 text-sm">
+                  {formatCurrency(payingDebt.remaining_amount)}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmPayment} className="space-y-4">
+              {/* Valor a Pagar */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Valor a Pagar / Amortizar (R$) *
+                  </label>
+                  <div className="flex items-center gap-1">
+                    {payingDebt.total_installments > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const perInstallment = Math.round((payingDebt.total_amount / payingDebt.total_installments) * 100) / 100;
+                          const val = Math.min(payingDebt.remaining_amount, perInstallment);
+                          setPayForm({ ...payForm, amount: String(val) });
+                        }}
+                        className="text-[10px] font-semibold text-blue-600 hover:underline px-1"
+                      >
+                        Parcela Sugerida
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPayForm({ ...payForm, amount: String(payingDebt.remaining_amount) })}
+                      className="text-[10px] font-semibold text-emerald-700 hover:underline px-1"
+                    >
+                      Quitar Total ({formatCurrency(payingDebt.remaining_amount)})
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={payingDebt.remaining_amount}
+                  required
+                  placeholder="0,00"
+                  value={payForm.amount}
+                  onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-base text-gray-900 font-black focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Data e Forma de Pagamento */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Data do Pagamento *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={payForm.payment_date}
+                    onChange={(e) => setPayForm({ ...payForm, payment_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Forma de Pagamento
+                  </label>
+                  <select
+                    value={payForm.payment_method}
+                    onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                  >
+                    <option value="PIX">PIX</option>
+                    <option value="Boleto">Boleto Bancário</option>
+                    <option value="Cartão de Crédito">Cartão de Crédito</option>
+                    <option value="Cartão de Débito">Cartão de Débito</option>
+                    <option value="Transferência">Transferência Bancária</option>
+                    <option value="Dinheiro">Dinheiro em Espécie</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Checkbox para sincronizar com fluxo de caixa como despesa */}
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={payForm.create_transaction}
+                  onChange={(e) => setPayForm({ ...payForm, create_transaction: e.target.checked })}
+                  className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-gray-800 block">
+                    Registrar saída no fluxo de caixa geral
+                  </span>
+                  <span className="text-[11px] text-gray-500">
+                    Gera automaticamente um lançamento de despesa paga na aba Despesas da agência.
+                  </span>
+                </div>
+              </label>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Comprovante / Observações
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Comprovante Itaú nº 981273, chave pix..."
+                  value={payForm.notes}
+                  onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Rodapé com Botões */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPayModal(false);
+                    setPayingDebt(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPayment}
+                  className="px-5 py-2 bg-emerald-600 text-white font-semibold rounded-xl text-xs hover:bg-emerald-700 active:bg-emerald-800 transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                >
+                  {submittingPayment ? 'Registrando...' : 'Confirmar Pagamento'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: HISTÓRICO DE PAGAMENTOS DA DÍVIDA                */}
+      {/* ======================================================== */}
+      {showHistoryModal && historyDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-xl shadow-2xl relative max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={() => {
+                setShowHistoryModal(false);
+                setHistoryDebt(null);
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <History className="w-5 h-5 text-blue-600" />
+                Histórico de Pagamentos
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Dívida: <strong className="text-gray-800">{historyDebt.title}</strong>
+                {historyDebt.company_name ? ` • ${historyDebt.company_name}` : ''}
+              </p>
+            </div>
+
+            {/* Resumo do Saldo */}
+            <div className="grid grid-cols-3 gap-2 p-3 bg-gray-50 rounded-xl mb-4 text-center shrink-0">
+              <div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Dívida</span>
+                <span className="text-xs sm:text-sm font-bold text-gray-800 block mt-0.5">
+                  {formatCurrency(historyDebt.total_amount)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Pago</span>
+                <span className="text-xs sm:text-sm font-bold text-emerald-600 block mt-0.5">
+                  {formatCurrency(historyDebt.paid_amount)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Saldo Restante</span>
+                <span className="text-xs sm:text-sm font-black text-rose-600 block mt-0.5">
+                  {formatCurrency(historyDebt.remaining_amount)}
+                </span>
+              </div>
+            </div>
+
+            {/* Lista com rolagem dos pagamentos */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
+              {loadingHistory ? (
+                <div className="py-8 text-center text-xs text-gray-500">
+                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  Carregando histórico...
+                </div>
+              ) : debtPayments.length === 0 ? (
+                <div className="py-8 text-center text-xs text-gray-400">
+                  <Receipt size={32} className="mx-auto text-gray-300 mb-2" />
+                  Nenhum pagamento registrado ainda para esta dívida.
+                </div>
+              ) : (
+                debtPayments.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-3 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors flex items-center justify-between gap-3 shadow-2xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-900">
+                          {p.installment_number ? `Parcela ${p.installment_number}` : 'Pagamento'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-semibold">
+                          {p.payment_method || 'PIX'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {formatDate(p.payment_date)}
+                        {p.notes ? ` • ${p.notes}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-black text-emerald-600">
+                        - {formatCurrency(p.amount)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePayment(p.id)}
+                        className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Estornar pagamento (o saldo devedor será recalculado)"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHistoryModal(false);
+                  setHistoryDebt(null);
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
