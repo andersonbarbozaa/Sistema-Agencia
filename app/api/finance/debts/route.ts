@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
+import { ensureDebtTables } from '@/lib/debts-db';
 
 // GET /api/finance/debts — lista todas as dívidas com métricas
 export async function GET(request: NextRequest) {
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
 
   const db = getDb();
+  await ensureDebtTables(db);
   const wsId = user.workspace_id || 'ws_default';
 
   const conditions: string[] = [
@@ -124,6 +126,7 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDb();
+    await ensureDebtTables(db);
     const wsId = user.workspace_id || 'ws_default';
     const debtId = `debt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const installments = Math.max(1, parseInt(total_installments || '1', 10));

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
+import { ensureDebtTables } from '@/lib/debts-db';
 
 // GET /api/finance/debts/[id] — busca dívida detalhada com pagamentos
 export async function GET(
@@ -13,6 +14,7 @@ export async function GET(
 
   const { id } = await params;
   const db = getDb();
+  await ensureDebtTables(db);
   const wsId = user.workspace_id || 'ws_default';
 
   try {
@@ -64,6 +66,7 @@ export async function PATCH(
 
   const { id } = await params;
   const db = getDb();
+  await ensureDebtTables(db);
   const wsId = user.workspace_id || 'ws_default';
 
   try {
@@ -164,6 +167,7 @@ export async function DELETE(
 
   const { id } = await params;
   const db = getDb();
+  await ensureDebtTables(db);
   const wsId = user.workspace_id || 'ws_default';
 
   try {

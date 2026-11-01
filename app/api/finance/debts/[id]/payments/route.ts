@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
+import { ensureDebtTables } from '@/lib/debts-db';
 
 // POST /api/finance/debts/[id]/payments — registra pagamento/amortização de parcela da dívida
 export async function POST(
@@ -13,6 +14,7 @@ export async function POST(
 
   const { id } = await params;
   const db = getDb();
+  await ensureDebtTables(db);
   const wsId = user.workspace_id || 'ws_default';
 
   try {

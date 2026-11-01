@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getApiUser } from '@/lib/auth';
+import { ensureDebtTables } from '@/lib/debts-db';
 
 // DELETE /api/finance/debts/[id]/payments/[paymentId] — exclui/estorna um pagamento de dívida
 export async function DELETE(
@@ -13,6 +14,7 @@ export async function DELETE(
 
   const { id, paymentId } = await params;
   const db = getDb();
+  await ensureDebtTables(db);
   const wsId = user.workspace_id || 'ws_default';
 
   try {
