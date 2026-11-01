@@ -643,7 +643,7 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full px-[10px]">
       {/* Quick Filter Active Banner */}
       {filterParam && (
         <div className="bg-blue-50 border border-blue-200 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs text-blue-900 shadow-sm animate-in fade-in duration-150">
@@ -946,10 +946,10 @@ export default function TasksPage() {
                   setDraggedTaskId(null);
                 }}
                 className={cn(
-                  "w-[280px] min-w-[280px] flex-shrink-0 bg-white rounded-2xl p-3.5 border flex flex-col shadow-sm transition-all duration-150",
+                  "w-[290px] xl:w-[320px] 2xl:flex-1 min-w-[280px] flex-shrink-0 bg-white dark:bg-gray-800 rounded-2xl p-3.5 border flex flex-col shadow-sm transition-all duration-150",
                   isColOver
                     ? "border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/20"
-                    : "border-gray-200"
+                    : "border-gray-200 dark:border-gray-700"
                 )}
               >
                 <div className="flex items-center justify-between mb-3 px-1">

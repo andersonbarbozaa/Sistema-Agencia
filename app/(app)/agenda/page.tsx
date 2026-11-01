@@ -19,6 +19,7 @@ import {
   Trash2,
   Edit3,
   CalendarCheck,
+  User,
 } from 'lucide-react';
 import { CalendarEvent } from '@/types';
 import { formatDate, cn } from '@/lib/utils';
@@ -630,6 +631,9 @@ export default function AgendaPage() {
                         location: task.client_name,
                         status: task.status,
                         calendarId: task.calendar_id,
+                        categoryName: task.category_name,
+                        categoryColor: task.category_color,
+                        clientName: task.client_name,
                         raw: task,
                       };
                     }),
@@ -644,7 +648,7 @@ export default function AgendaPage() {
                     <div
                       key={idx}
                       className={cn(
-                        'p-1.5 sm:p-2 transition-colors relative flex flex-col justify-between min-h-[95px] sm:min-h-[110px] group',
+                        'p-1.5 sm:p-2 transition-colors relative flex flex-col justify-between min-h-[110px] sm:min-h-[135px] group',
                         cell.currentMonth
                           ? isToday
                             ? 'bg-blue-50/25 hover:bg-blue-50/40'
@@ -679,47 +683,90 @@ export default function AgendaPage() {
                         )}
                       </div>
 
-                      {/* Compromissos e Tarefas como Pílulas Compactas Cronológicas */}
-                      <div className="space-y-1 overflow-y-auto max-h-24 sm:max-h-28 flex-1 scrollbar-none">
+                      {/* Compromissos e Tarefas */}
+                      <div className="space-y-1.5 overflow-y-auto max-h-32 sm:max-h-44 flex-1 scrollbar-none pr-0.5">
                         {dayItems.map((item) => {
                           const isEvent = item.type === 'event';
                           const cal = customCalendars.find((c) => c.id === item.calendarId);
 
-                          // Cores e estilos por tipo e status - Texto sempre branco para máxima legibilidade
-                          let pillBg = 'bg-blue-600 hover:bg-blue-700';
-
                           if (!isEvent) {
-                            if (item.status === 'Concluída' || item.status === 'Aprovada') {
-                              pillBg = 'bg-emerald-600 hover:bg-emerald-700';
-                            } else if (item.raw.delivery_date && item.raw.delivery_date < todayStr) {
-                              pillBg = 'bg-rose-600 hover:bg-rose-700';
-                            } else if (item.status === 'Em alteração') {
-                              pillBg = 'bg-orange-600 hover:bg-orange-700';
-                            } else if (item.status === 'Em aprovação') {
-                              pillBg = 'bg-amber-600 hover:bg-amber-700';
-                            } else {
-                              pillBg = 'bg-blue-600 hover:bg-blue-700';
-                            }
-                          } else if (cal?.color) {
-                            pillBg = '';
+                            // CARD DE TAREFA NA AGENDA:
+                            // - Status acima do card
+                            // - Categoria do lado do status
+                            // - Nome da tarefa
+                            // - Abaixo do título: Nome do cliente
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => setSelectedTaskPreview(item.raw)}
+                                className="p-1.5 sm:p-2 rounded-xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer shadow-2xs hover:shadow-xs transition-all flex flex-col gap-1 w-full text-left group/task"
+                                title={`Tarefa: ${item.title}${item.clientName ? ` | Cliente: ${item.clientName}` : ''}${item.categoryName ? ` | Categoria: ${item.categoryName}` : ''}`}
+                              >
+                                {/* 1. Status acima do card + Categoria ao lado do status */}
+                                <div className="flex items-center gap-1.5 flex-wrap w-full">
+                                  <span
+                                    className={cn(
+                                      'text-[9px] font-bold px-1.5 py-0.5 rounded border leading-none shrink-0',
+                                      item.status === 'Concluída' || (item.status as any) === 'Finalizada'
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                                        : item.status === 'Aprovada'
+                                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                                        : item.status === 'Em aprovação'
+                                        ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+                                        : item.status === 'Em alteração'
+                                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                        : item.status === 'Em produção'
+                                        ? 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-800'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                    )}
+                                  >
+                                    {item.status || 'Não iniciada'}
+                                  </span>
+
+                                  {item.categoryName && (
+                                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 text-gray-700 dark:text-gray-300 truncate max-w-[100px] flex items-center gap-1 shrink-0">
+                                      <span
+                                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: item.categoryColor || '#3B82F6' }}
+                                      />
+                                      <span className="truncate">{item.categoryName}</span>
+                                    </span>
+                                  )}
+
+                                  {item.startTime && (
+                                    <span className="text-[9px] font-mono text-gray-400 dark:text-gray-500 ml-auto leading-none shrink-0">
+                                      {item.startTime}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* 2. Nome da Tarefa */}
+                                <div className="font-bold text-gray-900 dark:text-gray-100 text-[11px] leading-tight line-clamp-2 group-hover/task:text-blue-600 dark:group-hover/task:text-blue-400 transition-colors">
+                                  {item.title}
+                                </div>
+
+                                {/* 3. Abaixo do título: Nome do Cliente */}
+                                {item.clientName && (
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate flex items-center gap-1 pt-0.5 border-t border-gray-100 dark:border-gray-750">
+                                    <User size={10} className="shrink-0 text-gray-400" />
+                                    <span className="truncate">{item.clientName}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
                           }
 
+                          // CARD DE COMPROMISSO/EVENTO NA AGENDA
                           return (
                             <div
                               key={item.id}
-                              onClick={() =>
-                                isEvent ? openEditModal(item.raw) : setSelectedTaskPreview(item.raw)
-                              }
-                              style={isEvent && cal?.color ? { backgroundColor: cal.color } : undefined}
+                              onClick={() => openEditModal(item.raw)}
+                              style={cal?.color ? { backgroundColor: cal.color } : undefined}
                               className={cn(
-                                'px-2 py-1 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] cursor-pointer transition-all flex flex-col items-start gap-0.5 min-w-0 shadow-xs group/pill text-white',
-                                pillBg
+                                'px-2 py-1.5 rounded-xl text-[10px] sm:text-[11px] cursor-pointer transition-all flex flex-col items-start gap-0.5 min-w-0 shadow-2xs group/pill text-white',
+                                !cal?.color && 'bg-blue-600 hover:bg-blue-700'
                               )}
-                              title={
-                                isEvent
-                                  ? `${item.startTime ? item.startTime + ' - ' : ''}${item.title} (${item.location || 'Sem local'})`
-                                  : `Tarefa: ${item.title}${item.location ? ` (${item.location})` : ''}`
-                              }
+                              title={`${item.startTime ? item.startTime + ' - ' : ''}${item.title} (${item.location || 'Sem local'})`}
                             >
                               <div className="flex items-center gap-1.5 w-full">
                                 <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-white" />
@@ -728,15 +775,18 @@ export default function AgendaPage() {
                                     {item.startTime}
                                   </span>
                                 )}
-                                {!isEvent && (
-                                  <span className="text-[9px] font-semibold text-white/90 truncate">
-                                    {item.status}
-                                  </span>
-                                )}
+                                <span className="text-[9px] font-semibold text-white/80 uppercase tracking-wider">
+                                  Compromisso
+                                </span>
                               </div>
                               <span className="font-bold text-white line-clamp-2 break-words leading-tight w-full">
                                 {item.title}
                               </span>
+                              {item.location && (
+                                <span className="text-[9px] text-white/80 truncate">
+                                  {item.location}
+                                </span>
+                              )}
                             </div>
                           );
                         })}
@@ -774,19 +824,60 @@ export default function AgendaPage() {
                     className="p-4 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50"
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-gray-900">{item.title || item.name}</span>
-                        {item.type === 'task' && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 font-semibold">
-                            Tarefa
-                          </span>
-                        )}
-                        {item.client_name && (
+                      {item.type === 'task' ? (
+                        <>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span
+                              className={cn(
+                                'text-[10px] font-bold px-2 py-0.5 rounded border leading-none',
+                                item.status === 'Concluída' || (item.status as any) === 'Finalizada'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                                  : item.status === 'Aprovada'
+                                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                                  : item.status === 'Em aprovação'
+                                  ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+                                  : item.status === 'Em alteração'
+                                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                  : item.status === 'Em produção'
+                                  ? 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-800'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                              )}
+                            >
+                              {item.status || 'Não iniciada'}
+                            </span>
+                            {item.category_name && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: item.category_color || '#3B82F6' }}
+                                />
+                                {item.category_name}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                            {item.name || item.title}
+                          </h4>
+                          {item.client_name && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium flex items-center gap-1">
+                              <User size={12} className="text-gray-400 shrink-0" />
+                              {item.client_name}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-gray-900">{item.title || item.name}</span>
                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 font-semibold">
-                            {item.client_name}
+                            Compromisso
                           </span>
-                        )}
-                      </div>
+                          {item.client_name && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 border border-gray-100 font-semibold">
+                              {item.client_name}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {item.description && (
                         <p className="text-xs text-gray-500 line-clamp-1">{item.description}</p>
                       )}
