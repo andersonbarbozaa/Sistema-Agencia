@@ -285,7 +285,26 @@ function SettingsContent() {
     } catch (e) {}
   }, []);
 
-  const handleSavePreset = (e: React.FormEvent) => {
+  const persistPresets = async (updated: TextFormatPreset[]) => {
+    setFormattingPresets(updated);
+    try {
+      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(updated));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('agency-presets-updated', { detail: updated }));
+      }
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text_formatting_presets: JSON.stringify(updated),
+        }),
+      });
+    } catch (e) {
+      console.error('Error persisting text presets:', e);
+    }
+  };
+
+  const handleSavePreset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!presetForm.name.trim()) return;
 
@@ -300,27 +319,18 @@ function SettingsContent() {
       updated = [...formattingPresets, newP];
     }
 
-    setFormattingPresets(updated);
-    try {
-      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(updated));
-    } catch (e) {}
+    await persistPresets(updated);
     setShowPresetModal(false);
     setEditingPreset(null);
   };
 
-  const handleDeletePreset = (id: string) => {
+  const handleDeletePreset = async (id: string) => {
     const updated = formattingPresets.filter((p) => p.id !== id);
-    setFormattingPresets(updated);
-    try {
-      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(updated));
-    } catch (e) {}
+    await persistPresets(updated);
   };
 
-  const handleResetPresets = () => {
-    setFormattingPresets(DEFAULT_TEXT_PRESETS);
-    try {
-      localStorage.setItem('agency_text_formatting_presets', JSON.stringify(DEFAULT_TEXT_PRESETS));
-    } catch (e) {}
+  const handleResetPresets = async () => {
+    await persistPresets(DEFAULT_TEXT_PRESETS);
   };
 
   // CRM WHATSAPP TEMPLATES
@@ -784,6 +794,15 @@ function SettingsContent() {
           });
           if (d.settings.crm_whatsapp_templates) {
             setWhatsappTemplates(parseWhatsAppTemplates(d.settings.crm_whatsapp_templates));
+          }
+          if (d.settings.text_formatting_presets) {
+            try {
+              const parsed = JSON.parse(d.settings.text_formatting_presets);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setFormattingPresets(parsed);
+                localStorage.setItem('agency_text_formatting_presets', JSON.stringify(parsed));
+              }
+            } catch (e) {}
           }
         }
       }

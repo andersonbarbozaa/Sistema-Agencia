@@ -404,3 +404,11 @@ html.dark .rich-note-callout {
   color: #fde68a !important;
   border-left-color: #f59e0b !important;
 }
+
+/* Inline Highlights & Grifados */
+span[style*="background-color"], mark {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 1px 4px;
+  border-radius: 4px;
+}

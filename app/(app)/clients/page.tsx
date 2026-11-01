@@ -1103,7 +1103,7 @@ export default function ClientsPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div className="p-3 bg-gray-50 rounded-xl">
-                      <span className="text-gray-400 font-medium">Nome do Cliente:</span>
+                      <span className="text-gray-400 font-medium">Responsável:</span>
                       <p className="font-semibold text-gray-800 mt-1">{selectedClient.name || '-'}</p>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl">
@@ -1438,7 +1438,7 @@ export default function ClientsPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome do Cliente *</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Responsável *</label>
                       <input
                         type="text"
                         placeholder="Ex: Anderson Barboza ou João Silva"
@@ -1730,7 +1730,7 @@ export default function ClientsPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nome do Cliente *</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Responsável *</label>
                       <input
                         type="text"
                         required

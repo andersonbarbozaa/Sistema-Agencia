@@ -504,35 +504,37 @@ export default function TasksPage() {
   const getTaskStatusBadgeStyle = (status: string) => {
     switch (status) {
       case 'Concluída':
-        return 'bg-gray-100 text-gray-700 border border-gray-200 font-semibold';
+      case 'Finalizada':
+        return 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-semibold';
       case 'Aprovada':
-        return 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold';
-      case 'Em alteração':
-        return 'bg-orange-100 text-orange-800 border border-orange-200 font-semibold';
+        return 'bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800 font-semibold';
       case 'Em aprovação':
-        return 'bg-amber-100 text-amber-800 border border-amber-200 font-semibold';
+        return 'bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 font-semibold';
+      case 'Em alteração':
+        return 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 font-semibold';
       case 'Em produção':
-        return 'bg-blue-100 text-blue-800 border border-blue-200 font-semibold';
+        return 'bg-yellow-100 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-800 font-semibold';
       case 'Não iniciada':
       default:
-        return 'bg-slate-100 text-slate-700 border border-slate-200 font-semibold';
+        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Em produção':
-        return { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' };
-      case 'Em aprovação':
-        return { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' };
-      case 'Em alteração':
-        return { bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' };
-      case 'Aprovada':
-        return { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' };
       case 'Concluída':
-        return { bg: 'bg-emerald-100/90', border: 'border-emerald-400', text: 'text-emerald-900', badge: 'bg-emerald-200 text-emerald-950 font-bold' };
+      case 'Finalizada':
+        return { bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-300 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-300', badge: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold' };
+      case 'Aprovada':
+        return { bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-300 dark:border-blue-800', text: 'text-blue-700 dark:text-blue-300', badge: 'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-bold' };
+      case 'Em aprovação':
+        return { bg: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-purple-300 dark:border-purple-800', text: 'text-purple-700 dark:text-purple-300', badge: 'bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 font-bold' };
+      case 'Em alteração':
+        return { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-300 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold' };
+      case 'Em produção':
+        return { bg: 'bg-yellow-50 dark:bg-yellow-950/30', border: 'border-yellow-300 dark:border-yellow-800', text: 'text-yellow-700 dark:text-yellow-300', badge: 'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-200 font-bold' };
       default:
-        return { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-800' };
+        return { bg: 'bg-slate-50 dark:bg-slate-800/40', border: 'border-slate-300 dark:border-slate-700', text: 'text-slate-700 dark:text-slate-300', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold' };
     }
   };
 
@@ -585,16 +587,46 @@ export default function TasksPage() {
     return true;
   });
 
-  // Ordenação: Tarefas em atraso no topo, seguidas por data de entrega mais próxima no início
+  // Ordenação: Seguir a data de entrega, da mais próxima da data atual para a mais antiga
   filteredTasks.sort((a, b) => {
-    const aOverdue = isTaskOverdue(a);
-    const bOverdue = isTaskOverdue(b);
-    if (aOverdue && !bOverdue) return -1;
-    if (!aOverdue && bOverdue) return 1;
+    const rawDateA = a.delivery_date || (a as any).due_date;
+    const rawDateB = b.delivery_date || (b as any).due_date;
 
-    const dateA = a.delivery_date ? new Date(a.delivery_date.split('T')[0]).getTime() : Infinity;
-    const dateB = b.delivery_date ? new Date(b.delivery_date.split('T')[0]).getTime() : Infinity;
-    if (dateA !== dateB) return dateA - dateB;
+    // Tarefas sem data de entrega ficam no final
+    if (!rawDateA && !rawDateB) return (a.name || '').localeCompare(b.name || '');
+    if (!rawDateA) return 1;
+    if (!rawDateB) return -1;
+
+    const timeA = new Date(rawDateA.split('T')[0] + 'T00:00:00').getTime();
+    const timeB = new Date(rawDateB.split('T')[0] + 'T00:00:00').getTime();
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const ONE_DAY = 1000 * 60 * 60 * 24;
+
+    const diffDaysA = Math.round((timeA - today) / ONE_DAY);
+    const diffDaysB = Math.round((timeB - today) / ONE_DAY);
+
+    const getScore = (diff: number, task: any) => {
+      const isDone = (task.status || '').toLowerCase().includes('conclu') || (task.status || '').toLowerCase().includes('aprovad');
+      // Concluídas com data passada vão para o final
+      if (isDone && diff < 0) {
+        return 100000 + Math.abs(diff);
+      }
+      // Atrasadas não concluídas (diff < 0): urgência máxima por proximidade a hoje (ontem = 0.5, anteontem = 1.5)
+      if (diff < 0) {
+        return Math.abs(diff) - 0.5;
+      }
+      // Hoje (diff = 0) e datas futuras próximas (diff = 1, 2, 3...): mais próximas primeiro
+      return diff;
+    };
+
+    const scoreA = getScore(diffDaysA, a);
+    const scoreB = getScore(diffDaysB, b);
+
+    if (scoreA !== scoreB) {
+      return scoreA - scoreB;
+    }
 
     return (a.name || '').localeCompare(b.name || '');
   });
@@ -921,11 +953,22 @@ export default function TasksPage() {
                 )}
               >
                 <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="font-bold text-xs text-gray-700 uppercase tracking-wider">
-                    {colStatus}
-                  </h3>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={cn(
+                      "w-2.5 h-2.5 rounded-full shrink-0",
+                      colStatus === 'Concluída' ? "bg-emerald-500" :
+                      colStatus === 'Aprovada' ? "bg-blue-500" :
+                      colStatus === 'Em aprovação' ? "bg-purple-500" :
+                      colStatus === 'Em alteração' ? "bg-amber-500" :
+                      colStatus === 'Em produção' ? "bg-yellow-500" :
+                      "bg-slate-400"
+                    )} />
+                    <h3 className="font-bold text-xs text-gray-700 uppercase tracking-wider truncate">
+                      {colStatus}
+                    </h3>
+                  </div>
                   <span className={cn(
-                    "text-xs font-bold px-2 py-0.5 rounded-full transition-colors",
+                    "text-xs font-bold px-2 py-0.5 rounded-full transition-colors shrink-0",
                     isColOver ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
                   )}>
                     {columnTasks.length}
@@ -1137,15 +1180,19 @@ export default function TasksPage() {
 
                     <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[120px]">
                       {dayTasks.map((task) => {
-                        let pillBg = 'bg-blue-600 hover:bg-blue-700';
-                        if (task.status === 'Concluída' || task.status === 'Aprovada') {
+                        let pillBg = 'bg-slate-600 hover:bg-slate-700';
+                        if (task.status === 'Concluída' || (task.status as any) === 'Finalizada') {
                           pillBg = 'bg-emerald-600 hover:bg-emerald-700';
                         } else if (isTaskOverdue(task)) {
                           pillBg = 'bg-rose-600 hover:bg-rose-700';
-                        } else if (task.status === 'Em alteração') {
-                          pillBg = 'bg-orange-600 hover:bg-orange-700';
+                        } else if (task.status === 'Aprovada') {
+                          pillBg = 'bg-blue-600 hover:bg-blue-700';
                         } else if (task.status === 'Em aprovação') {
-                          pillBg = 'bg-amber-600 hover:bg-amber-700';
+                          pillBg = 'bg-purple-600 hover:bg-purple-700';
+                        } else if (task.status === 'Em alteração') {
+                          pillBg = 'bg-amber-500 hover:bg-amber-600';
+                        } else if (task.status === 'Em produção') {
+                          pillBg = 'bg-yellow-500 hover:bg-yellow-600';
                         }
 
                         return (

@@ -87,19 +87,49 @@ export default function RichTextEditor({
   const [showSizePicker, setShowSizePicker] = useState(false);
   const [showPresetsMenu, setShowPresetsMenu] = useState(false);
 
-  // Sync saved presets from localStorage
+  // Sync saved presets from localStorage and /api/settings
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('agency_text_formatting_presets');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPresets(parsed);
+    const loadPresets = async () => {
+      try {
+        const saved = localStorage.getItem('agency_text_formatting_presets');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPresets(parsed);
+          }
         }
+
+        // Fetch latest from API to ensure synchronization with settings
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings?.text_formatting_presets) {
+            const apiPresets = JSON.parse(data.settings.text_formatting_presets);
+            if (Array.isArray(apiPresets) && apiPresets.length > 0) {
+              setPresets(apiPresets);
+              localStorage.setItem('agency_text_formatting_presets', JSON.stringify(apiPresets));
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error loading text presets:', e);
       }
-    } catch (e) {
-      console.error('Error loading text presets:', e);
-    }
+    };
+
+    loadPresets();
+
+    const handlePresetsUpdated = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setPresets(e.detail);
+      }
+    };
+
+    window.addEventListener('agency-presets-updated', handlePresetsUpdated);
+    window.addEventListener('storage', loadPresets);
+    return () => {
+      window.removeEventListener('agency-presets-updated', handlePresetsUpdated);
+      window.removeEventListener('storage', loadPresets);
+    };
   }, []);
 
   // Update contentEditable when value prop changes externally
@@ -135,12 +165,14 @@ export default function RichTextEditor({
     underline?: boolean;
     isNote?: boolean;
     isTitle?: boolean;
+    presetName?: string;
   }) => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
     const range = selection.getRangeAt(0);
     const selectedContent = range.extractContents();
+    const hasContent = selectedContent.childNodes.length > 0 && selectedContent.textContent?.trim() !== '';
 
     if (styles.isNote) {
       // Create callout / note block
@@ -150,41 +182,58 @@ export default function RichTextEditor({
       noteBox.style.borderLeft = `4px solid ${styles.color || '#f59e0b'}`;
       noteBox.style.color = styles.color || '#92400e';
       noteBox.style.padding = '8px 12px';
-      noteBox.style.borderRadius = '6px';
+      noteBox.style.borderRadius = '8px';
       noteBox.style.margin = '8px 0';
       noteBox.style.fontWeight = styles.bold ? 'bold' : 'normal';
-      noteBox.appendChild(selectedContent.childNodes.length > 0 ? selectedContent : document.createTextNode('Nota: Insira o texto aqui'));
+      noteBox.style.fontSize = styles.fontSize === 'sm' ? '12px' : styles.fontSize === 'lg' ? '15px' : styles.fontSize === 'xl' ? '16px' : '13px';
+      if (styles.italic) noteBox.style.fontStyle = 'italic';
+      noteBox.appendChild(hasContent ? selectedContent : document.createTextNode(styles.presetName || 'Nota: Insira o texto aqui'));
       range.insertNode(noteBox);
     } else if (styles.isTitle) {
       // Create heading block
       const h2 = document.createElement('h2');
-      h2.style.fontSize = '18px';
+      h2.style.fontSize = styles.fontSize === 'xl' ? '20px' : styles.fontSize === 'lg' ? '18px' : '16px';
       h2.style.fontWeight = 'bold';
       h2.style.color = styles.color || '#1e3a8a';
-      h2.style.margin = '8px 0 4px 0';
-      if (styles.bgColor) h2.style.backgroundColor = styles.bgColor;
-      h2.appendChild(selectedContent.childNodes.length > 0 ? selectedContent : document.createTextNode('Título'));
+      h2.style.margin = '10px 0 4px 0';
+      if (styles.bgColor && styles.bgColor !== 'transparent') {
+        h2.style.backgroundColor = styles.bgColor;
+        h2.style.padding = '4px 8px';
+        h2.style.borderRadius = '6px';
+      }
+      if (styles.italic) h2.style.fontStyle = 'italic';
+      if (styles.underline) h2.style.textDecoration = 'underline';
+      h2.appendChild(hasContent ? selectedContent : document.createTextNode(styles.presetName || 'Título'));
       range.insertNode(h2);
     } else {
       // Span inline formatting
       const span = document.createElement('span');
-      if (styles.color) span.style.color = styles.color;
-      if (styles.bgColor) {
+      if (styles.color) {
+        span.style.color = styles.color;
+      } else if (styles.bgColor && styles.bgColor !== 'transparent') {
+        span.style.color = '#111827';
+      }
+
+      if (styles.bgColor && styles.bgColor !== 'transparent') {
         span.style.backgroundColor = styles.bgColor;
-        span.style.padding = '2px 4px';
-        span.style.borderRadius = '3px';
+        span.style.padding = '2px 6px';
+        span.style.borderRadius = '4px';
+        span.style.boxDecorationBreak = 'clone';
+        (span.style as any).webkitBoxDecorationBreak = 'clone';
       }
+
       if (styles.fontSize) {
-        if (styles.fontSize === 'sm') span.style.fontSize = '12px';
-        if (styles.fontSize === 'base') span.style.fontSize = '14px';
-        if (styles.fontSize === 'lg') span.style.fontSize = '16px';
-        if (styles.fontSize === 'xl') span.style.fontSize = '18px';
+        if (styles.fontSize === 'sm') span.style.fontSize = '11px';
+        if (styles.fontSize === 'base') span.style.fontSize = '13px';
+        if (styles.fontSize === 'lg') span.style.fontSize = '15px';
+        if (styles.fontSize === 'xl') span.style.fontSize = '17px';
       }
+
       if (styles.bold) span.style.fontWeight = 'bold';
       if (styles.italic) span.style.fontStyle = 'italic';
       if (styles.underline) span.style.textDecoration = 'underline';
 
-      span.appendChild(selectedContent.childNodes.length > 0 ? selectedContent : document.createTextNode('Texto formatado'));
+      span.appendChild(hasContent ? selectedContent : document.createTextNode(styles.presetName || 'Texto formatado'));
       range.insertNode(span);
     }
 
@@ -202,9 +251,16 @@ export default function RichTextEditor({
       underline: preset.underline,
       isNote: preset.tag === 'note',
       isTitle: preset.tag === 'h2' || preset.tag === 'h3',
+      presetName: preset.name,
     });
     setShowPresetsMenu(false);
   };
+
+  // Find user's configured "Grifado" preset
+  const grifadoPreset = presets.find((p) => {
+    const n = (p.name || '').toLowerCase();
+    return n.includes('grif') || n.includes('marca-texto') || n.includes('marcatexto') || n.includes('destaque');
+  }) || presets.find(p => p.tag === 'p' && p.highlightColor);
 
   const colors = [
     { name: 'Padrão', value: '#111827' },
@@ -218,7 +274,7 @@ export default function RichTextEditor({
 
   const highlights = [
     { name: 'Nenhum', value: 'transparent' },
-    { name: 'Amarelo', value: '#fef08a' },
+    { name: 'Amarelo', value: grifadoPreset?.highlightColor || '#fef08a' },
     { name: 'Verde', value: '#bbf7d0' },
     { name: 'Rosa', value: '#fbcfe8' },
     { name: 'Azul', value: '#bae6fd' },
@@ -333,15 +389,29 @@ export default function RichTextEditor({
           )}
         </div>
 
-        {/* Highlighter (Marca-texto) */}
-        <div className="relative">
+        {/* Highlighter (Marca-texto / Grifado) */}
+        <div className="relative flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 border border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => {
+              if (grifadoPreset) {
+                applyPreset(grifadoPreset);
+              } else {
+                formatSelection({ bgColor: '#fef08a', color: '#111827' });
+              }
+            }}
+            className="px-2 py-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center gap-1 transition-colors"
+            title={grifadoPreset ? `Aplicar Padrão: ${grifadoPreset.name}` : "Grifado (Marca-texto)"}
+          >
+            <Highlighter size={13} />
+            <span className="text-[11px] font-bold">Grifado</span>
+          </button>
           <button
             type="button"
             onClick={() => { setShowHighlightPicker(!showHighlightPicker); setShowColorPicker(false); }}
-            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-amber-600 dark:text-amber-400 flex items-center gap-0.5"
-            title="Grifado (Marca-texto)"
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            title="Escolher outra cor de grifo"
           >
-            <Highlighter size={14} />
             <ChevronDown size={10} />
           </button>
           {showHighlightPicker && (
@@ -441,6 +511,33 @@ export default function RichTextEditor({
           )}
         </div>
       </div>
+
+      {/* Faixa com Todos os Padrões de Roteiro Disponíveis */}
+      {presets.length > 0 && (
+        <div className="bg-gray-50/90 dark:bg-gray-850 px-2.5 py-1.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1.5 overflow-x-auto text-xs select-none">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 shrink-0 mr-1 flex items-center gap-1">
+            <Sparkles size={11} className="text-amber-500" /> Padrões:
+          </span>
+          {presets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => applyPreset(preset)}
+              className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold shrink-0 transition-transform hover:scale-105 active:scale-95 shadow-2xs border border-black/5 dark:border-white/10"
+              style={{
+                color: preset.textColor || (preset.highlightColor ? '#111827' : undefined),
+                backgroundColor: preset.highlightColor || (preset.tag === 'note' ? '#fef3c7' : preset.tag === 'h2' ? '#dbeafe' : '#f3f4f6'),
+                fontWeight: preset.bold ? 'bold' : '500',
+                fontStyle: preset.italic ? 'italic' : 'normal',
+                textDecoration: preset.underline ? 'underline' : 'none',
+              }}
+              title={`Clique para aplicar: ${preset.name}`}
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Editable Area */}
       <div
