@@ -129,56 +129,97 @@ export default function Header({ user }: HeaderProps) {
     };
   }, []);
 
-  // Creation button config before notification icon
+  // Creation button config and current page info
+  const getPageInfo = () => {
+    if (pathname.startsWith('/tasks')) {
+      return { title: 'Tarefas' };
+    }
+    if (pathname.startsWith('/clients')) {
+      return { title: 'Clientes' };
+    }
+    if (pathname.startsWith('/crm')) {
+      return { title: 'CRM' };
+    }
+    if (pathname.startsWith('/finance')) {
+      return { title: 'Financeiro' };
+    }
+    if (pathname.startsWith('/agenda')) {
+      return { title: 'Agenda' };
+    }
+    if (pathname.startsWith('/contracts')) {
+      return { title: 'Contratos' };
+    }
+    if (pathname.startsWith('/projects')) {
+      return { title: 'Projetos' };
+    }
+    if (pathname.startsWith('/settings')) {
+      return { title: 'Configurações' };
+    }
+    if (pathname.startsWith('/reports')) {
+      return { title: 'Relatórios' };
+    }
+    if (pathname.startsWith('/assistant')) {
+      return { title: 'Assistente IA' };
+    }
+    if (pathname.startsWith('/notifications')) {
+      return { title: 'Notificações' };
+    }
+    if (pathname.startsWith('/admin-master')) {
+      return { title: 'Painel Master' };
+    }
+    return { title: 'Dashboard' };
+  };
+
   const getCreateButtonConfig = () => {
     if (user?.role === 'CLIENTE') return null;
     if (pathname.startsWith('/settings')) return null;
 
     if (pathname.startsWith('/tasks')) {
       return {
-        label: 'Nova Tarefa',
+        label: 'Criar Tarefa',
         action: () => window.dispatchEvent(new CustomEvent('open-new-task')),
-      };
-    }
-    if (pathname.startsWith('/crm')) {
-      return {
-        label: 'Novo Lead',
-        action: () => window.dispatchEvent(new CustomEvent('open-new-lead')),
       };
     }
     if (pathname.startsWith('/clients')) {
       return {
-        label: 'Novo Cliente',
+        label: 'Criar Cliente',
         action: () => window.dispatchEvent(new CustomEvent('open-new-client')),
       };
     }
-    if (pathname.startsWith('/agenda')) {
+    if (pathname.startsWith('/crm')) {
       return {
-        label: 'Novo Compromisso',
-        action: () => window.dispatchEvent(new CustomEvent('open-new-event')),
+        label: 'Criar CRM',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-lead')),
       };
     }
     if (pathname.startsWith('/finance')) {
       return {
-        label: 'Nova Transação',
+        label: 'Criar Transação',
         action: () => window.dispatchEvent(new CustomEvent('open-new-transaction')),
       };
     }
-    if (pathname.startsWith('/projects')) {
+    if (pathname.startsWith('/agenda')) {
       return {
-        label: 'Novo Projeto',
-        action: () => window.dispatchEvent(new CustomEvent('open-new-project')),
+        label: 'Criar na Agenda',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-event')),
+      };
+    }
+    if (pathname.startsWith('/contracts')) {
+      return {
+        label: 'Criar Contrato',
+        action: () => window.dispatchEvent(new CustomEvent('open-new-contract')),
       };
     }
     if (pathname === '/dashboard') {
       return {
-        label: 'Nova Tarefa',
+        label: 'Criar Tarefa',
         action: () => router.push('/tasks?new=true'),
       };
     }
     return null;
   };
 
+  const pageInfo = getPageInfo();
   const createConfig = getCreateButtonConfig();
 
   // Search Handler with Debounce
@@ -339,39 +380,22 @@ export default function Header({ user }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3.5 sm:px-6 flex items-center justify-between z-20 flex-shrink-0 transition-colors">
-      {/* 1. LADO ESQUERDO: Botão de Menu + Logo da Empresa (Oculto em Web / Desktop) */}
-      <div className="flex md:hidden items-center gap-3 min-w-0 pr-3">
+      {/* 1. LADO ESQUERDO: Botão de Menu (Mobile) + Nome do Menu Atual (Antes da barra de pesquisa) */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0 pr-1 sm:pr-3">
         <button
           type="button"
           onClick={handleMenuClick}
-          className="p-2 -ml-1 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          className="p-2 -ml-1 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors md:hidden shrink-0"
           title="Alternar menu lateral"
         >
           <Menu size={20} />
         </button>
 
-        <Link href="/dashboard" className="flex items-center gap-2.5 group min-w-0">
-          {companyLogo ? (
-            <img
-              src={companyLogo}
-              alt={companyName}
-              className="w-8 h-8 rounded-xl object-cover border border-gray-200 dark:border-gray-700 shadow-xs shrink-0"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-              {companyName.charAt(0).toUpperCase()}
-            </div>
-          )}
-
-          <div className="hidden sm:flex flex-col min-w-0">
-            <span className="font-extrabold text-sm text-gray-900 dark:text-white tracking-tight truncate group-hover:text-blue-600 transition-colors">
-              {companyName}
-            </span>
-            <span className="text-[10px] text-gray-400 font-medium truncate">
-              {user.workspace_description || 'Agência Digital'}
-            </span>
-          </div>
-        </Link>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-extrabold text-base sm:text-lg text-gray-900 dark:text-white tracking-tight truncate">
+            {pageInfo.title}
+          </span>
+        </div>
       </div>
 
       {/* 2. CENTRO: Busca Retrátil com Listagem Suspensa de Resultados */}
@@ -567,8 +591,20 @@ export default function Header({ user }: HeaderProps) {
         )}
       </div>
 
-      {/* 3. LADO DIREITO: Notificações + Perfil do Usuário */}
+      {/* 3. LADO DIREITO: Botão de Criação Contextual (Depois da barra de pesquisa) + Notificações + Perfil do Usuário */}
       <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {createConfig && (
+          <button
+            type="button"
+            onClick={createConfig.action}
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow transition-all active:scale-[0.98] cursor-pointer shrink-0"
+            title={createConfig.label}
+          >
+            <Plus size={16} className="stroke-[2.5]" />
+            <span className="hidden sm:inline">{createConfig.label}</span>
+          </button>
+        )}
+
         {/* Notificações (com badge numérico e botão "Ver todas") */}
         <div className="relative" ref={notifRef}>
           <button

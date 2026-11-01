@@ -1444,7 +1444,178 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* ======================================================== */}
+            {/* Barra de Navegação Superior das Configurações */}
+      <div className="bg-white dark:bg-gray-850 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xs flex items-center gap-1.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('overview')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+            activeTab === 'overview'
+              ? 'bg-blue-600 text-white shadow-xs font-bold'
+              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+          )}
+        >
+          <Settings className="w-3.5 h-3.5 shrink-0" />
+          <span>Visão Geral</span>
+        </button>
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'users'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span>Usuários</span>
+          </button>
+        )}
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('categories')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'categories'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <Layers className="w-3.5 h-3.5 shrink-0" />
+            <span>Categorias do Sistema</span>
+          </button>
+        )}
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('finance')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'finance'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <DollarSign className="w-3.5 h-3.5 shrink-0" />
+            <span>Categoria Financeiro</span>
+          </button>
+        )}
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'ai'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <Bot className="w-3.5 h-3.5 shrink-0" />
+            <span>IA</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('appearance')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+            activeTab === 'appearance'
+              ? 'bg-blue-600 text-white shadow-xs font-bold'
+              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+          )}
+        >
+          <Sun className="w-3.5 h-3.5 shrink-0" />
+          <span>Tema</span>
+        </button>
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('formatting')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'formatting'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <Type className="w-3.5 h-3.5 shrink-0" />
+            <span>Padrões de Roteiro</span>
+          </button>
+        )}
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('whatsapp')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'whatsapp'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>Mensagens CRM</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('profile')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+            activeTab === 'profile'
+              ? 'bg-blue-600 text-white shadow-xs font-bold'
+              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+          )}
+        >
+          <User className="w-3.5 h-3.5 shrink-0" />
+          <span>Meu Perfil</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('company')}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+            activeTab === 'company'
+              ? 'bg-blue-600 text-white shadow-xs font-bold'
+              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+          )}
+        >
+          <Building2 className="w-3.5 h-3.5 shrink-0" />
+          <span>Empresa</span>
+        </button>
+
+        {!isClientUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('plans')}
+            className={cn(
+              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
+              activeTab === 'plans'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+            )}
+          >
+            <CreditCard className="w-3.5 h-3.5 shrink-0" />
+            <span>Planos</span>
+          </button>
+        )}
+      </div>
+
+{/* ======================================================== */}
       {/* OVERVIEW: CARDS DOS SUBMENUS (Requisito usuário)           */}
       {/* ======================================================== */}
       {activeTab === 'overview' && (
@@ -2166,12 +2337,12 @@ function SettingsContent() {
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: USUÁRIOS & CARGOS (Requisito usuário)              */}
+      {/* TAB 2: USUÁRIOS & CARGOS (Sem visual de janela)         */}
       {/* ======================================================== */}
       {activeTab === 'users' && (
         <div className="space-y-8">
           {/* Seção 1: Lista de Usuários */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -2364,7 +2535,7 @@ function SettingsContent() {
           </div>
 
           {/* Seção 2: Cargos & Especialidades (Abaixo dos usuários) */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-800">
             <div className="pb-4 border-b border-gray-100 mb-6">
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-blue-600" />
@@ -2428,7 +2599,7 @@ function SettingsContent() {
       {/* TAB 3: CATEGORIAS DO SISTEMA (Apenas Tarefas/Sistema)      */}
       {/* ======================================================== */}
       {activeTab === 'categories' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="space-y-6">
           <div className="pb-4 border-b border-gray-100">
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <Layers className="w-5 h-5 text-blue-600" />
@@ -2496,7 +2667,7 @@ function SettingsContent() {
       {activeTab === 'finance' && (
         <div className="space-y-8">
           {/* Seção 1: Contas Bancárias */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -2549,7 +2720,7 @@ function SettingsContent() {
           </div>
 
           {/* Seção 2: Moeda Padrão & Meta de Receita */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-800">
             <div className="pb-4 border-b border-gray-100 mb-6">
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-blue-600" />
@@ -2641,7 +2812,7 @@ function SettingsContent() {
           </div>
 
           {/* Seção 3: Categorias Financeiras */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-800">
             <div className="pb-4 border-b border-gray-100 mb-6">
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Layers className="w-5 h-5 text-blue-600" />
@@ -2712,7 +2883,7 @@ function SettingsContent() {
       {/* TAB 5: ASSISTENTE DE IA (Configurações)                   */}
       {/* ======================================================== */}
       {activeTab === 'ai' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6 max-w-2xl">
+        <div className="space-y-6 max-w-3xl">
           <div className="pb-4 border-b border-gray-100">
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <Bot className="w-5 h-5 text-blue-600" />
@@ -2794,7 +2965,7 @@ function SettingsContent() {
       {/* TAB 6: APARÊNCIA & TEMA DO APP                            */}
       {/* ======================================================== */}
       {activeTab === 'appearance' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6 max-w-2xl">
+        <div className="space-y-6 max-w-3xl">
           <div className="pb-4 border-b border-gray-100">
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <Moon className="w-5 h-5 text-purple-600" />
@@ -2972,7 +3143,7 @@ function SettingsContent() {
       {/* TAB 7: PADRÕES DE FORMATAÇÃO (ROTEIRO & DESCRIÇÃO)        */}
       {/* ======================================================== */}
       {activeTab === 'formatting' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
             <div>
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -3416,7 +3587,7 @@ function SettingsContent() {
       {/* TAB 10: MENSAGENS CRM                                     */}
       {/* ======================================================== */}
       {activeTab === 'whatsapp' && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
             <div>
               <button
