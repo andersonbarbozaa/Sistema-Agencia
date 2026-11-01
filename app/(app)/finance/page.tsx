@@ -172,16 +172,38 @@ export default function FinancePage() {
 
   const handleCloseNewTransModal = () => {
     if (isNewTransDirty) {
-      const ok = window.confirm('Você possui dados preenchidos no lançamento. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar lançamento?',
+        message: 'Você possui dados preenchidos no lançamento financeiro. Se fechar agora, as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowTransModal(false);
+        },
+      });
+      return;
     }
     setShowTransModal(false);
   };
 
   const handleCloseEditTransModal = () => {
     if (editingTrans) {
-      const ok = window.confirm('Deseja realmente fechar a edição do lançamento? Alterações não salvas serão perdidas.');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar alterações?',
+        message: 'Deseja realmente fechar a edição do lançamento? Alterações não salvas serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setEditingTrans(null);
+        },
+      });
+      return;
     }
     setEditingTrans(null);
   };
@@ -196,8 +218,20 @@ export default function FinancePage() {
 
   const handleCloseDebtModal = () => {
     if (isDebtDirty) {
-      const ok = window.confirm('Você possui dados preenchidos na dívida. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar dívida?',
+        message: 'Você possui dados preenchidos na dívida. Se fechar agora, todas as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowDebtModal(false);
+          setEditingDebt(null);
+        },
+      });
+      return;
     }
     setShowDebtModal(false);
     setEditingDebt(null);
@@ -207,8 +241,20 @@ export default function FinancePage() {
 
   const handleClosePayModal = () => {
     if (isPayDirty) {
-      const ok = window.confirm('Você possui dados preenchidos no pagamento. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar pagamento?',
+        message: 'Você possui dados preenchidos no pagamento/amortização. Se fechar agora, as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowPayModal(false);
+          setPayingDebt(null);
+        },
+      });
+      return;
     }
     setShowPayModal(false);
     setPayingDebt(null);

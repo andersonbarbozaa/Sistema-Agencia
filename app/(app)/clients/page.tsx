@@ -307,36 +307,62 @@ export default function ClientsPage() {
   );
 
   const handleCloseCreateModal = () => {
+    const doClose = () => {
+      setShowCreateModal(false);
+      setNewClient({
+        name: '',
+        company_name: '',
+        corporate_name: '',
+        trade_name: '',
+        avatar_url: '',
+        document: '',
+        email: '',
+        password: '',
+        phone: '',
+        whatsapp: '',
+        address: '',
+        city: '',
+        website: '',
+        notes: '',
+        social_links: [],
+      });
+    };
+
     if (isNewClientDirty) {
-      const ok = window.confirm('Você possui alterações não salvas no cadastro do cliente. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar novo cliente?',
+        message: 'Você possui informações preenchidas para o novo cliente. Se fechar agora, todas as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          doClose();
+        },
+      });
+      return;
     }
-    setShowCreateModal(false);
-    setNewClient({
-      name: '',
-      company_name: '',
-      corporate_name: '',
-      trade_name: '',
-      avatar_url: '',
-      document: '',
-      email: '',
-      password: '',
-      phone: '',
-      whatsapp: '',
-      address: '',
-      city: '',
-      website: '',
-      notes: '',
-      social_links: [],
-    });
+    doClose();
   };
 
   const isPortalUserDirty = Boolean(portalUserForm.name.trim() || portalUserForm.email.trim() || portalUserForm.password.trim());
 
   const handleClosePortalUserModal = () => {
     if (isPortalUserDirty) {
-      const ok = window.confirm('Você possui dados preenchidos no formulário de acesso. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar acesso ao portal?',
+        message: 'Você possui dados preenchidos no formulário de acesso. Se fechar agora, as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowPortalUserModal(false);
+        },
+      });
+      return;
     }
     setShowPortalUserModal(false);
   };
@@ -584,8 +610,19 @@ export default function ClientsPage() {
 
   const handleCloseEditModal = () => {
     if (isEditClientDirty) {
-      const ok = window.confirm('Você possui alterações não salvas no cliente. Deseja realmente descartar as alterações e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar alterações?',
+        message: 'Você possui alterações não salvas no cliente. Se fechar agora, todas as alterações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowEditModal(false);
+        },
+      });
+      return;
     }
     setShowEditModal(false);
   };

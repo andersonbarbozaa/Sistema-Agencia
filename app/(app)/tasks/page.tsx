@@ -125,22 +125,37 @@ export default function TasksPage() {
   );
 
   const handleCloseCreateTaskModal = () => {
+    const doClose = () => {
+      setShowCreateModal(false);
+      setNewTask({
+        name: '',
+        description: '',
+        client_id: '',
+        category_id: '',
+        delivery_date: '',
+        value: 0,
+        assignee_ids: [],
+        visibility: 'grupo',
+        calendar_id: '',
+      });
+    };
+
     if (isNewTaskDirty) {
-      const ok = window.confirm('Você possui informações preenchidas para a nova tarefa. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar nova tarefa?',
+        message: 'Você possui dados preenchidos para a nova tarefa. Se fechar agora, todas as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          doClose();
+        },
+      } as any);
+      return;
     }
-    setShowCreateModal(false);
-    setNewTask({
-      name: '',
-      description: '',
-      client_id: '',
-      category_id: '',
-      delivery_date: '',
-      value: 0,
-      assignee_ids: [],
-      visibility: 'grupo',
-      calendar_id: '',
-    });
+    doClose();
   };
 
   const [initialEditTaskState, setInitialEditTaskState] = useState('');
@@ -148,8 +163,19 @@ export default function TasksPage() {
 
   const handleCloseEditTaskModal = () => {
     if (isEditTaskDirty) {
-      const ok = window.confirm('Você possui alterações não salvas na tarefa. Deseja realmente descartar as alterações e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar alterações?',
+        message: 'Você possui alterações não salvas na tarefa. Se fechar agora, todas as alterações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowEditTaskModal(false);
+        },
+      } as any);
+      return;
     }
     setShowEditTaskModal(false);
   };

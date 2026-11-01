@@ -66,31 +66,57 @@ export default function AgendaPage() {
   const isNewEventDirty = Boolean(newEvent.title.trim() || newEvent.description.trim() || newEvent.location.trim() || newEvent.notes.trim());
 
   const handleCloseCreateModal = () => {
+    const doClose = () => {
+      setShowCreateModal(false);
+      setNewEvent({
+        title: '',
+        description: '',
+        event_date: new Date().toISOString().split('T')[0],
+        start_time: '10:00',
+        end_time: '11:00',
+        location: '',
+        client_id: '',
+        visibility: 'grupo',
+        calendar_id: '',
+        notes: '',
+      });
+    };
+
     if (isNewEventDirty) {
-      const ok = window.confirm('Você possui dados preenchidos no compromisso. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar compromisso?',
+        message: 'Você possui dados preenchidos no compromisso. Se fechar agora, todas as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          doClose();
+        },
+      });
+      return;
     }
-    setShowCreateModal(false);
-    setNewEvent({
-      title: '',
-      description: '',
-      event_date: new Date().toISOString().split('T')[0],
-      start_time: '10:00',
-      end_time: '11:00',
-      location: '',
-      client_id: '',
-      visibility: 'grupo',
-      calendar_id: '',
-      notes: '',
-    });
+    doClose();
   };
 
   const isCalendarFormDirty = Boolean((calendarForm.name || '').trim() || (calendarForm.description || '').trim());
 
   const handleCloseCalendarModal = () => {
     if (isCalendarFormDirty) {
-      const ok = window.confirm('Você possui dados preenchidos na agenda. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar agenda?',
+        message: 'Você possui dados preenchidos na agenda personalizada. Se fechar agora, as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowCalendarModal(false);
+        },
+      });
+      return;
     }
     setShowCalendarModal(false);
   };

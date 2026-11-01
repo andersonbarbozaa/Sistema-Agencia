@@ -213,8 +213,20 @@ export default function CRMPage() {
 
   const handleCloseCreateModal = () => {
     if (isNewLeadDirty) {
-      const ok = window.confirm('Você possui dados preenchidos no lead. Deseja realmente descartar e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar lead?',
+        message: 'Você possui dados preenchidos no lead. Se fechar agora, todas as informações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowCreateModal(false);
+          setNewLead(EMPTY_NEW_LEAD);
+        },
+      });
+      return;
     }
     setShowCreateModal(false);
     setNewLead(EMPTY_NEW_LEAD);
@@ -225,8 +237,19 @@ export default function CRMPage() {
 
   const handleCloseEditModal = () => {
     if (isEditLeadDirty) {
-      const ok = window.confirm('Você possui alterações não salvas no lead. Deseja realmente descartar as alterações e fechar?');
-      if (!ok) return;
+      setConfirmState({
+        isOpen: true,
+        title: 'Descartar alterações?',
+        message: 'Você possui alterações não salvas no lead. Se fechar agora, todas as alterações serão perdidas.',
+        type: 'warning',
+        confirmText: 'Descartar e Fechar',
+        cancelText: 'Continuar Editando',
+        onConfirm: () => {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+          setShowEditModal(false);
+        },
+      });
+      return;
     }
     setShowEditModal(false);
   };
