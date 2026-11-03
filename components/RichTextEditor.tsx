@@ -29,7 +29,7 @@ export interface TextFormatPreset {
 export const DEFAULT_TEXT_PRESETS: TextFormatPreset[] = [
   {
     id: 'preset_note',
-    name: '📌 Nota de Atenção',
+    name: 'Nota',
     tag: 'note',
     textColor: '#92400e',
     highlightColor: '#fef3c7',
@@ -37,7 +37,7 @@ export const DEFAULT_TEXT_PRESETS: TextFormatPreset[] = [
   },
   {
     id: 'preset_title',
-    name: '🎬 Título de Cena',
+    name: 'Título',
     tag: 'h2',
     textColor: '#1e40af',
     fontSize: 'lg',
@@ -45,27 +45,46 @@ export const DEFAULT_TEXT_PRESETS: TextFormatPreset[] = [
   },
   {
     id: 'preset_highlight',
-    name: '🖍️ Marca-texto Amarelo',
+    name: 'Marcar',
     tag: 'p',
     highlightColor: '#fef08a',
     bold: false,
   },
   {
     id: 'preset_dialogue',
-    name: '💬 Fala / Diálogo',
+    name: 'Fala',
     tag: 'p',
     textColor: '#4338ca',
     italic: true,
   },
   {
     id: 'preset_alert',
-    name: '⚠️ Alerta Crítico',
+    name: 'Alerta',
     tag: 'note',
     textColor: '#991b1b',
     highlightColor: '#fee2e2',
     bold: true,
   },
 ];
+
+export function getPresetShortLabel(rawName: string): string {
+  if (!rawName) return '';
+  // Remove emojis and symbols
+  const cleaned = rawName
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}]/gu, '')
+    .trim();
+
+  const lower = cleaned.toLowerCase();
+  if (lower.startsWith('nota')) return 'Nota';
+  if (lower.startsWith('título') || lower.startsWith('titulo')) return 'Título';
+  if (lower.startsWith('marca') || lower.startsWith('marcar') || lower.startsWith('grif')) return 'Marcar';
+  if (lower.startsWith('fala') || lower.startsWith('diálogo') || lower.startsWith('dialogo')) return 'Fala';
+  if (lower.startsWith('alerta')) return 'Alerta';
+
+  // Fallback: take first word of the name
+  const firstWord = cleaned.split(/[\s\/\-_:]+/)[0];
+  return firstWord || rawName;
+}
 
 interface RichTextEditorProps {
   value: string;
@@ -242,6 +261,7 @@ export default function RichTextEditor({
   };
 
   const applyPreset = (preset: TextFormatPreset) => {
+    const shortLabel = getPresetShortLabel(preset.name);
     formatSelection({
       color: preset.textColor,
       bgColor: preset.highlightColor,
@@ -251,7 +271,7 @@ export default function RichTextEditor({
       underline: preset.underline,
       isNote: preset.tag === 'note',
       isTitle: preset.tag === 'h2' || preset.tag === 'h3',
-      presetName: preset.name,
+      presetName: shortLabel,
     });
     setShowPresetsMenu(false);
   };
@@ -259,7 +279,7 @@ export default function RichTextEditor({
   // Find user's configured "Grifado" preset
   const grifadoPreset = presets.find((p) => {
     const n = (p.name || '').toLowerCase();
-    return n.includes('grif') || n.includes('marca-texto') || n.includes('marcatexto') || n.includes('destaque');
+    return n.includes('grif') || n.includes('marca') || n.includes('destaque');
   }) || presets.find(p => p.tag === 'p' && p.highlightColor);
 
   const colors = [
@@ -476,28 +496,31 @@ export default function RichTextEditor({
               <div className="text-[10px] uppercase font-bold text-gray-400 px-2 py-0.5">
                 Aplicar Formatação Pré-definida
               </div>
-              {presets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                  className="w-full text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between transition-colors group"
-                >
-                  <span
-                    className="font-semibold truncate"
-                    style={{
-                      color: preset.textColor || undefined,
-                      backgroundColor: preset.highlightColor || undefined,
-                      padding: preset.highlightColor ? '1px 4px' : undefined,
-                      borderRadius: '3px',
-                      fontStyle: preset.italic ? 'italic' : 'normal',
-                    }}
+              {presets.map((preset) => {
+                const shortLabel = getPresetShortLabel(preset.name);
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between transition-colors group"
                   >
-                    {preset.name}
-                  </span>
-                  <span className="text-[10px] text-gray-400 group-hover:text-blue-600">Aplicar</span>
-                </button>
-              ))}
+                    <span
+                      className="font-semibold truncate"
+                      style={{
+                        color: preset.textColor || undefined,
+                        backgroundColor: preset.highlightColor || undefined,
+                        padding: preset.highlightColor ? '1px 4px' : undefined,
+                        borderRadius: '3px',
+                        fontStyle: preset.italic ? 'italic' : 'normal',
+                      }}
+                    >
+                      {shortLabel}
+                    </span>
+                    <span className="text-[10px] text-gray-400 group-hover:text-blue-600">Aplicar</span>
+                  </button>
+                );
+              })}
               <div className="border-t border-gray-100 dark:border-gray-700 pt-1 mt-1">
                 <a
                   href="/settings?tab=formatting"
@@ -514,28 +537,31 @@ export default function RichTextEditor({
 
       {/* Faixa com Todos os Padrões de Roteiro Disponíveis */}
       {presets.length > 0 && (
-        <div className="bg-gray-50/90 dark:bg-gray-850 px-2.5 py-1.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1.5 overflow-x-auto text-xs select-none">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 shrink-0 mr-1 flex items-center gap-1">
-            <Sparkles size={11} className="text-amber-500" /> Padrões:
+        <div className="bg-gray-50/90 dark:bg-gray-850 px-2.5 py-1.5 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-1 sm:gap-1.5 text-xs select-none">
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 shrink-0 mr-0.5 flex items-center gap-1">
+            <Sparkles size={11} className="text-amber-500 hidden sm:inline" /> Padrões:
           </span>
-          {presets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => applyPreset(preset)}
-              className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold shrink-0 transition-transform hover:scale-105 active:scale-95 shadow-2xs border border-black/5 dark:border-white/10"
-              style={{
-                color: preset.textColor || (preset.highlightColor ? '#111827' : undefined),
-                backgroundColor: preset.highlightColor || (preset.tag === 'note' ? '#fef3c7' : preset.tag === 'h2' ? '#dbeafe' : '#f3f4f6'),
-                fontWeight: preset.bold ? 'bold' : '500',
-                fontStyle: preset.italic ? 'italic' : 'normal',
-                textDecoration: preset.underline ? 'underline' : 'none',
-              }}
-              title={`Clique para aplicar: ${preset.name}`}
-            >
-              {preset.name}
-            </button>
-          ))}
+          {presets.map((preset) => {
+            const shortLabel = getPresetShortLabel(preset.name);
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold transition-transform hover:scale-105 active:scale-95 shadow-2xs border border-black/5 dark:border-white/10"
+                style={{
+                  color: preset.textColor || (preset.highlightColor ? '#111827' : undefined),
+                  backgroundColor: preset.highlightColor || (preset.tag === 'note' ? '#fef3c7' : preset.tag === 'h2' ? '#dbeafe' : '#f3f4f6'),
+                  fontWeight: preset.bold ? 'bold' : '500',
+                  fontStyle: preset.italic ? 'italic' : 'normal',
+                  textDecoration: preset.underline ? 'underline' : 'none',
+                }}
+                title={`Clique para aplicar: ${shortLabel}`}
+              >
+                {shortLabel}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -547,7 +573,7 @@ export default function RichTextEditor({
         onBlur={handleInput}
         style={{ minHeight }}
         data-placeholder={placeholder}
-        className="p-3 text-xs text-gray-800 dark:text-gray-100 outline-none leading-relaxed overflow-y-auto max-h-[360px] empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 dark:empty:before:text-gray-500 empty:before:pointer-events-none"
+        className="p-3 text-xs text-gray-800 dark:text-gray-100 outline-none leading-relaxed overflow-y-auto max-h-[440px] empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 dark:empty:before:text-gray-500 empty:before:pointer-events-none"
       />
     </div>
   );

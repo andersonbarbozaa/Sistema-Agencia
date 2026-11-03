@@ -1682,7 +1682,7 @@ export default function TasksPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl p-4 sm:p-6 max-w-5xl w-full shadow-2xl relative max-h-[92vh] overflow-y-auto"
           >
             <button
               onClick={handleCloseCreateTaskModal}
@@ -1696,210 +1696,219 @@ export default function TasksPage() {
             </p>
 
             <form onSubmit={handleCreateTask} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Tarefa *</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Edição vídeo institucional 60s"
-                  value={newTask.name}
-                  onChange={(e) => setNewTask({ ...newTask, name: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente *</label>
-                  <select
-                    value={newTask.client_id}
-                    onChange={(e) => setNewTask({ ...newTask, client_id: e.target.value })}
-                    required
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Selecione a Empresa / Cliente</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.company_name || c.trade_name || c.corporate_name || c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-                  <input
-                    list="category-options-new"
-                    value={categories.find(c => c.id === newTask.category_id)?.name || newTask.category_id}
-                    onChange={(e) => {
-                       const val = e.target.value;
-                       const match = categories.find(c => c.name === val);
-                       if (match) {
-                           setNewTask({ ...newTask, category_id: match.id });
-                       } else {
-                           setNewTask({ ...newTask, category_id: val });
-                       }
-                    }}
-                    onKeyDown={async (e) => {
-                       if (e.key === 'Enter') {
-                           e.preventDefault();
-                           const val = (e.target as HTMLInputElement).value;
-                           if (!val || categories.some(c => c.name === val)) return;
-                           try {
-                               const res = await fetch('/api/categories?target=tasks', {
-                                   method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
-                                   body: JSON.stringify({ name: val })
-                               });
-                               if (res.ok) {
-                                   const data = await res.json();
-                                   const newCat = { id: data.id, name: val };
-                                   setCategories([...categories, newCat]);
-                                   setNewTask({ ...newTask, category_id: newCat.id });
-                               }
-                           } catch (err) {}
-                       }
-                    }}
-                    placeholder="Selecione ou digite e tecle Enter"
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <datalist id="category-options-new">
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.name} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
-                  <input
-                    type="date"
-                    value={newTask.delivery_date}
-                    onChange={(e) => setNewTask({ ...newTask, delivery_date: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Valor do Serviço (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    value={newTask.value || ''}
-                    onChange={(e) => setNewTask({ ...newTask, value: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Responsáveis</label>
-                <div className="relative">
-                  <div
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white cursor-pointer flex justify-between items-center"
-                    onClick={() => setShowCreateAssigneeDropdown(!showCreateAssigneeDropdown)}
-                  >
-                    <span className="truncate text-gray-700">
-                      {newTask.assignee_ids.length > 0
-                        ? users.filter(u => newTask.assignee_ids.includes(u.id)).map(u => u.name).join(', ')
-                        : 'Selecione os responsáveis'}
-                    </span>
-                    <ChevronDown size={14} className="text-gray-400" />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Coluna Esquerda: Dados Principais */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Tarefa *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Edição vídeo institucional 60s"
+                      value={newTask.name}
+                      onChange={(e) => setNewTask({ ...newTask, name: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
                   </div>
-                  {showCreateAssigneeDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                      {users.map((u) => (
-                        <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={newTask.assignee_ids.includes(u.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setNewTask({ ...newTask, assignee_ids: [...newTask.assignee_ids, u.id] });
-                              } else {
-                                setNewTask({ ...newTask, assignee_ids: newTask.assignee_ids.filter(id => id !== u.id) });
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                          />
-                          <span className="text-xs text-gray-700">{u.name} ({u.position_name || u.role})</span>
-                        </label>
-                      ))}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente *</label>
+                      <select
+                        value={newTask.client_id}
+                        onChange={(e) => setNewTask({ ...newTask, client_id: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        <option value="">Selecione a Empresa / Cliente</option>
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.company_name || c.trade_name || c.corporate_name || c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
+                      <input
+                        list="category-options-new"
+                        value={categories.find(c => c.id === newTask.category_id)?.name || newTask.category_id}
+                        onChange={(e) => {
+                           const val = e.target.value;
+                           const match = categories.find(c => c.name === val);
+                           if (match) {
+                               setNewTask({ ...newTask, category_id: match.id });
+                           } else {
+                               setNewTask({ ...newTask, category_id: val });
+                           }
+                        }}
+                        onKeyDown={async (e) => {
+                           if (e.key === 'Enter') {
+                               e.preventDefault();
+                               const val = (e.target as HTMLInputElement).value;
+                               if (!val || categories.some(c => c.name === val)) return;
+                               try {
+                                   const res = await fetch('/api/categories?target=tasks', {
+                                       method: 'POST',
+                                       headers: { 'Content-Type': 'application/json' },
+                                       body: JSON.stringify({ name: val })
+                                   });
+                                   if (res.ok) {
+                                       const data = await res.json();
+                                       const newCat = { id: data.id, name: val };
+                                       setCategories([...categories, newCat]);
+                                       setNewTask({ ...newTask, category_id: newCat.id });
+                                   }
+                               } catch (err) {}
+                           }
+                        }}
+                        placeholder="Selecione ou digite e tecle Enter"
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <datalist id="category-options-new">
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.name} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
+                      <input
+                        type="date"
+                        value={newTask.delivery_date}
+                        onChange={(e) => setNewTask({ ...newTask, delivery_date: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Valor do Serviço (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0,00"
+                        value={newTask.value || ''}
+                        onChange={(e) => setNewTask({ ...newTask, value: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Responsáveis</label>
+                    <div className="relative">
+                      <div
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white cursor-pointer flex justify-between items-center"
+                        onClick={() => setShowCreateAssigneeDropdown(!showCreateAssigneeDropdown)}
+                      >
+                        <span className="truncate text-gray-700">
+                          {newTask.assignee_ids.length > 0
+                            ? users.filter(u => newTask.assignee_ids.includes(u.id)).map(u => u.name).join(', ')
+                            : 'Selecione os responsáveis'}
+                        </span>
+                        <ChevronDown size={14} className="text-gray-400" />
+                      </div>
+                      {showCreateAssigneeDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                          {users.map((u) => (
+                            <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={newTask.assignee_ids.includes(u.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setNewTask({ ...newTask, assignee_ids: [...newTask.assignee_ids, u.id] });
+                                  } else {
+                                    setNewTask({ ...newTask, assignee_ids: newTask.assignee_ids.filter(id => id !== u.id) });
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                              />
+                              <span className="text-xs text-gray-700">{u.name} ({u.position_name || u.role})</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Visibilidade (Plano Equipe Pro)</label>
+                    <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setNewTask({ ...newTask, visibility: 'grupo' })}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                          newTask.visibility !== 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                        )}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                        Grupo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewTask({ ...newTask, visibility: 'privado' })}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                          newTask.visibility === 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                        )}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                        Privado
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {newTask.visibility === 'privado' ? 'Privado: Visível exclusivamente para o administrador.' : 'Grupo: Visível para toda a equipe.'}
+                    </p>
+                  </div>
+
+                  {customCalendars.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Agenda Personalizada (Plano Corporativo)</label>
+                      <select
+                        value={newTask.calendar_id || ''}
+                        onChange={(e) => {
+                          const calId = e.target.value;
+                          const cal = customCalendars.find((c: any) => c.id === calId);
+                          setNewTask({
+                            ...newTask,
+                            calendar_id: calId,
+                            ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
+                          });
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        <option value="">Criação Global (Sem agenda específica)</option>
+                        {customCalendars.map((cal: any) => (
+                          <option key={cal.id} value={cal.id}>
+                            {cal.name} ({cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Visibilidade (Plano Equipe Pro)</label>
-                <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => setNewTask({ ...newTask, visibility: 'grupo' })}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                      newTask.visibility !== 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                    Grupo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewTask({ ...newTask, visibility: 'privado' })}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                      newTask.visibility === 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-                    Privado
-                  </button>
+                {/* Coluna Direita: Descrição / Roteiro */}
+                <div className="lg:col-span-7 flex flex-col">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
+                  <div className="flex-1">
+                    <RichTextEditor
+                      value={newTask.description || ''}
+                      onChange={(val) => setNewTask({ ...newTask, description: val })}
+                      placeholder="Instruções de edição, formato, requisitos, roteiro..."
+                      minHeight="280px"
+                    />
+                  </div>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  {newTask.visibility === 'privado' ? 'Privado: Visível exclusivamente para o administrador.' : 'Grupo: Visível para toda a equipe.'}
-                </p>
               </div>
 
-              {customCalendars.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Agenda Personalizada (Plano Corporativo)</label>
-                  <select
-                    value={newTask.calendar_id || ''}
-                    onChange={(e) => {
-                      const calId = e.target.value;
-                      const cal = customCalendars.find((c: any) => c.id === calId);
-                      setNewTask({
-                        ...newTask,
-                        calendar_id: calId,
-                        ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
-                      });
-                    }}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Criação Global (Sem agenda específica)</option>
-                    {customCalendars.map((cal: any) => (
-                      <option key={cal.id} value={cal.id}>
-                        {cal.name} ({cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
-                <RichTextEditor
-                  value={newTask.description || ''}
-                  onChange={(val) => setNewTask({ ...newTask, description: val })}
-                  placeholder="Instruções de edição, formato, requisitos, roteiro..."
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={handleCloseCreateTaskModal}
@@ -1909,7 +1918,7 @@ export default function TasksPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm"
+                  className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm"
                 >
                   Criar Tarefa
                 </button>
@@ -1931,11 +1940,11 @@ export default function TasksPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl p-4 sm:p-6 max-w-5xl w-full shadow-2xl relative max-h-[92vh] overflow-y-auto"
           >
             <button
               onClick={handleCloseEditTaskModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-1"
             >
               <X size={20} />
             </button>
@@ -1949,215 +1958,224 @@ export default function TasksPage() {
             </p>
 
             <form onSubmit={handleUpdateTask} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Tarefa *</label>
-                <input
-                  type="text"
-                  required
-                  value={editTaskForm.name}
-                  onChange={(e) => setEditTaskForm({ ...editTaskForm, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente *</label>
-                  <select
-                    value={editTaskForm.client_id}
-                    onChange={(e) => setEditTaskForm({ ...editTaskForm, client_id: e.target.value })}
-                    required
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Selecione a Empresa / Cliente</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.company_name || c.trade_name || c.corporate_name || c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-                  <input
-                    list="category-options-edit"
-                    value={categories.find(c => c.id === editTaskForm.category_id)?.name || editTaskForm.category_id}
-                    onChange={(e) => {
-                       const val = e.target.value;
-                       const match = categories.find(c => c.name === val);
-                       if (match) {
-                           setEditTaskForm({ ...editTaskForm, category_id: match.id });
-                       } else {
-                           setEditTaskForm({ ...editTaskForm, category_id: val });
-                       }
-                    }}
-                    onKeyDown={async (e) => {
-                       if (e.key === 'Enter') {
-                           e.preventDefault();
-                           const val = (e.target as HTMLInputElement).value;
-                           if (!val || categories.some(c => c.name === val)) return;
-                           try {
-                               const res = await fetch('/api/categories?target=tasks', {
-                                   method: 'POST',
-                                   headers: { 'Content-Type': 'application/json' },
-                                   body: JSON.stringify({ name: val })
-                               });
-                               if (res.ok) {
-                                   const data = await res.json();
-                                   const newCat = { id: data.id, name: val };
-                                   setCategories([...categories, newCat]);
-                                   setEditTaskForm({ ...editTaskForm, category_id: newCat.id });
-                               }
-                           } catch (err) {}
-                       }
-                    }}
-                    placeholder="Selecione ou digite e tecle Enter"
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <datalist id="category-options-edit">
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.name} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Visibilidade (Plano Equipe Pro)</label>
-                <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => setEditTaskForm({ ...editTaskForm, visibility: 'grupo' })}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                      editTaskForm.visibility !== 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                    Grupo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditTaskForm({ ...editTaskForm, visibility: 'privado' })}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                      editTaskForm.visibility === 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-                    Privado
-                  </button>
-                </div>
-              </div>
-
-              {customCalendars.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Agenda Personalizada (Plano Corporativo)</label>
-                  <select
-                    value={editTaskForm.calendar_id || ''}
-                    onChange={(e) => {
-                      const calId = e.target.value;
-                      const cal = customCalendars.find((c) => c.id === calId);
-                      setEditTaskForm({
-                        ...editTaskForm,
-                        calendar_id: calId,
-                        ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
-                      });
-                    }}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Criação Global (Sem agenda específica)</option>
-                    {customCalendars.map((cal) => (
-                      <option key={cal.id} value={cal.id}>
-                        {cal.name} ({cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
-                  <select
-                    value={editTaskForm.status}
-                    onChange={(e) => setEditTaskForm({ ...editTaskForm, status: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    {STATUS_COLUMNS.map((st) => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
-                  <input
-                    type="date"
-                    value={editTaskForm.delivery_date}
-                    onChange={(e) => setEditTaskForm({ ...editTaskForm, delivery_date: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Valor (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editTaskForm.value}
-                    onChange={(e) => setEditTaskForm({ ...editTaskForm, value: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Responsáveis</label>
-                <div className="relative">
-                  <div
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white cursor-pointer flex justify-between items-center"
-                    onClick={() => setShowEditAssigneeDropdown(!showEditAssigneeDropdown)}
-                  >
-                    <span className="truncate text-gray-700">
-                      {editTaskForm.assignee_ids.length > 0
-                        ? users.filter(u => editTaskForm.assignee_ids.includes(u.id)).map(u => u.name).join(', ')
-                        : 'Selecione os responsáveis'}
-                    </span>
-                    <ChevronDown size={14} className="text-gray-400" />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Coluna Esquerda: Dados Principais */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Tarefa *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editTaskForm.name}
+                      onChange={(e) => setEditTaskForm({ ...editTaskForm, name: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
                   </div>
-                  {showEditAssigneeDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                      {users.map((u) => (
-                        <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editTaskForm.assignee_ids.includes(u.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditTaskForm({ ...editTaskForm, assignee_ids: [...editTaskForm.assignee_ids, u.id] });
-                              } else {
-                                setEditTaskForm({ ...editTaskForm, assignee_ids: editTaskForm.assignee_ids.filter((id: string) => id !== u.id) });
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                          />
-                          <span className="text-xs text-gray-700">{u.name} ({u.position_name || u.role})</span>
-                        </label>
-                      ))}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente *</label>
+                      <select
+                        value={editTaskForm.client_id}
+                        onChange={(e) => setEditTaskForm({ ...editTaskForm, client_id: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        <option value="">Selecione a Empresa / Cliente</option>
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.company_name || c.trade_name || c.corporate_name || c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
+                      <input
+                        list="category-options-edit"
+                        value={categories.find(c => c.id === editTaskForm.category_id)?.name || editTaskForm.category_id}
+                        onChange={(e) => {
+                           const val = e.target.value;
+                           const match = categories.find(c => c.name === val);
+                           if (match) {
+                               setEditTaskForm({ ...editTaskForm, category_id: match.id });
+                           } else {
+                               setEditTaskForm({ ...editTaskForm, category_id: val });
+                           }
+                        }}
+                        onKeyDown={async (e) => {
+                           if (e.key === 'Enter') {
+                               e.preventDefault();
+                               const val = (e.target as HTMLInputElement).value;
+                               if (!val || categories.some(c => c.name === val)) return;
+                               try {
+                                   const res = await fetch('/api/categories?target=tasks', {
+                                       method: 'POST',
+                                       headers: { 'Content-Type': 'application/json' },
+                                       body: JSON.stringify({ name: val })
+                                   });
+                                   if (res.ok) {
+                                       const data = await res.json();
+                                       const newCat = { id: data.id, name: val };
+                                       setCategories([...categories, newCat]);
+                                       setEditTaskForm({ ...editTaskForm, category_id: newCat.id });
+                                   }
+                               } catch (err) {}
+                           }
+                        }}
+                        placeholder="Selecione ou digite e tecle Enter"
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <datalist id="category-options-edit">
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.name} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Visibilidade (Plano Equipe Pro)</label>
+                    <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setEditTaskForm({ ...editTaskForm, visibility: 'grupo' })}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                          editTaskForm.visibility !== 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                        )}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                        Grupo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditTaskForm({ ...editTaskForm, visibility: 'privado' })}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                          editTaskForm.visibility === 'privado' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-700'
+                        )}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                        Privado
+                      </button>
+                    </div>
+                  </div>
+
+                  {customCalendars.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Agenda Personalizada (Plano Corporativo)</label>
+                      <select
+                        value={editTaskForm.calendar_id || ''}
+                        onChange={(e) => {
+                          const calId = e.target.value;
+                          const cal = customCalendars.find((c) => c.id === calId);
+                          setEditTaskForm({
+                            ...editTaskForm,
+                            calendar_id: calId,
+                            ...(cal?.default_visibility ? { visibility: cal.default_visibility } : {}),
+                          });
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        <option value="">Criação Global (Sem agenda específica)</option>
+                        {customCalendars.map((cal) => (
+                          <option key={cal.id} value={cal.id}>
+                            {cal.name} ({cal.default_visibility === 'privado' ? 'Privada' : 'Grupo'})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
-                <RichTextEditor
-                  value={editTaskForm.description || ''}
-                  onChange={(val) => setEditTaskForm({ ...editTaskForm, description: val })}
-                  placeholder="Instruções de edição, formato, requisitos, roteiro..."
-                />
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                      <select
+                        value={editTaskForm.status}
+                        onChange={(e) => setEditTaskForm({ ...editTaskForm, status: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        {STATUS_COLUMNS.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
+                      <input
+                        type="date"
+                        value={editTaskForm.delivery_date}
+                        onChange={(e) => setEditTaskForm({ ...editTaskForm, delivery_date: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Valor (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editTaskForm.value}
+                        onChange={(e) => setEditTaskForm({ ...editTaskForm, value: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Responsáveis</label>
+                    <div className="relative">
+                      <div
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white cursor-pointer flex justify-between items-center"
+                        onClick={() => setShowEditAssigneeDropdown(!showEditAssigneeDropdown)}
+                      >
+                        <span className="truncate text-gray-700">
+                          {editTaskForm.assignee_ids.length > 0
+                            ? users.filter(u => editTaskForm.assignee_ids.includes(u.id)).map(u => u.name).join(', ')
+                            : 'Selecione os responsáveis'}
+                        </span>
+                        <ChevronDown size={14} className="text-gray-400" />
+                      </div>
+                      {showEditAssigneeDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                          {users.map((u) => (
+                            <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editTaskForm.assignee_ids.includes(u.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditTaskForm({ ...editTaskForm, assignee_ids: [...editTaskForm.assignee_ids, u.id] });
+                                  } else {
+                                    setEditTaskForm({ ...editTaskForm, assignee_ids: editTaskForm.assignee_ids.filter((id: string) => id !== u.id) });
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                              />
+                              <span className="text-xs text-gray-700">{u.name} ({u.position_name || u.role})</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Coluna Direita: Descrição / Roteiro */}
+                <div className="lg:col-span-7 flex flex-col">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
+                  <div className="flex-1">
+                    <RichTextEditor
+                      value={editTaskForm.description || ''}
+                      onChange={(val) => setEditTaskForm({ ...editTaskForm, description: val })}
+                      placeholder="Instruções de edição, formato, requisitos, roteiro..."
+                      minHeight="280px"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
