@@ -207,6 +207,7 @@ export default function CRMPage() {
     newLead.whatsapp.trim() ||
     newLead.email.trim() ||
     newLead.city.trim() ||
+    newLead.address.trim() ||
     newLead.description.trim() ||
     newLead.estimated_value > 0
   );
@@ -1433,6 +1434,20 @@ export default function CRMPage() {
                     </div>
 
                     <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
+                        <MapPin size={13} className="text-blue-600" />
+                        Endereço
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Av. Paulista, 1000 - Bela Vista"
+                        value={newLead.address}
+                        onChange={(e) => setNewLead({ ...newLead, address: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                         Ramo de Atuação
                       </label>
@@ -1698,6 +1713,20 @@ export default function CRMPage() {
                         type="text"
                         value={editLead.city}
                         onChange={(e) => setEditLead({ ...editLead, city: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
+                        <MapPin size={13} className="text-blue-600" />
+                        Endereço
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Av. Paulista, 1000 - Bela Vista"
+                        value={editLead.address}
+                        onChange={(e) => setEditLead({ ...editLead, address: e.target.value })}
                         className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>

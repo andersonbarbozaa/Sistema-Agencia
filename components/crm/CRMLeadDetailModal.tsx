@@ -246,9 +246,11 @@ export function CRMLeadDetailModal({
               <span className="font-semibold text-gray-700 dark:text-gray-200">
                 {followUp.label}
               </span>
-              <span className="text-[11px] text-gray-400 dark:text-gray-500 hidden sm:inline">
-                ({followUp.description})
-              </span>
+              {(lead.last_interaction_at || lead.last_contact_at) && (
+                <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                  • Último contato em {formatDate(lead.last_interaction_at || lead.last_contact_at)}
+                </span>
+              )}
             </div>
 
             {/* Canal Principal de Contato */}

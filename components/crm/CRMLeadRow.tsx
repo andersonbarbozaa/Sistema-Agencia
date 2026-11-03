@@ -38,18 +38,46 @@ export function CRMLeadRow({
   const channelTarget = getChannelTarget(lead.primary_channel, lead);
   const isClosed = lead.status === 'Fechado — ganho' || lead.status === 'Perdido';
 
+  // Data do último contato e cálculo dos dias sem contato
+  const lastContactDateStr = lead.last_interaction_at || lead.last_contact_at;
+  let lastContactDateFormatted: string | null = null;
+  let daysWithoutContactText: string | null = null;
+
+  if (lastContactDateStr) {
+    lastContactDateFormatted = formatDate(lastContactDateStr);
+    const lastDate = new Date(lastContactDateStr);
+    const now = new Date();
+    const diffTime = Math.max(0, now.getTime() - lastDate.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      daysWithoutContactText = 'Hoje (0 dias)';
+    } else if (diffDays === 1) {
+      daysWithoutContactText = '1 dia sem contato';
+    } else {
+      daysWithoutContactText = `${diffDays} dias sem contato`;
+    }
+  }
+
   return (
     <tr
       onClick={() => onClick(lead)}
       className="hover:bg-gray-50/70 dark:hover:bg-gray-750/50 transition-colors cursor-pointer group"
     >
-      {/* 1. Indicador de Follow-up (Bolinha colorida com dias úteis) */}
+      {/* 1. Indicador de Follow-up (Bolinha colorida com dias úteis e data do último contato) */}
       <td className="py-3 px-4">
         <div className="flex items-center gap-2" title={followUp.description}>
           <span className={cn('w-2.5 h-2.5 rounded-full inline-block shrink-0', followUp.dotClass)} />
-          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">
-            {followUp.label}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              {daysWithoutContactText || followUp.label}
+            </span>
+            {lastContactDateFormatted && (
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                Último: {lastContactDateFormatted}
+              </span>
+            )}
+          </div>
         </div>
       </td>
 
