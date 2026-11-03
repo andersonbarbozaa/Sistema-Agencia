@@ -59,6 +59,8 @@ interface CRMLeadDetailModalProps {
   onExecutePrimaryChannel: (lead: CRMLead) => void;
   onChangePrimaryChannel: (leadId: string, channel: string) => void;
   onReactivate: (lead: CRMLead) => void;
+  onLeadUpdated?: (lead: CRMLead) => void;
+  onContactRegistered?: () => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -72,6 +74,8 @@ export function CRMLeadDetailModal({
   onExecutePrimaryChannel,
   onChangePrimaryChannel,
   onReactivate,
+  onLeadUpdated,
+  onContactRegistered,
   showToast,
 }: CRMLeadDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'interactions' | 'status_history'>('info');
@@ -106,6 +110,9 @@ export function CRMLeadDetailModal({
       if (res.ok) {
         const d = await res.json();
         const data = d.data || {};
+        if (data && data.id && onLeadUpdated) {
+          onLeadUpdated(data);
+        }
         if (data.interactions) setInteractions(data.interactions);
         if (data.status_history) setStatusHistory(data.status_history);
         if (data.status_counts) setStatusCounts(data.status_counts);
@@ -156,6 +163,7 @@ export function CRMLeadDetailModal({
 
       setNewMessage('');
       showToast('Contato registrado com sucesso!', 'success');
+      if (onContactRegistered) onContactRegistered();
       await loadFullLeadData();
     } catch (err: any) {
       console.error(err);
@@ -451,7 +459,9 @@ export function CRMLeadDetailModal({
                               <span
                                 className={cn(
                                   'px-2 py-0.5 rounded-md text-[10px] font-bold border',
-                                  isReply
+                                  int.type === 'Mudança de etapa'
+                                    ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                                    : isReply
                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                                     : 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                                 )}

@@ -169,14 +169,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       'segment',
       'description',
       'social_links',
-      'status_entered_at'
+      'status_entered_at',
+      'last_contact_at',
+      'last_interaction_at'
     ];
 
     const updates: string[] = [];
     const values: unknown[] = [];
     const now = new Date().toISOString();
 
-    // Verificação de alteração de status (Requisito 2)
+    // Verificação de alteração de status (ao mover card ou mudar etapa)
     const isStatusChanging = 'status' in payload && payload.status && payload.status !== existing.status;
     let durationSeconds = 0;
 
@@ -191,6 +193,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       // Atualiza status_entered_at para a data da movimentação
       payload.status_entered_at = now;
+
+      // Requisito: Mover card / mudar status no CRM é identificado como um contato.
+      // Registra o último contato e zera o contador de dias sem contato iniciando nova contagem.
+      payload.last_contact_at = now;
+      payload.last_interaction_at = now;
 
       // Registra a movimentação no histórico persistente de status
       const histId = 'csh_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
@@ -220,6 +227,58 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       } catch (histErr) {
         console.warn('Erro ao inserir crm_status_history:', histErr);
       }
+
+      // Registra interação correspondente ao contato da movimentação do card
+      const interactionId = 'intr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+      const contactChannel = existing.primary_channel || 'WhatsApp';
+      const interactionMessage = moveNotes
+        ? `Mudança de etapa: "${existing.status}" ➔ "${payload.status}". Observação: ${moveNotes}`
+        : `Mudança de etapa no funil: "${existing.status}" ➔ "${payload.status}".`;
+
+      try {
+        await db
+          .prepare(`
+            INSERT INTO crm_interactions
+              (id, lead_id, user_id, interaction_date, platform, channel, message, notes, type, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `)
+          .bind(
+            interactionId,
+            id,
+            user.id,
+            now,
+            contactChannel,
+            contactChannel,
+            interactionMessage,
+            interactionMessage,
+            'Mudança de etapa',
+            now
+          )
+          .run();
+      } catch (intrErr) {
+        try {
+          await db
+            .prepare(`
+              INSERT INTO crm_interactions
+                (id, lead_id, user_id, interaction_date, platform, message, notes, type, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `)
+            .bind(
+              interactionId,
+              id,
+              user.id,
+              now,
+              contactChannel,
+              interactionMessage,
+              interactionMessage,
+              'Mudança de etapa',
+              now
+            )
+            .run();
+        } catch (e) {
+          console.warn('Erro ao inserir crm_interactions na movimentação de status:', e);
+        }
+      }
     }
 
     for (const field of allowedFields) {
@@ -233,8 +292,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    // Requisito 3: Alterar status, abrir lead ou editar dados NÃO altera last_contact_at ou last_interaction_at!
-    // Apenas last_activity_at e updated_at são atualizados.
+    // Atualiza last_activity_at e updated_at em qualquer alteração
     updates.push('last_activity_at = ?', 'updated_at = ?');
     values.push(now, now, id);
 

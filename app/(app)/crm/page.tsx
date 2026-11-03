@@ -361,12 +361,41 @@ export default function CRMPage() {
   // HANDLERS DE AÇÕES
   // ============================================================
 
-  // Atualização persistente de status (Requisito 2)
+  // Atualização persistente de status (ao mover card ou mudar etapa)
   const handleUpdateStatus = async (leadId: string, newStatus: CRMLeadStatus, notes?: string) => {
     const previousLeads = leads;
-    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l)));
+    const nowIso = new Date().toISOString();
+    const isClosed = newStatus === 'Fechado — ganho' || newStatus === 'Perdido';
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId
+          ? {
+              ...l,
+              status: newStatus,
+              last_interaction_at: nowIso,
+              last_contact_at: nowIso,
+              follow_up_status: isClosed ? 'closed' : 'green',
+              follow_up_label: isClosed ? 'Encerrado' : 'Contato hoje',
+              business_days_without_contact: isClosed ? null : 0,
+            }
+          : l
+      )
+    );
     if (selectedLead?.id === leadId) {
-      setSelectedLead((prev) => (prev ? { ...prev, status: newStatus } : null));
+      setSelectedLead((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: newStatus,
+              last_interaction_at: nowIso,
+              last_contact_at: nowIso,
+              follow_up_status: isClosed ? 'closed' : 'green',
+              follow_up_label: isClosed ? 'Encerrado' : 'Contato hoje',
+              business_days_without_contact: isClosed ? null : 0,
+            }
+          : null
+      );
     }
 
     try {
@@ -385,7 +414,7 @@ export default function CRMPage() {
         return;
       }
 
-      showToast(`Lead movido para "${newStatus}".`, 'success');
+      showToast(`Lead movido para "${newStatus}". Contato registrado!`, 'success');
       fetchLeads();
     } catch (err) {
       console.error(err);
@@ -1150,6 +1179,13 @@ export default function CRMPage() {
           onExecutePrimaryChannel={handleExecutePrimaryChannel}
           onChangePrimaryChannel={handleChangePrimaryChannel}
           onReactivate={(l) => setReactivateModalLead(l)}
+          onLeadUpdated={(updated) => {
+            setSelectedLead(updated);
+            setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          }}
+          onContactRegistered={() => {
+            fetchLeads();
+          }}
           showToast={showToast}
         />
       )}
