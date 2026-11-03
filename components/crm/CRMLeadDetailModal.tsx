@@ -24,6 +24,8 @@ import {
   ArrowRight,
   Sparkles,
   Globe,
+  Trash2,
+  Tag,
 } from 'lucide-react';
 import { CRMLead, CRMInteraction, CRMStatusHistory, CRMLeadStatus } from '@/types';
 import {
@@ -54,6 +56,7 @@ interface CRMLeadDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEditLead: (lead: CRMLead) => void;
+  onDeleteLead?: (lead: CRMLead) => void;
   onUpdateStatus: (leadId: string, newStatus: CRMLeadStatus, notes?: string) => Promise<void>;
   onOpenWhatsApp: (lead: CRMLead) => void;
   onExecutePrimaryChannel: (lead: CRMLead) => void;
@@ -69,6 +72,7 @@ export function CRMLeadDetailModal({
   isOpen,
   onClose,
   onEditLead,
+  onDeleteLead,
   onUpdateStatus,
   onOpenWhatsApp,
   onExecutePrimaryChannel,
@@ -101,6 +105,18 @@ export function CRMLeadDetailModal({
   const socials = parseSocialLinks(lead);
   const fullAddress = getFullAddress(lead);
   const isClosed = lead.status === 'Fechado — ganho' || lead.status === 'Perdido';
+
+  const parsedCategories: string[] = React.useMemo(() => {
+    if (!lead.categories) return [];
+    if (Array.isArray(lead.categories)) return lead.categories;
+    try {
+      const parsed = JSON.parse(lead.categories);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return typeof lead.categories === 'string'
+      ? lead.categories.split(',').map((c) => c.trim()).filter(Boolean)
+      : [];
+  }, [lead.categories]);
 
   const isMountedRef = useRef(true);
   useEffect(() => {
@@ -222,6 +238,18 @@ export function CRMLeadDetailModal({
               <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                 {lead.company || 'Pessoa Física'} {lead.city ? `• ${lead.city}` : ''}
               </p>
+              {parsedCategories.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {parsedCategories.map((cat, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -246,6 +274,18 @@ export function CRMLeadDetailModal({
                 <span>Editar</span>
               </button>
 
+              {onDeleteLead && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteLead(lead)}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                  title="Excluir Lead permanentemente"
+                >
+                  <Trash2 size={13} />
+                  <span>Excluir</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={onClose}
@@ -254,53 +294,6 @@ export function CRMLeadDetailModal({
               >
                 <X size={18} />
               </button>
-            </div>
-          </div>
-
-          {/* 2. BARRA DE INDICADOR DE CONTATO & STATUS ATUAL */}
-          <div className="px-5 sm:px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-750 flex flex-wrap items-center justify-between gap-3 text-xs">
-            {/* Indicador de Follow-up com bolinha colorida */}
-            <div className="flex items-center gap-2">
-              <span className={cn('w-2.5 h-2.5 rounded-full inline-block shrink-0', followUp.dotClass)} />
-              <span className="font-semibold text-gray-700 dark:text-gray-200">
-                {followUp.label}
-              </span>
-              {(lead.last_interaction_at || lead.last_contact_at) && (
-                <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
-                  • Último contato em {formatDate(lead.last_interaction_at || lead.last_contact_at)}
-                </span>
-              )}
-            </div>
-
-            {/* Canal Principal de Contato */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-400 text-[11px] font-medium">Canal Principal:</span>
-              <button
-                type="button"
-                onClick={() => onExecutePrimaryChannel(lead)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border shadow-2xs transition-all',
-                  channelTarget.hasData
-                    ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                )}
-              >
-                {renderChannelIcon(lead.primary_channel || 'WhatsApp', 12)}
-                <span>{lead.primary_channel || 'WhatsApp'}</span>
-              </button>
-
-              <select
-                value={lead.primary_channel || 'WhatsApp'}
-                onChange={(e) => onChangePrimaryChannel(lead.id, e.target.value)}
-                className="text-[11px] p-1 bg-transparent border-0 text-gray-500 dark:text-gray-400 cursor-pointer font-medium focus:ring-0"
-                title="Alterar canal principal"
-              >
-                {CRM_CHANNELS.map((ch) => (
-                  <option key={ch} value={ch} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                    {ch}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
 
@@ -711,6 +704,24 @@ export function CRMLeadDetailModal({
                     <span className="text-gray-400 block text-[11px]">Data de Entrada:</span>
                     <p className="font-semibold text-gray-800 dark:text-gray-200">{formatDate(lead.created_at)}</p>
                   </div>
+
+                  {parsedCategories.length > 0 && (
+                    <div className="p-3 bg-gray-50 dark:bg-gray-750 rounded-xl space-y-1 sm:col-span-2 lg:col-span-3">
+                      <span className="text-gray-400 block text-[11px] flex items-center gap-1">
+                        <Tag size={12} className="text-blue-600" /> Categorias / Tags:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {parsedCategories.map((cat, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 shadow-2xs"
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Datas de Acompanhamento (Requisito 3) */}

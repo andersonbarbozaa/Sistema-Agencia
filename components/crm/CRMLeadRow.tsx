@@ -89,6 +89,30 @@ export function CRMLeadRow({
         {lead.company && (
           <div className="text-[11px] text-gray-500 dark:text-gray-400">{lead.company}</div>
         )}
+        {lead.categories && (
+          (() => {
+            let cats: string[] = [];
+            if (Array.isArray(lead.categories)) cats = lead.categories;
+            else {
+              try {
+                const p = JSON.parse(lead.categories);
+                if (Array.isArray(p)) cats = p;
+              } catch {
+                cats = typeof lead.categories === 'string' ? lead.categories.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
+              }
+            }
+            if (cats.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {cats.map((c, i) => (
+                  <span key={i} className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-md text-[9px] font-semibold">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            );
+          })()
+        )}
       </td>
 
       {/* 3. Cidade */}

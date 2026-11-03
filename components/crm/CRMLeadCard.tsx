@@ -118,6 +118,37 @@ export function CRMLeadCard({
         ) : null}
       </div>
 
+      {/* Categorias / Tags */}
+      {lead.categories && (
+        (() => {
+          let cats: string[] = [];
+          if (Array.isArray(lead.categories)) cats = lead.categories;
+          else {
+            try {
+              const p = JSON.parse(lead.categories);
+              if (Array.isArray(p)) cats = p;
+            } catch {
+              cats = typeof lead.categories === 'string' ? lead.categories.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
+            }
+          }
+          if (cats.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {cats.slice(0, 3).map((c, i) => (
+                <span key={i} className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-md text-[9px] font-semibold leading-none">
+                  {c}
+                </span>
+              ))}
+              {cats.length > 3 && (
+                <span className="text-[9px] text-gray-400 font-medium self-center">
+                  +{cats.length - 3}
+                </span>
+              )}
+            </div>
+          );
+        })()
+      )}
+
       {/* 3. DATA DO ÚLTIMO CONTATO & DIAS SEM CONTATO */}
       <div className="flex items-center gap-1.5 text-[10px] leading-tight text-gray-500 dark:text-gray-400">
         <span className={cn('w-2 h-2 rounded-full inline-block shrink-0', followUp.dotClass)} />

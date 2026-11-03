@@ -39,6 +39,8 @@ import {
   Activity,
   PhoneCall,
   RefreshCw,
+  Tag,
+  Check,
 } from 'lucide-react';
 import {
   CRM_STATUSES,
@@ -95,6 +97,8 @@ export default function CRMPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [systemCategories, setSystemCategories] = useState<{ id: string; name: string; color?: string }[]>([]);
   const [followUpFilter, setFollowUpFilter] = useState<string>('all'); // all, green, yellow, red, none, closed
   const [dateFilterPreset, setDateFilterPreset] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -168,6 +172,7 @@ export default function CRMPage() {
     segment: '',
     description: '',
     estimated_value: 0,
+    categories: [] as string[],
   };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newLead, setNewLead] = useState(EMPTY_NEW_LEAD);
@@ -197,6 +202,7 @@ export default function CRMPage() {
     segment: '',
     description: '',
     estimated_value: 0,
+    categories: [] as string[],
   };
   const [showEditModal, setShowEditModal] = useState(false);
   const [editLead, setEditLead] = useState(EMPTY_EDIT_LEAD);
@@ -209,7 +215,8 @@ export default function CRMPage() {
     newLead.city.trim() ||
     newLead.address.trim() ||
     newLead.description.trim() ||
-    newLead.estimated_value > 0
+    newLead.estimated_value > 0 ||
+    newLead.categories.length > 0
   );
 
   const handleCloseCreateModal = () => {
@@ -335,6 +342,16 @@ export default function CRMPage() {
       } catch {}
     }
     fetchLeads();
+
+    // Carrega categorias do sistema (task_categories)
+    fetch('/api/categories?type=tasks')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        if (d?.task_categories && Array.isArray(d.task_categories)) {
+          setSystemCategories(d.task_categories);
+        }
+      })
+      .catch(() => {});
 
     // Carrega modelos pré-definidos de mensagens do WhatsApp e dados da agência
     fetch('/api/settings')
@@ -562,6 +579,22 @@ export default function CRMPage() {
   };
 
   const openEditLead = (lead: CRMLead) => {
+    let initialCategories: string[] = [];
+    if (lead.categories) {
+      if (Array.isArray(lead.categories)) initialCategories = lead.categories;
+      else {
+        try {
+          const parsed = JSON.parse(lead.categories);
+          if (Array.isArray(parsed)) initialCategories = parsed;
+          else initialCategories = [String(lead.categories)];
+        } catch {
+          initialCategories = typeof lead.categories === 'string'
+            ? lead.categories.split(',').map((c: string) => c.trim()).filter(Boolean)
+            : [];
+        }
+      }
+    }
+
     const dataToEdit = {
       id: lead.id,
       contact_name: lead.contact_name || '',
@@ -584,6 +617,7 @@ export default function CRMPage() {
       segment: lead.segment || '',
       description: lead.description || '',
       estimated_value: lead.estimated_value || 0,
+      categories: initialCategories,
     };
     setEditLead(dataToEdit);
     setInitialEditLeadState(JSON.stringify(dataToEdit));
@@ -640,11 +674,18 @@ export default function CRMPage() {
           const res = await fetch(`/api/crm/${lead.id}`, { method: 'DELETE' });
           if (res.ok) {
             setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-            if (selectedLead?.id === lead.id) setSelectedLead(null);
+            setSelectedLead(null);
+            setShowEditModal(false);
+            setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
             showToast('Lead excluído com sucesso!', 'success');
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            showToast(errData.error || 'Erro ao excluir lead.', 'error');
           }
         } catch {
           showToast('Erro ao excluir lead.', 'error');
+        } finally {
+          setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
         }
       },
     });
@@ -657,6 +698,7 @@ export default function CRMPage() {
     statusFilter !== 'all' ||
     cityFilter !== 'all' ||
     segmentFilter !== 'all' ||
+    categoryFilter !== 'all' ||
     followUpFilter !== 'all' ||
     dateFilterPreset !== 'all' ||
     dateFrom !== '' ||
@@ -667,6 +709,7 @@ export default function CRMPage() {
     setStatusFilter('all');
     setCityFilter('all');
     setSegmentFilter('all');
+    setCategoryFilter('all');
     setFollowUpFilter('all');
     setDateFilterPreset('all');
     setDateFrom('');
@@ -712,6 +755,25 @@ export default function CRMPage() {
         if (segmentFilter !== 'all') {
           const leadSeg = (l.segment || '').trim().toLowerCase();
           if (leadSeg !== segmentFilter.trim().toLowerCase()) return false;
+        }
+
+        // Category filter
+        if (categoryFilter !== 'all') {
+          if (!l.categories) return false;
+          let cats: string[] = [];
+          if (Array.isArray(l.categories)) cats = l.categories;
+          else {
+            try {
+              const parsed = JSON.parse(l.categories);
+              if (Array.isArray(parsed)) cats = parsed;
+              else cats = [String(l.categories)];
+            } catch {
+              cats = typeof l.categories === 'string'
+                ? l.categories.split(',').map((c: string) => c.trim()).filter(Boolean)
+                : [];
+            }
+          }
+          if (!cats.some((c) => c.toLowerCase() === categoryFilter.toLowerCase())) return false;
         }
 
         // Date filter
@@ -933,6 +995,21 @@ export default function CRMPage() {
               <option value="all">Todas as Áreas ({availableSegments.length})</option>
               {availableSegments.map((seg) => (
                 <option key={seg} value={seg}>{seg}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro Categoria do Sistema */}
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl px-2.5 py-1">
+            <Tag size={13} className="text-gray-400 shrink-0" />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-transparent border-0 text-gray-700 dark:text-gray-300 font-medium text-xs focus:ring-0 focus:outline-none pr-1"
+            >
+              <option value="all">Todas as Categorias ({systemCategories.length})</option>
+              {systemCategories.map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
               ))}
             </select>
           </div>
@@ -1187,6 +1264,7 @@ export default function CRMPage() {
             setSelectedLead(null);
             openEditLead(l);
           }}
+          onDeleteLead={handleDeleteLead}
           onUpdateStatus={handleUpdateStatus}
           onOpenWhatsApp={handleOpenWhatsApp}
           onExecutePrimaryChannel={handleExecutePrimaryChannel}
@@ -1594,6 +1672,60 @@ export default function CRMPage() {
                     )}
                   </div>
 
+                  {/* Categorias do Sistema */}
+                  <div>
+                    <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Tag size={13} className="text-blue-600" />
+                        Categorias / Tags
+                      </span>
+                      {newLead.categories.length > 0 && (
+                        <span className="text-[11px] text-blue-600 dark:text-blue-400 font-normal">
+                          {newLead.categories.length} selecionada{newLead.categories.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </label>
+                    {systemCategories.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">
+                        Nenhuma categoria cadastrada no sistema. Cadastre em Configurações &gt; Categorias do Sistema.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 dark:bg-gray-750/60 rounded-xl border border-gray-200 dark:border-gray-700">
+                        {systemCategories.map((cat) => {
+                          const isSelected = newLead.categories.includes(cat.name);
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setNewLead({
+                                    ...newLead,
+                                    categories: newLead.categories.filter((c) => c !== cat.name),
+                                  });
+                                } else {
+                                  setNewLead({
+                                    ...newLead,
+                                    categories: [...newLead.categories, cat.name],
+                                  });
+                                }
+                              }}
+                              className={cn(
+                                'px-2.5 py-1 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 cursor-pointer select-none',
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                              )}
+                            >
+                              <span>{cat.name}</span>
+                              {isSelected && <Check size={12} className="stroke-[2.5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
                       Observações Iniciais
@@ -1874,6 +2006,60 @@ export default function CRMPage() {
                             </button>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Categorias do Sistema */}
+                  <div>
+                    <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Tag size={13} className="text-blue-600" />
+                        Categorias / Tags
+                      </span>
+                      {editLead.categories.length > 0 && (
+                        <span className="text-[11px] text-blue-600 dark:text-blue-400 font-normal">
+                          {editLead.categories.length} selecionada{editLead.categories.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </label>
+                    {systemCategories.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">
+                        Nenhuma categoria cadastrada no sistema. Cadastre em Configurações &gt; Categorias do Sistema.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 dark:bg-gray-750/60 rounded-xl border border-gray-200 dark:border-gray-700">
+                        {systemCategories.map((cat) => {
+                          const isSelected = editLead.categories.includes(cat.name);
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setEditLead({
+                                    ...editLead,
+                                    categories: editLead.categories.filter((c) => c !== cat.name),
+                                  });
+                                } else {
+                                  setEditLead({
+                                    ...editLead,
+                                    categories: [...editLead.categories, cat.name],
+                                  });
+                                }
+                              }}
+                              className={cn(
+                                'px-2.5 py-1 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 cursor-pointer select-none',
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                              )}
+                            >
+                              <span>{cat.name}</span>
+                              {isSelected && <Check size={12} className="stroke-[2.5]" />}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

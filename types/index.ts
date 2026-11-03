@@ -307,6 +307,7 @@ export interface CRMLead {
   assignee_name?: string | null;
   status: CRMLeadStatus;
   notes?: string | null;
+  categories?: string[] | string | null;
   website?: string | null;
   facebook?: string | null;
   linkedin?: string | null;

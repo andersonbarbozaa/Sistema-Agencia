@@ -20,6 +20,7 @@ export async function ensureCrmLeadsSchema(db: any) {
           whatsapp TEXT,
           city TEXT,
           address TEXT,
+          categories TEXT,
           platform TEXT,
           source TEXT,
           primary_channel TEXT DEFAULT 'WhatsApp',
@@ -97,6 +98,7 @@ export async function ensureCrmLeadsSchema(db: any) {
     'ALTER TABLE crm_leads ADD COLUMN description TEXT',
     'ALTER TABLE crm_leads ADD COLUMN social_links TEXT',
     'ALTER TABLE crm_leads ADD COLUMN address TEXT',
+    'ALTER TABLE crm_leads ADD COLUMN categories TEXT',
     'ALTER TABLE crm_interactions ADD COLUMN type TEXT',
     'ALTER TABLE crm_interactions ADD COLUMN channel TEXT',
   ];
@@ -188,6 +190,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const city = searchParams.get('city');
     const segment = searchParams.get('segment');
+    const category = searchParams.get('category');
     const follow_up = searchParams.get('follow_up'); // green, yellow, red, none, closed
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = parseInt(searchParams.get('limit') || '500', 10); // Permite carregar até 500 leads para funil/relatório
@@ -214,6 +217,10 @@ export async function GET(request: NextRequest) {
     if (segment && segment !== 'all') {
       conditions.push('l.segment = ?');
       params.push(segment);
+    }
+    if (category && category !== 'all') {
+      conditions.push('l.categories LIKE ?');
+      params.push(`%${category}%`);
     }
     if (assignee_id) {
       conditions.push('l.assignee_id = ?');
@@ -317,6 +324,9 @@ export async function POST(request: NextRequest) {
     const status = 'Novo lead';
     const assignee_id = body.assignee_id ?? null;
     const notes = body.notes ?? null;
+    const categories = body.categories
+      ? (Array.isArray(body.categories) ? JSON.stringify(body.categories) : typeof body.categories === 'string' ? body.categories : null)
+      : null;
     const estimated_value = body.estimated_value ? parseFloat(body.estimated_value) : 0;
     const website = body.website ?? null;
     const facebook = body.facebook ?? null;
@@ -344,8 +354,8 @@ export async function POST(request: NextRequest) {
     await db
       .prepare(
         `INSERT INTO crm_leads
-          (id, contact_name, company, email, phone, phone2, whatsapp, city, address, platform, source, primary_channel, status, assignee_id, notes, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, status_entered_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, contact_name, company, email, phone, phone2, whatsapp, city, address, platform, source, primary_channel, status, assignee_id, notes, categories, estimated_value, first_contact_date, workspace_id, website, facebook, linkedin, instagram, segment, description, social_links, last_activity_at, status_entered_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -363,6 +373,7 @@ export async function POST(request: NextRequest) {
         status,
         assignee_id,
         notes,
+        categories,
         estimated_value,
         first_contact_date,
         wsId,

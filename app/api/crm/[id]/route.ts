@@ -145,6 +145,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ('social_links' in payload && payload.social_links && typeof payload.social_links !== 'string') {
       payload.social_links = JSON.stringify(payload.social_links);
     }
+    if ('categories' in payload && Array.isArray(payload.categories)) {
+      payload.categories = JSON.stringify(payload.categories);
+    }
 
     const allowedFields = [
       'contact_name',
@@ -155,6 +158,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       'whatsapp',
       'city',
       'address',
+      'categories',
       'platform',
       'source',
       'primary_channel',
