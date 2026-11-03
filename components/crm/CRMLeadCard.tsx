@@ -195,11 +195,14 @@ export function CRMLeadCard({
         </div>
 
         {/* Lado Direito: Botões compactos alinhados */}
-        <div className="flex items-center gap-1 shrink-0 ml-auto">
+        <div className="flex items-center gap-1 shrink-0 ml-auto" onClick={(e) => e.stopPropagation()}>
           {/* Botão Registrar */}
           <button
             type="button"
-            onClick={(e) => onQuickContact(lead, e)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickContact(lead, e);
+            }}
             className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 hover:bg-blue-50 dark:bg-gray-750 dark:hover:bg-blue-950/50 text-gray-700 hover:text-blue-700 dark:text-gray-300 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 rounded-md font-semibold text-[9px] transition-colors shadow-2xs"
             title="Registrar contato ou interação realizada"
           >
@@ -210,7 +213,10 @@ export function CRMLeadCard({
           {/* Botão Contato Principal */}
           <button
             type="button"
-            onClick={(e) => onExecutePrimaryChannel(lead, e)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExecutePrimaryChannel(lead, e);
+            }}
             className={cn(
               'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border shadow-2xs transition-all active:scale-[0.98]',
               channelTarget.hasData

@@ -40,10 +40,12 @@ export default function SafeModalBackdrop({
   confirmMessage = 'Você possui informações preenchidas ou alterações não salvas. Se fechar agora, todas as alterações serão perdidas.',
   discardLabel = 'Descartar e Fechar',
   keepLabel = 'Continuar Editando',
-  className = 'fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200',
+  className = 'fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-200',
 }: SafeModalBackdropProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const isMouseDownOnBackdrop = useRef(false);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const isTouchOnBackdrop = useRef(false);
 
   const requestClose = useCallback(() => {
     if (isDirty) {
@@ -57,12 +59,36 @@ export default function SafeModalBackdrop({
     isMouseDownOnBackdrop.current = e.target === e.currentTarget;
   }, []);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget && e.touches.length > 0) {
+      isTouchOnBackdrop.current = true;
+      touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else {
+      isTouchOnBackdrop.current = false;
+      touchStartPos.current = null;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartPos.current && e.touches.length > 0) {
+      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+      const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+      // Se moveu mais de 10px, é um gesto de rolagem/swipe, não clique no backdrop
+      if (dx > 10 || dy > 10) {
+        isTouchOnBackdrop.current = false;
+      }
+    }
+  }, []);
+
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target === e.currentTarget && isMouseDownOnBackdrop.current) {
+      const wasIntentionalBackdrop = isMouseDownOnBackdrop.current || isTouchOnBackdrop.current;
+      if (e.target === e.currentTarget && wasIntentionalBackdrop) {
         requestClose();
       }
       isMouseDownOnBackdrop.current = false;
+      isTouchOnBackdrop.current = false;
+      touchStartPos.current = null;
     },
     [requestClose]
   );
@@ -80,6 +106,8 @@ export default function SafeModalBackdrop({
     <SafeModalContext.Provider value={{ requestClose }}>
       <div
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onClick={handleClick}
         className={className}
       >

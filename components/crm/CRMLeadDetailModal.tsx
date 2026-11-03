@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ModalPortal from '@/components/ModalPortal';
 import SafeModalBackdrop from '@/components/SafeModalBackdrop';
 import {
@@ -102,34 +102,43 @@ export function CRMLeadDetailModal({
   const fullAddress = getFullAddress(lead);
   const isClosed = lead.status === 'Fechado — ganho' || lead.status === 'Perdido';
 
-  // Carrega histórico completo e interações do servidor
-  const loadFullLeadData = async () => {
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const loadFullLeadData = useCallback(async () => {
     try {
       setLoadingHistory(true);
       const res = await fetch(`/api/crm/${lead.id}`);
-      if (res.ok) {
+      if (res.ok && isMountedRef.current) {
         const d = await res.json();
         const data = d.data || {};
-        if (data && data.id && onLeadUpdated) {
+        if (data && data.id && onLeadUpdated && isMountedRef.current) {
           onLeadUpdated(data);
         }
-        if (data.interactions) setInteractions(data.interactions);
-        if (data.status_history) setStatusHistory(data.status_history);
-        if (data.status_counts) setStatusCounts(data.status_counts);
+        if (isMountedRef.current) {
+          if (data.interactions) setInteractions(data.interactions);
+          if (data.status_history) setStatusHistory(data.status_history);
+          if (data.status_counts) setStatusCounts(data.status_counts);
+        }
       }
     } catch (err) {
-      console.error('Erro ao carregar detalhes do lead:', err);
+      if (isMountedRef.current) console.error('Erro ao carregar detalhes do lead:', err);
     } finally {
-      setLoadingHistory(false);
+      if (isMountedRef.current) setLoadingHistory(false);
     }
-  };
+  }, [lead.id, onLeadUpdated]);
 
   useEffect(() => {
     if (isOpen) {
       loadFullLeadData();
       setSelectedTargetStatus(lead.status);
     }
-  }, [isOpen, lead.id]);
+  }, [isOpen, lead.id, loadFullLeadData]);
 
   if (!isOpen) return null;
 
@@ -193,11 +202,13 @@ export function CRMLeadDetailModal({
     <ModalPortal>
       <SafeModalBackdrop
         onClose={onClose}
-        className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-200"
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-3xl max-h-[92vh] bg-white dark:bg-gray-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-700"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="w-full max-w-3xl max-h-[92vh] bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-700"
         >
           {/* 1. HEADER DO MODAL */}
           <div className="shrink-0 p-5 sm:p-6 border-b border-gray-150 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-750 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

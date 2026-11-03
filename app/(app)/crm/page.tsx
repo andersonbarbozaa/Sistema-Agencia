@@ -312,10 +312,11 @@ export default function CRMPage() {
         const d = await res.json();
         const raw = d.data || d.leads || [];
         setLeads(raw);
-        if (selectedLead) {
-          const updated = raw.find((l: CRMLead) => l.id === selectedLead.id);
-          if (updated) setSelectedLead(updated);
-        }
+        setSelectedLead((current) => {
+          if (!current) return null;
+          const updated = raw.find((l: CRMLead) => l.id === current.id);
+          return updated || current;
+        });
       }
     } catch (err) {
       console.error('Erro ao buscar leads:', err);
@@ -352,9 +353,21 @@ export default function CRMPage() {
       })
       .catch(() => {});
 
-    const handler = () => setShowCreateModal(true);
-    window.addEventListener('open-new-lead', handler);
-    return () => window.removeEventListener('open-new-lead', handler);
+    const handleOpenCreate = () => setShowCreateModal(true);
+    window.addEventListener('open-new-lead', handleOpenCreate);
+    window.addEventListener('open-create-lead', handleOpenCreate);
+
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === 'true') {
+      setShowCreateModal(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('new');
+      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+    }
+
+    return () => {
+      window.removeEventListener('open-new-lead', handleOpenCreate);
+      window.removeEventListener('open-create-lead', handleOpenCreate);
+    };
   }, []);
 
   // ============================================================
@@ -1180,8 +1193,8 @@ export default function CRMPage() {
           onChangePrimaryChannel={handleChangePrimaryChannel}
           onReactivate={(l) => setReactivateModalLead(l)}
           onLeadUpdated={(updated) => {
-            setSelectedLead(updated);
             setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+            setSelectedLead((current) => (current && current.id === updated.id ? updated : current));
           }}
           onContactRegistered={() => {
             fetchLeads();
@@ -1349,11 +1362,13 @@ export default function CRMPage() {
             onClose={handleCloseCreateModal}
             isDirty={isNewLeadDirty}
             confirmMessage="Você possui dados preenchidos no lead. Deseja realmente descartar e fechar?"
-            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-200"
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-gray-800 rounded-3xl max-w-xl w-full shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-700"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-700"
             >
               <div className="shrink-0 px-6 py-4 border-b border-gray-150 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 flex items-start justify-between">
                 <div>
@@ -1623,11 +1638,13 @@ export default function CRMPage() {
             onClose={handleCloseEditModal}
             isDirty={isEditLeadDirty}
             confirmMessage="Você possui alterações não salvas no lead. Deseja realmente descartar as alterações e fechar?"
-            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-200"
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-gray-800 rounded-3xl max-w-xl w-full shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-700"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-700"
             >
               <div className="shrink-0 px-6 py-4 border-b border-gray-150 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 flex items-start justify-between">
                 <div>

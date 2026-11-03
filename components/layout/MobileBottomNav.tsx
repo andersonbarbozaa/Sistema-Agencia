@@ -251,7 +251,9 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
                     type="button"
                     onClick={() => {
                       if (pathname === '/crm') {
-                        handleAction('open-create-lead', true);
+                        setShowQuickMenu(false);
+                        window.dispatchEvent(new CustomEvent('open-new-lead'));
+                        window.dispatchEvent(new CustomEvent('open-create-lead'));
                       } else {
                         handleAction('/crm?new=true', false);
                       }
