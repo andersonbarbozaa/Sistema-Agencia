@@ -86,6 +86,127 @@ const SOCIAL_NETWORK_OPTIONS = [
   'Outro',
 ];
 
+interface CRMAutocompleteCategoryInputProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  onQuickSave: (target: 'cities' | 'segments', val: string) => void;
+  options: string[];
+  placeholder?: string;
+  target: 'cities' | 'segments';
+  icon?: React.ReactNode;
+}
+
+function CRMAutocompleteCategoryInput({
+  label,
+  value,
+  onChange,
+  onQuickSave,
+  options,
+  placeholder,
+  target,
+  icon,
+}: CRMAutocompleteCategoryInputProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const trimmed = (value || '').trim();
+  const filtered = options.filter((opt) =>
+    opt.toLowerCase().includes(trimmed.toLowerCase())
+  );
+  const isExactMatch = options.some(
+    (opt) => opt.toLowerCase() === trimmed.toLowerCase()
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (trimmed) {
+        if (!isExactMatch) {
+          onQuickSave(target, trimmed);
+        }
+        setIsOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+        <span className="flex items-center gap-1.5">
+          {icon}
+          {label}
+        </span>
+        <span className="text-[10px] text-gray-400 font-normal">
+          Enter salva em categorias
+        </span>
+      </label>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onFocus={() => setIsOpen(true)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onKeyDown={handleKeyDown}
+        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+      />
+
+      {isOpen && (filtered.length > 0 || (trimmed && !isExactMatch)) && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700/50">
+          {filtered.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(opt);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 text-xs text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center justify-between group"
+            >
+              <span className="font-medium">{opt}</span>
+              <span className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                Escolher
+              </span>
+            </button>
+          ))}
+
+          {trimmed && !isExactMatch && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onQuickSave(target, trimmed);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-1.5"
+            >
+              <Plus size={13} />
+              <span>Salvar <strong>"{trimmed}"</strong> em categorias</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CRMPage() {
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
@@ -99,6 +220,8 @@ export default function CRMPage() {
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [systemCategories, setSystemCategories] = useState<{ id: string; name: string; color?: string }[]>([]);
+  const [systemCities, setSystemCities] = useState<{ id: string; name: string; color?: string }[]>([]);
+  const [systemSegments, setSystemSegments] = useState<{ id: string; name: string; color?: string }[]>([]);
   const [followUpFilter, setFollowUpFilter] = useState<string>('all'); // all, green, yellow, red, none, closed
   const [dateFilterPreset, setDateFilterPreset] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -343,12 +466,18 @@ export default function CRMPage() {
     }
     fetchLeads();
 
-    // Carrega categorias do sistema (task_categories)
-    fetch('/api/categories?type=tasks')
+    // Carrega categorias do sistema (tarefas, cidades e áreas de atuação)
+    fetch('/api/categories?type=all')
       .then((res) => (res.ok ? res.json() : null))
       .then((d) => {
         if (d?.task_categories && Array.isArray(d.task_categories)) {
           setSystemCategories(d.task_categories);
+        }
+        if (d?.cities && Array.isArray(d.cities)) {
+          setSystemCities(d.cities);
+        }
+        if (d?.segments && Array.isArray(d.segments)) {
+          setSystemSegments(d.segments);
         }
       })
       .catch(() => {});
@@ -537,11 +666,41 @@ export default function CRMPage() {
   // ============================================================
   // CRIAÇÃO E EDIÇÃO DE LEADS
   // ============================================================
+  const handleQuickSaveCategory = async (target: 'cities' | 'segments', name: string) => {
+    const clean = name.trim();
+    if (!clean) return;
+    try {
+      const res = await fetch(`/api/categories?target=${target}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: clean }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const item = d.item || { id: d.id, name: clean };
+        if (target === 'cities') {
+          setSystemCities((prev) => (prev.some((c) => c.name.toLowerCase() === clean.toLowerCase()) ? prev : [...prev, item]));
+          showToast(`Cidade "${clean}" salva em categorias do sistema!`, 'success');
+        } else {
+          setSystemSegments((prev) => (prev.some((s) => s.name.toLowerCase() === clean.toLowerCase()) ? prev : [...prev, item]));
+          showToast(`Área de atuação "${clean}" salva em categorias do sistema!`, 'success');
+        }
+      }
+    } catch {}
+  };
+
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLead.contact_name.trim()) {
       showToast('Preencha o Nome do Contato para salvar o lead.', 'error');
       return;
+    }
+
+    if (newLead.city?.trim() && !systemCities.some((c) => c.name.toLowerCase() === newLead.city.trim().toLowerCase())) {
+      handleQuickSaveCategory('cities', newLead.city.trim());
+    }
+    if (newLead.segment?.trim() && !systemSegments.some((s) => s.name.toLowerCase() === newLead.segment.trim().toLowerCase())) {
+      handleQuickSaveCategory('segments', newLead.segment.trim());
     }
 
     const cleanSocials = (newLead.social_links || [])
@@ -631,6 +790,13 @@ export default function CRMPage() {
       return;
     }
 
+    if (editLead.city?.trim() && !systemCities.some((c) => c.name.toLowerCase() === editLead.city.trim().toLowerCase())) {
+      handleQuickSaveCategory('cities', editLead.city.trim());
+    }
+    if (editLead.segment?.trim() && !systemSegments.some((s) => s.name.toLowerCase() === editLead.segment.trim().toLowerCase())) {
+      handleQuickSaveCategory('segments', editLead.segment.trim());
+    }
+
     const cleanSocials = (editLead.social_links || [])
       .map((s) => ({ network: s.network || 'Instagram', value: (s.value || '').trim() }))
       .filter((s) => s.value.length > 0);
@@ -652,7 +818,10 @@ export default function CRMPage() {
       });
 
       if (res.ok) {
+        const resJson = await res.json().catch(() => ({}));
+        const updatedLeadData: CRMLead = resJson.data || { ...editLead, ...payload };
         setShowEditModal(false);
+        setSelectedLead(updatedLeadData);
         fetchLeads();
         showToast('Lead atualizado com sucesso!', 'success');
       } else {
@@ -719,19 +888,25 @@ export default function CRMPage() {
 
   const availableCities = useMemo(() => {
     const set = new Set<string>();
+    systemCities.forEach((c) => {
+      if (c.name && c.name.trim()) set.add(c.name.trim());
+    });
     leads.forEach((l) => {
       if (l.city && l.city.trim()) set.add(l.city.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [leads]);
+  }, [leads, systemCities]);
 
   const availableSegments = useMemo(() => {
     const set = new Set<string>();
+    systemSegments.forEach((s) => {
+      if (s.name && s.name.trim()) set.add(s.name.trim());
+    });
     leads.forEach((l) => {
       if (l.segment && l.segment.trim()) set.add(l.segment.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [leads]);
+  }, [leads, systemSegments]);
 
   const filteredLeads = useMemo(() => {
     return leads
@@ -1549,18 +1724,16 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Cidade
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: São Paulo"
-                        value={newLead.city}
-                        onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
+                    <CRMAutocompleteCategoryInput
+                      label="Cidade"
+                      value={newLead.city}
+                      onChange={(val) => setNewLead({ ...newLead, city: val })}
+                      onQuickSave={handleQuickSaveCategory}
+                      options={availableCities}
+                      placeholder="Ex: São Paulo"
+                      target="cities"
+                      icon={<MapPin size={13} className="text-blue-600" />}
+                    />
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
@@ -1576,18 +1749,16 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Ramo de Atuação
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Odontologia, Arquitetura, Varejo"
-                        value={newLead.segment}
-                        onChange={(e) => setNewLead({ ...newLead, segment: e.target.value })}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
+                    <CRMAutocompleteCategoryInput
+                      label="Área de Atuação"
+                      value={newLead.segment}
+                      onChange={(val) => setNewLead({ ...newLead, segment: val })}
+                      onQuickSave={handleQuickSaveCategory}
+                      options={availableSegments}
+                      placeholder="Ex: Odontologia, Arquitetura, Varejo"
+                      target="segments"
+                      icon={<Briefcase size={13} className="text-purple-600" />}
+                    />
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -1890,17 +2061,16 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Cidade
-                      </label>
-                      <input
-                        type="text"
-                        value={editLead.city}
-                        onChange={(e) => setEditLead({ ...editLead, city: e.target.value })}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
+                    <CRMAutocompleteCategoryInput
+                      label="Cidade"
+                      value={editLead.city}
+                      onChange={(val) => setEditLead({ ...editLead, city: val })}
+                      onQuickSave={handleQuickSaveCategory}
+                      options={availableCities}
+                      placeholder="Ex: São Paulo"
+                      target="cities"
+                      icon={<MapPin size={13} className="text-blue-600" />}
+                    />
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
@@ -1916,17 +2086,16 @@ export default function CRMPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Ramo de Atuação
-                      </label>
-                      <input
-                        type="text"
-                        value={editLead.segment}
-                        onChange={(e) => setEditLead({ ...editLead, segment: e.target.value })}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
+                    <CRMAutocompleteCategoryInput
+                      label="Área de Atuação"
+                      value={editLead.segment}
+                      onChange={(val) => setEditLead({ ...editLead, segment: val })}
+                      onQuickSave={handleQuickSaveCategory}
+                      options={availableSegments}
+                      placeholder="Ex: Odontologia, Arquitetura, Varejo"
+                      target="segments"
+                      icon={<Briefcase size={13} className="text-purple-600" />}
+                    />
 
                     <div>
                       <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">

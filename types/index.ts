@@ -100,6 +100,22 @@ export interface TaskCategory {
   created_at: string;
 }
 
+export interface CRMCity {
+  id: string;
+  name: string;
+  color?: string;
+  workspace_id?: string;
+  created_at?: string;
+}
+
+export interface CRMSegment {
+  id: string;
+  name: string;
+  color?: string;
+  workspace_id?: string;
+  created_at?: string;
+}
+
 export type TaskStatus = 
   | 'Não iniciada'
   | 'Em produção'

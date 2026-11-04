@@ -5,13 +5,10 @@ import {
   Bold,
   Italic,
   Underline,
-  Highlighter,
   Palette,
-  Heading,
-  FileText,
-  AlertCircle,
-  Sparkles,
   ChevronDown,
+  RemoveFormatting,
+  Sparkles,
 } from 'lucide-react';
 
 export interface TextFormatPreset {
@@ -26,46 +23,37 @@ export interface TextFormatPreset {
   underline?: boolean;
 }
 
-export const DEFAULT_TEXT_PRESETS: TextFormatPreset[] = [
-  {
-    id: 'preset_note',
-    name: 'Nota',
-    tag: 'note',
-    textColor: '#92400e',
-    highlightColor: '#fef3c7',
-    bold: true,
-  },
-  {
-    id: 'preset_title',
-    name: 'Título',
-    tag: 'h2',
-    textColor: '#1e40af',
-    fontSize: 'lg',
-    bold: true,
-  },
-  {
-    id: 'preset_highlight',
-    name: 'Marcar',
-    tag: 'p',
-    highlightColor: '#fef08a',
-    bold: false,
-  },
-  {
-    id: 'preset_dialogue',
-    name: 'Fala',
-    tag: 'p',
-    textColor: '#4338ca',
-    italic: true,
-  },
-  {
-    id: 'preset_alert',
-    name: 'Alerta',
-    tag: 'note',
-    textColor: '#991b1b',
-    highlightColor: '#fee2e2',
-    bold: true,
-  },
-];
+export const DEFAULT_TEXT_PRESETS: TextFormatPreset[] = [];
+
+export function isDefaultOrRemovedPreset(p: TextFormatPreset): boolean {
+  if (!p) return true;
+  const id = (p.id || '').toLowerCase();
+  const name = (p.name || '').toLowerCase().trim();
+  if (
+    id === 'preset_note' ||
+    id === 'preset_title' ||
+    id === 'preset_highlight' ||
+    id === 'preset_dialogue' ||
+    id === 'preset_alert'
+  ) {
+    return true;
+  }
+  if (
+    name === 'nota' ||
+    name === 'nota de atenção' ||
+    name === 'título' ||
+    name === 'titulo' ||
+    name === 'título de cena' ||
+    name === 'titulo de cena' ||
+    name === 'grifado' ||
+    name === 'marcar' ||
+    name === 'marca-texto' ||
+    name === 'marca-texto amarelo'
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export function getPresetShortLabel(rawName: string): string {
   if (!rawName) return '';
@@ -73,13 +61,6 @@ export function getPresetShortLabel(rawName: string): string {
   const cleaned = rawName
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}]/gu, '')
     .trim();
-
-  const lower = cleaned.toLowerCase();
-  if (lower.startsWith('nota')) return 'Nota';
-  if (lower.startsWith('título') || lower.startsWith('titulo')) return 'Título';
-  if (lower.startsWith('marca') || lower.startsWith('marcar') || lower.startsWith('grif')) return 'Marcar';
-  if (lower.startsWith('fala') || lower.startsWith('diálogo') || lower.startsWith('dialogo')) return 'Fala';
-  if (lower.startsWith('alerta')) return 'Alerta';
 
   // Fallback: take first word of the name
   const firstWord = cleaned.split(/[\s\/\-_:]+/)[0];
@@ -93,6 +74,150 @@ interface RichTextEditorProps {
   minHeight?: string;
 }
 
+/**
+ * Checks whether a range completely encloses an element.
+ */
+function isRangeCoveringElement(range: Range, element: HTMLElement): boolean {
+  try {
+    const elRange = document.createRange();
+    elRange.selectNodeContents(element);
+    return (
+      range.compareBoundaryPoints(Range.START_TO_START, elRange) <= 0 &&
+      range.compareBoundaryPoints(Range.END_TO_END, elRange) >= 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Completely unwraps an element, placing its child nodes in its place.
+ */
+function unwrapElement(el: HTMLElement) {
+  const parent = el.parentNode;
+  if (!parent) return;
+  while (el.firstChild) {
+    parent.insertBefore(el.firstChild, el);
+  }
+  parent.removeChild(el);
+}
+
+/**
+ * Unwraps or splits an element when a selected range inside it should be unformatted.
+ */
+function unformatRangeInsideElement(range: Range, element: HTMLElement) {
+  if (isRangeCoveringElement(range, element)) {
+    unwrapElement(element);
+    return;
+  }
+
+  const extracted = range.extractContents();
+  const textFragment = document.createDocumentFragment();
+
+  const strip = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      textFragment.appendChild(node.cloneNode(true));
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.tagName === 'BR') {
+        textFragment.appendChild(document.createElement('br'));
+      } else {
+        el.childNodes.forEach(strip);
+      }
+    }
+  };
+  extracted.childNodes.forEach(strip);
+
+  if (!element.hasChildNodes() || element.textContent === '') {
+    element.parentNode?.replaceChild(textFragment, element);
+    return;
+  }
+
+  const marker = document.createElement('span');
+  range.insertNode(marker);
+
+  const parent = element.parentNode;
+  if (!parent) return;
+
+  const afterElement = element.cloneNode(false) as HTMLElement;
+  let passedMarker = false;
+  const nodesToMove: Node[] = [];
+
+  element.childNodes.forEach((child) => {
+    if (child === marker) {
+      passedMarker = true;
+      return;
+    }
+    if (passedMarker) {
+      nodesToMove.push(child);
+    }
+  });
+
+  nodesToMove.forEach((child) => afterElement.appendChild(child));
+
+  parent.insertBefore(textFragment, element.nextSibling);
+
+  if (afterElement.hasChildNodes() && afterElement.textContent !== '') {
+    parent.insertBefore(afterElement, textFragment.nextSibling);
+  }
+
+  marker.remove();
+
+  if (!element.hasChildNodes() || element.textContent === '') {
+    element.remove();
+  }
+}
+
+/**
+ * Removes all formatting from the currently selected range in the editor.
+ */
+function clearAllFormatting(range: Range, editor: HTMLElement) {
+  if (range.collapsed) return;
+
+  try {
+    document.execCommand('removeFormat', false, undefined);
+  } catch {}
+
+  let node: Node | null = range.commonAncestorContainer;
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+
+  const ancestorsToUnwrap: HTMLElement[] = [];
+  let curr = node as HTMLElement | null;
+  while (curr && curr !== editor) {
+    if (
+      curr.getAttribute?.('data-preset-id') ||
+      curr.classList?.contains('rich-note-callout') ||
+      ['SPAN', 'H2', 'H3', 'B', 'STRONG', 'I', 'EM', 'U', 'MARK'].includes(curr.tagName) ||
+      Boolean(curr.style?.backgroundColor && curr.style.backgroundColor !== 'transparent') ||
+      Boolean(curr.style?.color)
+    ) {
+      ancestorsToUnwrap.push(curr);
+    }
+    curr = curr.parentElement;
+  }
+
+  ancestorsToUnwrap.forEach((ancestor) => {
+    unformatRangeInsideElement(range, ancestor);
+  });
+
+  const extracted = range.extractContents();
+  const cleanFragment = document.createDocumentFragment();
+  const extractClean = (n: Node) => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      cleanFragment.appendChild(n.cloneNode(true));
+    } else if (n.nodeType === Node.ELEMENT_NODE) {
+      const el = n as HTMLElement;
+      if (el.tagName === 'BR') {
+        cleanFragment.appendChild(document.createElement('br'));
+      } else {
+        el.childNodes.forEach(extractClean);
+      }
+    }
+  };
+  extracted.childNodes.forEach(extractClean);
+  range.insertNode(cleanFragment);
+}
+
 export default function RichTextEditor({
   value,
   onChange,
@@ -102,9 +227,7 @@ export default function RichTextEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const [presets, setPresets] = useState<TextFormatPreset[]>(DEFAULT_TEXT_PRESETS);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const [showSizePicker, setShowSizePicker] = useState(false);
-  const [showPresetsMenu, setShowPresetsMenu] = useState(false);
 
   // Sync saved presets from localStorage and /api/settings
   useEffect(() => {
@@ -113,8 +236,8 @@ export default function RichTextEditor({
         const saved = localStorage.getItem('agency_text_formatting_presets');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setPresets(parsed);
+          if (Array.isArray(parsed)) {
+            setPresets(parsed.filter((p) => !isDefaultOrRemovedPreset(p)));
           }
         }
 
@@ -124,9 +247,10 @@ export default function RichTextEditor({
           const data = await res.json();
           if (data.settings?.text_formatting_presets) {
             const apiPresets = JSON.parse(data.settings.text_formatting_presets);
-            if (Array.isArray(apiPresets) && apiPresets.length > 0) {
-              setPresets(apiPresets);
-              localStorage.setItem('agency_text_formatting_presets', JSON.stringify(apiPresets));
+            if (Array.isArray(apiPresets)) {
+              const filtered = apiPresets.filter((p: any) => !isDefaultOrRemovedPreset(p));
+              setPresets(filtered);
+              localStorage.setItem('agency_text_formatting_presets', JSON.stringify(filtered));
             }
           }
         }
@@ -139,7 +263,7 @@ export default function RichTextEditor({
 
     const handlePresetsUpdated = (e: any) => {
       if (e.detail && Array.isArray(e.detail)) {
-        setPresets(e.detail);
+        setPresets(e.detail.filter((p: any) => !isDefaultOrRemovedPreset(p)));
       }
     };
 
@@ -154,7 +278,6 @@ export default function RichTextEditor({
   // Update contentEditable when value prop changes externally
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== (value || '')) {
-      // Only set if completely different to avoid moving the cursor while typing
       if (!editorRef.current.contains(document.activeElement)) {
         editorRef.current.innerHTML = value || '';
       }
@@ -185,6 +308,7 @@ export default function RichTextEditor({
     isNote?: boolean;
     isTitle?: boolean;
     presetName?: string;
+    presetId?: string;
   }) => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
@@ -194,9 +318,10 @@ export default function RichTextEditor({
     const hasContent = selectedContent.childNodes.length > 0 && selectedContent.textContent?.trim() !== '';
 
     if (styles.isNote) {
-      // Create callout / note block
       const noteBox = document.createElement('div');
       noteBox.className = 'rich-note-callout';
+      if (styles.presetId) noteBox.setAttribute('data-preset-id', styles.presetId);
+      if (styles.presetName) noteBox.setAttribute('data-preset-name', styles.presetName);
       noteBox.style.backgroundColor = styles.bgColor || '#fef3c7';
       noteBox.style.borderLeft = `4px solid ${styles.color || '#f59e0b'}`;
       noteBox.style.color = styles.color || '#92400e';
@@ -209,8 +334,9 @@ export default function RichTextEditor({
       noteBox.appendChild(hasContent ? selectedContent : document.createTextNode(styles.presetName || 'Nota: Insira o texto aqui'));
       range.insertNode(noteBox);
     } else if (styles.isTitle) {
-      // Create heading block
       const h2 = document.createElement('h2');
+      if (styles.presetId) h2.setAttribute('data-preset-id', styles.presetId);
+      if (styles.presetName) h2.setAttribute('data-preset-name', styles.presetName);
       h2.style.fontSize = styles.fontSize === 'xl' ? '20px' : styles.fontSize === 'lg' ? '18px' : '16px';
       h2.style.fontWeight = 'bold';
       h2.style.color = styles.color || '#1e3a8a';
@@ -225,8 +351,9 @@ export default function RichTextEditor({
       h2.appendChild(hasContent ? selectedContent : document.createTextNode(styles.presetName || 'Título'));
       range.insertNode(h2);
     } else {
-      // Span inline formatting
       const span = document.createElement('span');
+      if (styles.presetId) span.setAttribute('data-preset-id', styles.presetId);
+      if (styles.presetName) span.setAttribute('data-preset-name', styles.presetName);
       if (styles.color) {
         span.style.color = styles.color;
       } else if (styles.bgColor && styles.bgColor !== 'transparent') {
@@ -260,8 +387,77 @@ export default function RichTextEditor({
     handleInput();
   };
 
+  // Toggle or apply preset on current selection
   const applyPreset = (preset: TextFormatPreset) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const editor = editorRef.current;
+    if (!editor) return;
+
     const shortLabel = getPresetShortLabel(preset.name);
+
+    if (range.collapsed) {
+      formatSelection({
+        color: preset.textColor,
+        bgColor: preset.highlightColor,
+        fontSize: preset.fontSize,
+        bold: preset.bold,
+        italic: preset.italic,
+        underline: preset.underline,
+        isNote: preset.tag === 'note',
+        isTitle: preset.tag === 'h2' || preset.tag === 'h3',
+        presetName: shortLabel,
+        presetId: preset.id,
+      });
+      return;
+    }
+
+    // Check if the current selection is already formatted with this preset
+    let node: Node | null = range.commonAncestorContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+
+    let matchedAncestor: HTMLElement | null = null;
+    let curr = node as HTMLElement | null;
+    while (curr && curr !== editor) {
+      const pId = curr.getAttribute?.('data-preset-id');
+      const pName = curr.getAttribute?.('data-preset-name');
+      const isCallout = curr.classList?.contains('rich-note-callout');
+      const isH2 = curr.tagName === 'H2';
+
+      if (
+        (pId && pId === preset.id) ||
+        (pName && pName.toLowerCase() === preset.name.toLowerCase()) ||
+        (preset.tag === 'note' && isCallout) ||
+        ((preset.tag === 'h2' || preset.tag === 'h3') && isH2)
+      ) {
+        matchedAncestor = curr;
+        break;
+      }
+      curr = curr.parentElement;
+    }
+
+    if (matchedAncestor) {
+      // TOGGLE OFF: remove formatting!
+      unformatRangeInsideElement(range, matchedAncestor);
+      selection.removeAllRanges();
+      handleInput();
+      return;
+    }
+
+    // Also check inside range contents for matched elements
+    const clone = range.cloneContents();
+    const internalMatch = clone.querySelector(
+      `[data-preset-id="${preset.id}"], [data-preset-name="${preset.name}"]`
+    );
+    if (internalMatch) {
+      clearAllFormatting(range, editor);
+      selection.removeAllRanges();
+      handleInput();
+      return;
+    }
+
+    // TOGGLE ON: apply preset formatting
     formatSelection({
       color: preset.textColor,
       bgColor: preset.highlightColor,
@@ -272,15 +468,24 @@ export default function RichTextEditor({
       isNote: preset.tag === 'note',
       isTitle: preset.tag === 'h2' || preset.tag === 'h3',
       presetName: shortLabel,
+      presetId: preset.id,
     });
-    setShowPresetsMenu(false);
   };
 
-  // Find user's configured "Grifado" preset
-  const grifadoPreset = presets.find((p) => {
-    const n = (p.name || '').toLowerCase();
-    return n.includes('grif') || n.includes('marca') || n.includes('destaque');
-  }) || presets.find(p => p.tag === 'p' && p.highlightColor);
+  // Limpa formatação do texto selecionado
+  const handleClearFormatting = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const editor = editorRef.current;
+    if (!editor || range.collapsed) return;
+
+    clearAllFormatting(range, editor);
+    selection.removeAllRanges();
+    handleInput();
+  };
+
+  const userPresets = presets.filter((p) => !isDefaultOrRemovedPreset(p));
 
   const colors = [
     { name: 'Padrão', value: '#111827' },
@@ -290,15 +495,6 @@ export default function RichTextEditor({
     { name: 'Amarelo/Ouro', value: '#ca8a04' },
     { name: 'Roxo', value: '#9333ea' },
     { name: 'Laranja', value: '#ea580c' },
-  ];
-
-  const highlights = [
-    { name: 'Nenhum', value: 'transparent' },
-    { name: 'Amarelo', value: grifadoPreset?.highlightColor || '#fef08a' },
-    { name: 'Verde', value: '#bbf7d0' },
-    { name: 'Rosa', value: '#fbcfe8' },
-    { name: 'Azul', value: '#bae6fd' },
-    { name: 'Laranja', value: '#fed7aa' },
   ];
 
   return (
@@ -386,7 +582,7 @@ export default function RichTextEditor({
         <div className="relative">
           <button
             type="button"
-            onClick={() => { setShowColorPicker(!showColorPicker); setShowHighlightPicker(false); }}
+            onClick={() => { setShowColorPicker(!showColorPicker); }}
             className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center gap-0.5"
             title="Cor da Fonte"
           >
@@ -401,7 +597,7 @@ export default function RichTextEditor({
                   type="button"
                   title={c.name}
                   onClick={() => { formatSelection({ color: c.value }); setShowColorPicker(false); }}
-                  className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                  className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform cursor-pointer"
                   style={{ backgroundColor: c.value }}
                 />
               ))}
@@ -409,146 +605,34 @@ export default function RichTextEditor({
           )}
         </div>
 
-        {/* Highlighter (Marca-texto / Grifado) */}
-        <div className="relative flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 border border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={() => {
-              if (grifadoPreset) {
-                applyPreset(grifadoPreset);
-              } else {
-                formatSelection({ bgColor: '#fef08a', color: '#111827' });
-              }
-            }}
-            className="px-2 py-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center gap-1 transition-colors"
-            title={grifadoPreset ? `Aplicar Padrão: ${grifadoPreset.name}` : "Grifado (Marca-texto)"}
-          >
-            <Highlighter size={13} />
-            <span className="text-[11px] font-bold">Grifado</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { setShowHighlightPicker(!showHighlightPicker); setShowColorPicker(false); }}
-            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-            title="Escolher outra cor de grifo"
-          >
-            <ChevronDown size={10} />
-          </button>
-          {showHighlightPicker && (
-            <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 z-30 grid grid-cols-3 gap-1.5 w-32">
-              {highlights.map((h) => (
-                <button
-                  key={h.value}
-                  type="button"
-                  title={h.name}
-                  onClick={() => { formatSelection({ bgColor: h.value }); setShowHighlightPicker(false); }}
-                  className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform text-[9px] font-bold text-gray-700 flex items-center justify-center"
-                  style={{ backgroundColor: h.value }}
-                >
-                  {h.value === 'transparent' ? '✕' : ''}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
         <div className="h-4 w-[1px] bg-gray-300 dark:bg-gray-700 mx-0.5" />
 
-        {/* Heading */}
+        {/* Limpar Formatação */}
         <button
           type="button"
-          onClick={() => formatSelection({ isTitle: true })}
-          className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center gap-1 text-xs font-semibold"
-          title="Transformar em Título"
+          onClick={handleClearFormatting}
+          className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-gray-700 dark:text-gray-200 hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+          title="Limpar formatação do texto selecionado"
         >
-          <Heading size={14} />
-          <span className="hidden sm:inline">Título</span>
+          <RemoveFormatting size={14} />
+          <span className="text-[11px] font-medium hidden sm:inline">Limpar Formatação</span>
         </button>
-
-        {/* Nota / Callout */}
-        <button
-          type="button"
-          onClick={() => formatSelection({ isNote: true, bold: true })}
-          className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center gap-1 text-xs font-semibold"
-          title="Inserir Bloco de Nota"
-        >
-          <AlertCircle size={14} />
-          <span>Nota</span>
-        </button>
-
-        <div className="h-4 w-[1px] bg-gray-300 dark:bg-gray-700 mx-0.5" />
-
-        {/* Padrões Rápidos (Presets configurados) */}
-        <div className="relative ml-auto">
-          <button
-            type="button"
-            onClick={() => setShowPresetsMenu(!showPresetsMenu)}
-            className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-lg border border-blue-200 dark:border-blue-800 transition-colors shadow-sm"
-            title="Padrões de formatação configurados"
-          >
-            <Sparkles size={12} className="text-blue-600 dark:text-blue-400" />
-            <span>Padrões ({presets.length})</span>
-            <ChevronDown size={11} />
-          </button>
-
-          {showPresetsMenu && (
-            <div className="absolute top-full right-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-2 z-30 w-56 space-y-1">
-              <div className="text-[10px] uppercase font-bold text-gray-400 px-2 py-0.5">
-                Aplicar Formatação Pré-definida
-              </div>
-              {presets.map((preset) => {
-                const shortLabel = getPresetShortLabel(preset.name);
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => applyPreset(preset)}
-                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between transition-colors group"
-                  >
-                    <span
-                      className="font-semibold truncate"
-                      style={{
-                        color: preset.textColor || undefined,
-                        backgroundColor: preset.highlightColor || undefined,
-                        padding: preset.highlightColor ? '1px 4px' : undefined,
-                        borderRadius: '3px',
-                        fontStyle: preset.italic ? 'italic' : 'normal',
-                      }}
-                    >
-                      {shortLabel}
-                    </span>
-                    <span className="text-[10px] text-gray-400 group-hover:text-blue-600">Aplicar</span>
-                  </button>
-                );
-              })}
-              <div className="border-t border-gray-100 dark:border-gray-700 pt-1 mt-1">
-                <a
-                  href="/settings?tab=formatting"
-                  target="_blank"
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline px-2 block py-0.5"
-                >
-                  ⚙️ Gerenciar Padrões nas Configurações
-                </a>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Faixa com Todos os Padrões de Roteiro Disponíveis */}
-      {presets.length > 0 && (
+      {/* Faixa com Todos os Padrões de Roteiro Criados pelo Usuário */}
+      {userPresets.length > 0 && (
         <div className="bg-gray-50/90 dark:bg-gray-850 px-2.5 py-1.5 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-1 sm:gap-1.5 text-xs select-none">
           <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 shrink-0 mr-0.5 flex items-center gap-1">
             <Sparkles size={11} className="text-amber-500 hidden sm:inline" /> Padrões:
           </span>
-          {presets.map((preset) => {
+          {userPresets.map((preset) => {
             const shortLabel = getPresetShortLabel(preset.name);
             return (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold transition-transform hover:scale-105 active:scale-95 shadow-2xs border border-black/5 dark:border-white/10"
+                className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold transition-transform hover:scale-105 active:scale-95 shadow-2xs border border-black/5 dark:border-white/10 cursor-pointer"
                 style={{
                   color: preset.textColor || (preset.highlightColor ? '#111827' : undefined),
                   backgroundColor: preset.highlightColor || (preset.tag === 'note' ? '#fef3c7' : preset.tag === 'h2' ? '#dbeafe' : '#f3f4f6'),
@@ -556,7 +640,7 @@ export default function RichTextEditor({
                   fontStyle: preset.italic ? 'italic' : 'normal',
                   textDecoration: preset.underline ? 'underline' : 'none',
                 }}
-                title={`Clique para aplicar: ${shortLabel}`}
+                title={`Clique para aplicar ou remover formatação de ${preset.name}`}
               >
                 {shortLabel}
               </button>

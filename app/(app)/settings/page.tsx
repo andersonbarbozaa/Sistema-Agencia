@@ -51,10 +51,11 @@ import {
   Calendar,
   ExternalLink,
   RefreshCw,
+  MapPin,
 } from 'lucide-react';
-import { Position, TaskCategory, FinancialCategory, BankAccount, CRMWhatsAppTemplate } from '@/types';
+import { Position, TaskCategory, FinancialCategory, BankAccount, CRMWhatsAppTemplate, CRMCity, CRMSegment } from '@/types';
 import { formatCurrency, cn } from '@/lib/utils';
-import { TextFormatPreset, DEFAULT_TEXT_PRESETS } from '@/components/RichTextEditor';
+import { TextFormatPreset, DEFAULT_TEXT_PRESETS, isDefaultOrRemovedPreset } from '@/components/RichTextEditor';
 import { DEFAULT_WHATSAPP_TEMPLATES, parseWhatsAppTemplates, formatWhatsAppTemplate } from '@/lib/whatsapp-templates';
 
 const VALID_SETTINGS_TABS = ['overview', 'profile', 'company', 'users', 'categories', 'calendars', 'finance', 'ai', 'appearance', 'formatting', 'plans', 'whatsapp'] as const;
@@ -278,8 +279,8 @@ function SettingsContent() {
       const saved = localStorage.getItem('agency_text_formatting_presets');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setFormattingPresets(parsed);
+        if (Array.isArray(parsed)) {
+          setFormattingPresets(parsed.filter((p: any) => !isDefaultOrRemovedPreset(p)));
         }
       }
     } catch (e) {}
@@ -407,6 +408,8 @@ function SettingsContent() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [taskCategories, setTaskCategories] = useState<TaskCategory[]>([]);
   const [financialCategories, setFinancialCategories] = useState<FinancialCategory[]>([]);
+  const [cities, setCities] = useState<CRMCity[]>([]);
+  const [segments, setSegments] = useState<CRMSegment[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
@@ -491,7 +494,8 @@ function SettingsContent() {
   const [editPosForm, setEditPosForm] = useState({ name: '', description: '' });
 
   // CATEGORY MODALS
-  const [newCatTarget, setNewCatTarget] = useState<'tasks' | 'finance'>('tasks');
+  const [categorySubTab, setCategorySubTab] = useState<'tasks' | 'cities' | 'segments'>('tasks');
+  const [newCatTarget, setNewCatTarget] = useState<'tasks' | 'finance' | 'cities' | 'segments'>('tasks');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('#3b82f6');
   const [newCategoryType, setNewCategoryType] = useState('both');
@@ -499,7 +503,7 @@ function SettingsContent() {
   const [newFinCategoryType, setNewFinCategoryType] = useState('Saída');
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editCatForm, setEditCatForm] = useState({
-    target: 'tasks',
+    target: 'tasks' as 'tasks' | 'finance' | 'cities' | 'segments',
     name: '',
     color: '#3b82f6',
     type: 'both',
@@ -773,6 +777,8 @@ function SettingsContent() {
         const d = await cRes.json();
         setTaskCategories(d.task_categories || []);
         setFinancialCategories(d.financial_categories || []);
+        setCities(d.cities || []);
+        setSegments(d.segments || []);
       }
       if (aRes.ok) {
         const d = await aRes.json();
@@ -798,9 +804,10 @@ function SettingsContent() {
           if (d.settings.text_formatting_presets) {
             try {
               const parsed = JSON.parse(d.settings.text_formatting_presets);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setFormattingPresets(parsed);
-                localStorage.setItem('agency_text_formatting_presets', JSON.stringify(parsed));
+              if (Array.isArray(parsed)) {
+                const filtered = parsed.filter((p: any) => !isDefaultOrRemovedPreset(p));
+                setFormattingPresets(filtered);
+                localStorage.setItem('agency_text_formatting_presets', JSON.stringify(filtered));
               }
             } catch (e) {}
           }
@@ -1399,13 +1406,15 @@ function SettingsContent() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch(`/api/categories?target=${newCatTarget}`, {
+      const target = categorySubTab;
+      const res = await fetch(`/api/categories?target=${target}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newCategoryName.trim(),
           color: newCategoryColor,
           type: newCategoryType,
+          target,
         }),
       });
 
@@ -1452,12 +1461,12 @@ function SettingsContent() {
     }
   };
 
-  const openEditCategory = (cat: any, target: 'tasks' | 'finance') => {
+  const openEditCategory = (cat: any, target: 'tasks' | 'finance' | 'cities' | 'segments') => {
     setEditingCategory(cat);
     setEditCatForm({
       target,
       name: cat.name,
-      color: cat.color || '#3b82f6',
+      color: cat.color || (target === 'segments' ? '#8b5cf6' : '#3b82f6'),
       type: cat.type || 'both',
     });
   };
@@ -1495,10 +1504,19 @@ function SettingsContent() {
   const handleDeleteCategory = async () => {
     if (!editingCategory) return;
 
+    const targetLabel =
+      editCatForm.target === 'cities'
+        ? 'Cidade'
+        : editCatForm.target === 'segments'
+        ? 'Área de Atuação'
+        : editCatForm.target === 'finance'
+        ? 'Categoria Financeira'
+        : 'Categoria';
+
     setConfirmState({
       isOpen: true,
-      title: 'Remover Categoria',
-      message: `Deseja realmente remover a categoria "${editingCategory.name}"?`,
+      title: `Remover ${targetLabel}`,
+      message: `Deseja realmente remover ${editCatForm.target === 'cities' ? 'a cidade' : editCatForm.target === 'segments' ? 'a área de atuação' : 'a categoria'} "${editingCategory.name}"?`,
       onConfirm: async () => {
         try {
           setIsSubmitting(true);
@@ -2821,29 +2839,107 @@ function SettingsContent() {
 
 
       {/* ======================================================== */}
-      {/* TAB 3: CATEGORIAS DO SISTEMA (Apenas Tarefas/Sistema)      */}
+      {/* TAB 3: CATEGORIAS DO SISTEMA (Tarefas, Cidades & Áreas)  */}
       {/* ======================================================== */}
       {activeTab === 'categories' && (
         <div className="space-y-6">
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+          <div className="pb-4 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <Layers className="w-5 h-5 text-blue-600" />
-              Categorias do Sistema (Tarefas, Produção & CRM)
+              Categorias do Sistema (Tarefas, Cidades & Áreas de Atuação)
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Etiquetas e categorias para organizar tarefas, etapas da esteira criativa e tipos de serviços.
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Etiquetas e categorias para organizar tarefas, esteira de produção, cidades e áreas de atuação de leads e clientes.
             </p>
           </div>
 
-          {/* Form Nova Categoria de Tarefas */}
-          <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+          {/* Subtabs de Navegação das Categorias */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-800 pb-3">
+            <button
+              type="button"
+              onClick={() => {
+                setCategorySubTab('tasks');
+                setNewCategoryColor('#3b82f6');
+              }}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2',
+                categorySubTab === 'tasks'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              )}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Tarefas & Produção</span>
+              <span className={cn(
+                'px-1.5 py-0.5 rounded-full text-[10px]',
+                categorySubTab === 'tasks' ? 'bg-blue-700/80 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              )}>
+                {taskCategories.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCategorySubTab('cities');
+                setNewCategoryColor('#0ea5e9');
+              }}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2',
+                categorySubTab === 'cities'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              )}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Cidades (CRM)</span>
+              <span className={cn(
+                'px-1.5 py-0.5 rounded-full text-[10px]',
+                categorySubTab === 'cities' ? 'bg-blue-700/80 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              )}>
+                {cities.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCategorySubTab('segments');
+                setNewCategoryColor('#8b5cf6');
+              }}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2',
+                categorySubTab === 'segments'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              )}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>Áreas de Atuação (CRM)</span>
+              <span className={cn(
+                'px-1.5 py-0.5 rounded-full text-[10px]',
+                categorySubTab === 'segments' ? 'bg-blue-700/80 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              )}>
+                {segments.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Form de Criação */}
+          <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <input
               type="text"
               required
-              placeholder="Nome da categoria (ex: Edição de Vídeo, Motion Design, Branding)..."
+              placeholder={
+                categorySubTab === 'tasks'
+                  ? 'Nome da categoria (ex: Edição de Vídeo, Motion Design, Branding)...'
+                  : categorySubTab === 'cities'
+                  ? 'Nome da cidade (ex: São Paulo, Rio de Janeiro, Curitiba, Belo Horizonte)...'
+                  : 'Nome da área de atuação (ex: Odontologia, Arquitetura, Varejo, Estética)...'
+              }
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 font-medium">Cor:</span>
@@ -2851,7 +2947,7 @@ function SettingsContent() {
                 type="color"
                 value={newCategoryColor}
                 onChange={(e) => setNewCategoryColor(e.target.value)}
-                className="w-9 h-9 rounded-xl border border-gray-200 cursor-pointer bg-white p-0.5"
+                className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white p-0.5"
               />
             </div>
             <button
@@ -2859,30 +2955,103 @@ function SettingsContent() {
               disabled={isSubmitting}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl transition-colors shadow-sm whitespace-nowrap"
             >
-              + Adicionar Categoria
+              + Adicionar {categorySubTab === 'tasks' ? 'Categoria' : categorySubTab === 'cities' ? 'Cidade' : 'Área de Atuação'}
             </button>
           </form>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {taskCategories.map((cat) => (
-              <div
-                key={cat.id}
-                onClick={() => openEditCategory(cat, 'tasks')}
-                className="bg-gray-50 border border-gray-200 hover:border-blue-400 p-3.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: cat.color || '#3b82f6' }}
-                  />
-                  <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
-                    {cat.name}
-                  </span>
+          {/* Lista de Tarefas */}
+          {categorySubTab === 'tasks' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {taskCategories.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-gray-500">
+                  Nenhuma categoria cadastrada ainda.
                 </div>
-                <Edit2 size={13} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
-              </div>
-            ))}
-          </div>
+              ) : (
+                taskCategories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    onClick={() => openEditCategory(cat, 'tasks')}
+                    className="bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 p-3.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className="w-4 h-4 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: cat.color || '#3b82f6' }}
+                      />
+                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 transition-colors truncate">
+                        {cat.name}
+                      </span>
+                    </div>
+                    <Edit2 size={13} className="text-gray-400 group-hover:text-blue-600 transition-colors shrink-0 ml-2" />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Lista de Cidades */}
+          {categorySubTab === 'cities' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {cities.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-gray-500">
+                  Nenhuma cidade cadastrada ainda. Adicione acima ou preencha no CRM e tecle Enter para salvar automaticamente.
+                </div>
+              ) : (
+                cities.map((city) => (
+                  <div
+                    key={city.id}
+                    onClick={() => openEditCategory(city, 'cities')}
+                    className="bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 p-3.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: (city.color || '#0ea5e9') + '20', color: city.color || '#0ea5e9' }}
+                      >
+                        <MapPin size={14} />
+                      </div>
+                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 transition-colors truncate">
+                        {city.name}
+                      </span>
+                    </div>
+                    <Edit2 size={13} className="text-gray-400 group-hover:text-blue-600 transition-colors shrink-0 ml-2" />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Lista de Áreas de Atuação */}
+          {categorySubTab === 'segments' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {segments.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-gray-500">
+                  Nenhuma área de atuação cadastrada ainda. Adicione acima ou preencha no CRM e tecle Enter para salvar automaticamente.
+                </div>
+              ) : (
+                segments.map((seg) => (
+                  <div
+                    key={seg.id}
+                    onClick={() => openEditCategory(seg, 'segments')}
+                    className="bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 p-3.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: (seg.color || '#8b5cf6') + '20', color: seg.color || '#8b5cf6' }}
+                      >
+                        <Briefcase size={14} />
+                      </div>
+                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-purple-600 transition-colors truncate">
+                        {seg.name}
+                      </span>
+                    </div>
+                    <Edit2 size={13} className="text-gray-400 group-hover:text-purple-600 transition-colors shrink-0 ml-2" />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -4939,12 +5108,24 @@ function SettingsContent() {
 
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Layers className="w-5 h-5 text-blue-600" />
-              Editar Categoria
+              {editCatForm.target === 'cities'
+                ? 'Editar Cidade'
+                : editCatForm.target === 'segments'
+                ? 'Editar Área de Atuação'
+                : editCatForm.target === 'finance'
+                ? 'Editar Categoria Financeira'
+                : 'Editar Categoria'}
             </h2>
 
             <form onSubmit={handleUpdateCategory} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nome da Categoria *</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {editCatForm.target === 'cities'
+                    ? 'Nome da Cidade *'
+                    : editCatForm.target === 'segments'
+                    ? 'Nome da Área de Atuação *'
+                    : 'Nome da Categoria *'}
+                </label>
                 <input
                   type="text"
                   required
@@ -4954,9 +5135,9 @@ function SettingsContent() {
                 />
               </div>
 
-              {editCatForm.target === 'tasks' && (
+              {editCatForm.target !== 'finance' && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cor da Categoria</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cor</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
