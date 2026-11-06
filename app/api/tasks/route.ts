@@ -346,6 +346,12 @@ export async function POST(request: Request) {
     }
 
     if (mediaToInsert.length > 0) {
+      // Auto-garantir que colunas existam (compatibilidade Cloudflare D1 e SQLite local)
+      try { await db.prepare('ALTER TABLE task_media_links ADD COLUMN title TEXT').run(); } catch (_) {}
+      try { await db.prepare('ALTER TABLE task_media_links ADD COLUMN created_by TEXT').run(); } catch (_) {}
+      try { await db.prepare('ALTER TABLE task_media_links ADD COLUMN uploaded_by TEXT').run(); } catch (_) {}
+      try { await db.prepare('ALTER TABLE task_media_links ADD COLUMN sort_order INTEGER DEFAULT 0').run(); } catch (_) {}
+
       for (const m of mediaToInsert) {
         const medId = generateId('med');
         const detectedType = m.media_type && m.media_type !== 'other' ? m.media_type : detectMediaType(m.url);
@@ -353,13 +359,24 @@ export async function POST(request: Request) {
         try {
           await db
             .prepare(`
-              INSERT INTO task_media_links (id, task_id, title, url, media_type, description, created_by, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO task_media_links (id, task_id, title, url, media_type, description, created_by, uploaded_by, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
-            .bind(medId, id, finalTitle, m.url, detectedType, m.description || null, user.id, now)
+            .bind(medId, id, finalTitle, m.url, detectedType, m.description || null, user.id, user.id, now)
             .run();
-        } catch (mErr) {
-          console.error('[POST /api/tasks] Error inserting initial media link:', mErr);
+        } catch (mErr: any) {
+          console.warn('[POST /api/tasks] Primary media insert failed, attempting fallback:', mErr?.message);
+          try {
+            await db
+              .prepare(`
+                INSERT INTO task_media_links (id, task_id, url, media_type, description, uploaded_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+              `)
+              .bind(medId, id, m.url, detectedType, m.description || null, user.id, now)
+              .run();
+          } catch (retryErr: any) {
+            console.error('[POST /api/tasks] Fallback media insert also failed:', retryErr?.message);
+          }
         }
       }
     }

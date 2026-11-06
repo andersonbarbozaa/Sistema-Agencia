@@ -94,13 +94,16 @@ export async function GET(request: Request, { params }: RouteParams) {
     // Media links
     const { results: mediaLinks } = await db
       .prepare(`
-        SELECT tml.*, u.name as created_by_name
+        SELECT tml.*, 
+               COALESCE(NULLIF(tml.title, ''), NULLIF(tml.description, ''), 'Mídia da Tarefa') as title,
+               COALESCE(tml.created_by, tml.uploaded_by) as created_by,
+               u.name as created_by_name
         FROM task_media_links tml
-        LEFT JOIN users u ON tml.created_by = u.id
-        WHERE tml.task_id = ?
+        LEFT JOIN users u ON COALESCE(tml.created_by, tml.uploaded_by) = u.id
+        WHERE tml.task_id = ? OR tml.task_id = ?
         ORDER BY tml.created_at DESC
       `)
-      .bind(cleanId)
+      .bind(cleanId, id)
       .all<any>();
 
     // Status history

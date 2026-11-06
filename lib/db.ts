@@ -284,6 +284,23 @@ function getLocalDatabase(): D1DatabaseInterface {
         );
         CREATE INDEX IF NOT EXISTS idx_debt_payments_debt_id ON debt_payments(debt_id);
         CREATE INDEX IF NOT EXISTS idx_debt_payments_workspace_id ON debt_payments(workspace_id);
+
+        CREATE TABLE IF NOT EXISTS task_media_links (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          title TEXT,
+          url TEXT NOT NULL,
+          media_type TEXT NOT NULL DEFAULT 'other',
+          description TEXT,
+          sort_order INTEGER DEFAULT 0,
+          created_by TEXT,
+          uploaded_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        ALTER TABLE task_media_links ADD COLUMN title TEXT;
+        ALTER TABLE task_media_links ADD COLUMN created_by TEXT;
+        ALTER TABLE task_media_links ADD COLUMN uploaded_by TEXT;
+        ALTER TABLE task_media_links ADD COLUMN sort_order INTEGER DEFAULT 0;
       `);
     } catch {}
 

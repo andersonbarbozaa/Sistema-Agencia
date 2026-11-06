@@ -507,7 +507,8 @@ export default function TasksPage() {
 
       const titleToSend = newMedia.title?.trim() || (detectedType === 'video' ? 'Vídeo da Tarefa' : detectedType === 'image' ? 'Imagem da Tarefa' : 'Arquivo da Tarefa');
 
-      const res = await fetch(`/api/tasks/${selectedTask.id}/media`, {
+      const cleanId = (selectedTask.id || '').toString().replace(/^task-/, '');
+      const res = await fetch(`/api/tasks/${cleanId}/media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -521,7 +522,7 @@ export default function TasksPage() {
       if (res.ok) {
         setShowAddMediaModal(false);
         setNewMedia({ title: '', url: '', description: '', media_type: 'other' });
-        await openTaskDetail(selectedTask.id);
+        await openTaskDetail(cleanId);
         const tRes = await fetch('/api/tasks');
         if (tRes.ok) {
           const t = await tRes.json();
@@ -542,11 +543,12 @@ export default function TasksPage() {
     if (!confirm('Deseja realmente remover este anexo de mídia?')) return;
 
     try {
-      const res = await fetch(`/api/tasks/${selectedTask.id}/media/${mediaId}`, {
+      const cleanId = (selectedTask.id || '').toString().replace(/^task-/, '');
+      const res = await fetch(`/api/tasks/${cleanId}/media/${mediaId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        await openTaskDetail(selectedTask.id);
+        await openTaskDetail(cleanId);
         const tRes = await fetch('/api/tasks');
         if (tRes.ok) {
           const t = await tRes.json();
