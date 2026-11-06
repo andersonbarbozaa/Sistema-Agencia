@@ -48,7 +48,7 @@ interface SubMenuItem {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/tasks', label: 'teste', icon: CheckSquare },
+  { href: '/tasks', label: 'Tarefas', icon: CheckSquare },
   { href: '/clients', label: 'Clientes', icon: Users, roles: ['ADMINISTRADOR', 'COLABORADOR'] },
   { href: '/crm', label: 'CRM', icon: TrendingUp, roles: ['ADMINISTRADOR', 'COLABORADOR'] },
   { href: '/finance', label: 'Financeiro', icon: DollarSign, roles: ['ADMINISTRADOR'] },

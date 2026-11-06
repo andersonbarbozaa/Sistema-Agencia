@@ -524,9 +524,29 @@ export default function TasksPage() {
         return 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 font-semibold';
       case 'Em produção':
         return 'bg-yellow-100 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-800 font-semibold';
+      case 'Atrasada':
+      case 'Atrasado':
+        return 'bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800 font-semibold';
       case 'Não iniciada':
       default:
         return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold';
+    }
+  };
+
+  const getCategoryTextColor = (hexColor?: string) => {
+    if (!hexColor || !hexColor.startsWith('#')) return '#ffffff';
+    try {
+      let hex = hexColor.replace('#', '');
+      if (hex.length === 3) {
+        hex = hex.split('').map((c) => c + c).join('');
+      }
+      const r = parseInt(hex.substring(0, 2), 16) || 0;
+      const g = parseInt(hex.substring(2, 4), 16) || 0;
+      const b = parseInt(hex.substring(4, 6), 16) || 0;
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      return yiq >= 165 ? '#1e293b' : '#ffffff';
+    } catch {
+      return '#ffffff';
     }
   };
 
@@ -574,6 +594,8 @@ export default function TasksPage() {
 
   const isTaskOverdue = (t: any) => {
     const s = (t.status || '').toLowerCase();
+    if (s.includes('atrasad')) return true;
+
     const isConcluded = s.includes('conclu') || s.includes('aprovad');
 
     // Rule: Quando a tarefa é finalizada/concluída e tem valor, se não foi marcado como pago, entra como atrasada
@@ -586,15 +608,14 @@ export default function TasksPage() {
       return false;
     }
 
-    // Rule: Não concluída e passou 1 dia da data de vencimento
+    // Rule: Não concluída e data de vencimento anterior a hoje
     if (!t.delivery_date) return false;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const [y, m, d] = t.delivery_date.split('T')[0].split('-').map(Number);
+    const [y, m, d] = String(t.delivery_date).split('T')[0].split('-').map(Number);
     if (!y || !m || !d) return false;
     const delivery = new Date(y, m - 1, d);
-    const diffDays = Math.floor((today.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24));
-    return diffDays >= 1;
+    return delivery.getTime() < today.getTime();
   };
 
   // Filter tasks
@@ -798,12 +819,12 @@ export default function TasksPage() {
           <div className="overflow-x-auto">
             <table className="w-full table-fixed text-left text-xs whitespace-nowrap">
               <colgroup>
-                <col className="w-[32%] min-w-[220px]" />
-                <col className="w-[18%] min-w-[130px]" />
-                <col className="w-[15%] min-w-[110px]" />
-                <col className="w-[15%] min-w-[110px]" />
-                <col className="w-[10%] min-w-[80px]" />
-                <col className="w-[10%] min-w-[85px]" />
+                <col className="w-[28%] min-w-[200px]" />
+                <col className="w-[16%] min-w-[120px]" />
+                <col className="w-[20%] min-w-[170px]" />
+                <col className="w-[14%] min-w-[110px]" />
+                <col className="w-[11%] min-w-[80px]" />
+                <col className="w-[11%] min-w-[85px]" />
               </colgroup>
               <thead className="bg-gray-50/90 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 hidden md:table-header-group text-[11px] font-semibold uppercase tracking-wider h-8">
                 <tr>
@@ -825,7 +846,10 @@ export default function TasksPage() {
                 ) : (
                   filteredTasks.map((task) => {
                     const isDeletionPending = task.deletion_request_status === 'pending';
-                    const isOverdue = (task.status !== 'Concluída' && isTaskOverdue(task)) || (task.status as string) === 'Atrasada';
+                    const isOverdue = Boolean(isTaskOverdue(task));
+                    const catObj = categories.find((c) => c.id === task.category_id || c.name === task.category_name);
+                    const catColor = task.category_color || catObj?.color || '#3b82f6';
+                    const catName = task.category_name || catObj?.name;
 
                     return (
                       <tr
@@ -872,16 +896,29 @@ export default function TasksPage() {
                                 )}
                               </button>
 
-                              {/* Tag de atraso mobile posicionada ao lado da bolinha */}
+                              {/* Tag de atraso mobile à frente do status */}
                               {isOverdue && (
-                                <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0", getTaskStatusBadgeStyle('Atrasada'))}>
-                                  Atrasada
+                                <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0", getTaskStatusBadgeStyle('Atrasado'))}>
+                                  Atrasado
                                 </span>
                               )}
 
                               <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold", getTaskStatusBadgeStyle(task.status))}>
                                 {task.status}
                               </span>
+
+                              {catName && (
+                                <span
+                                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold truncate max-w-[120px] shadow-2xs border"
+                                  style={{
+                                    backgroundColor: catColor,
+                                    borderColor: catColor,
+                                    color: getCategoryTextColor(catColor),
+                                  }}
+                                >
+                                  {catName}
+                                </span>
+                              )}
                             </div>
                             {task.assignees && task.assignees.length > 0 && (
                               <div className="flex -space-x-1.5 shrink-0">
@@ -948,16 +985,6 @@ export default function TasksPage() {
                               )}
                             </button>
 
-                            {/* Tag de atraso posicionada ao lado da bolinha de status */}
-                            {isOverdue && (
-                              <span className={cn(
-                                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-semibold shrink-0 tracking-tight",
-                                getTaskStatusBadgeStyle('Atrasada')
-                              )}>
-                                Atrasada
-                              </span>
-                            )}
-
                             {/* Título da tarefa */}
                             <span className="truncate font-medium text-gray-900 dark:text-gray-100 text-xs" title={task.name}>
                               {task.name}
@@ -979,25 +1006,36 @@ export default function TasksPage() {
 
                         {/* 3. Status */}
                         <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 whitespace-nowrap">
-                          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold", getTaskStatusBadgeStyle(task.status))}>
-                            {task.status}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {isOverdue && (
+                              <span className={cn(
+                                "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold shrink-0 tracking-tight",
+                                getTaskStatusBadgeStyle('Atrasado')
+                              )}>
+                                Atrasado
+                              </span>
+                            )}
+                            <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold", getTaskStatusBadgeStyle(task.status))}>
+                              {task.status}
+                            </span>
+                          </div>
                         </td>
 
                         {/* 4. Categorias */}
-                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 text-gray-600 dark:text-gray-300 text-xs overflow-hidden text-ellipsis whitespace-nowrap" title={task.category_name || ''}>
-                          {task.category_name ? (
-                            <div className="flex items-center gap-1.5 min-w-0 truncate">
-                              {task.category_color && (
-                                <span
-                                  className="w-2 h-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: task.category_color }}
-                                />
-                              )}
-                              <span className="truncate">{task.category_name}</span>
-                            </div>
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 whitespace-nowrap overflow-hidden text-ellipsis" title={catName || ''}>
+                          {catName ? (
+                            <span
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold shadow-2xs border truncate max-w-full"
+                              style={{
+                                backgroundColor: catColor,
+                                borderColor: catColor,
+                                color: getCategoryTextColor(catColor),
+                              }}
+                            >
+                              <span className="truncate">{catName}</span>
+                            </span>
                           ) : (
-                            <span className="text-gray-300 dark:text-gray-600">-</span>
+                            <span className="text-gray-300 dark:text-gray-600 text-xs">-</span>
                           )}
                         </td>
 
