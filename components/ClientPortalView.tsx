@@ -186,22 +186,39 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
 
   // Fetch full task details when selected
   const openTask = async (id: string) => {
-    setSelectedTaskId(id);
+    if (!id) return;
+    const cleanId = id.toString().replace(/^task-/, '');
+    setSelectedTaskId(cleanId);
+    
+    // Otimização: se já existe nas tarefas locais, preenche imediatamente para abertura instantânea
+    const cached = tasks.find(t => t.id === cleanId || t.id === id);
+    if (cached) {
+      setTaskDetail({
+        ...cached,
+        media_links: cached.media_links || cached.media || [],
+        comments: cached.comments || [],
+      });
+    }
+
     setLoadingDetail(true);
     setCommentText('');
     try {
-      const res = await fetch(`/api/tasks/${id}`);
+      const res = await fetch(`/api/tasks/${cleanId}`);
       if (res.ok) {
         const data = await res.json();
         setTaskDetail(data.task || data.data);
       } else {
-        showToast('Não foi possível carregar os detalhes da tarefa.', 'error');
-        setSelectedTaskId(null);
+        if (!cached) {
+          showToast('Não foi possível carregar os detalhes da tarefa.', 'error');
+          setSelectedTaskId(null);
+        }
       }
     } catch (err) {
       console.error(err);
-      showToast('Erro de conexão ao carregar tarefa.', 'error');
-      setSelectedTaskId(null);
+      if (!cached) {
+        showToast('Erro de conexão ao carregar tarefa.', 'error');
+        setSelectedTaskId(null);
+      }
     } finally {
       setLoadingDetail(false);
     }

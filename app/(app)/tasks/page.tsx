@@ -66,7 +66,8 @@ export default function TasksPage() {
   // Drag and drop state
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskCol, setDragOverTaskCol] = useState<string | null>(null);
-  const taskDragStartTimeRef = useRef<number>(0);
+  const isDraggingTaskRef = useRef<boolean>(false);
+  const dragMouseStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const handler = () => setShowCreateModal(true);
@@ -275,21 +276,38 @@ export default function TasksPage() {
   }, [initialTaskId]);
 
   const openTaskDetail = async (taskId: string) => {
+    if (!taskId) return;
+    const cleanId = taskId.toString().replace(/^task-/, '');
+
+    // Abre instantaneamente com dados em cache local se existirem
+    const cachedTask = tasks.find((t) => t.id === cleanId || t.id === taskId);
+    if (cachedTask) {
+      const normalizedMedia = (cachedTask as any).media || (cachedTask as any).media_links || [];
+      setSelectedTask({
+        ...cachedTask,
+        media: normalizedMedia,
+        media_links: normalizedMedia,
+        comments: (cachedTask as any).comments || [],
+        assignees: (cachedTask as any).assignees || [],
+      });
+    }
+
     try {
       setLoadingDetail(true);
-      const res = await fetch(`/api/tasks/${taskId}`);
+      const res = await fetch(`/api/tasks/${cleanId}`);
       if (res.ok) {
         const data = await res.json();
         const taskData = data.task || data;
         const normalizedMedia = taskData.media || taskData.media_links || [];
-        setSelectedTask({
+        setSelectedTask((prev: any) => ({
+          ...(prev || {}),
           ...taskData,
           media: normalizedMedia,
           media_links: normalizedMedia,
-        });
+        }));
       }
     } catch (err) {
-      console.error(err);
+      console.error('Erro ao abrir detalhes da tarefa:', err);
     } finally {
       setLoadingDetail(false);
     }
@@ -1272,17 +1290,26 @@ export default function TasksPage() {
                           e.dataTransfer.setData('text/plain', task.id.toString());
                           e.dataTransfer.effectAllowed = 'move';
                           setDraggedTaskId(task.id);
-                          taskDragStartTimeRef.current = Date.now();
+                          dragMouseStartRef.current = { x: e.clientX, y: e.clientY };
+                          isDraggingTaskRef.current = false;
+                        }}
+                        onDrag={(e) => {
+                          if (e.clientX !== 0 || e.clientY !== 0) {
+                            if (dragMouseStartRef.current && (Math.abs(e.clientX - dragMouseStartRef.current.x) > 6 || Math.abs(e.clientY - dragMouseStartRef.current.y) > 6)) {
+                              isDraggingTaskRef.current = true;
+                            }
+                          }
                         }}
                         onDragEnd={() => {
                           setDraggedTaskId(null);
                           setDragOverTaskCol(null);
                           setTimeout(() => {
-                            taskDragStartTimeRef.current = 0;
-                          }, 150);
+                            isDraggingTaskRef.current = false;
+                            dragMouseStartRef.current = null;
+                          }, 100);
                         }}
                         onClick={() => {
-                          if (taskDragStartTimeRef.current > 0 && Date.now() - taskDragStartTimeRef.current < 250) {
+                          if (isDraggingTaskRef.current) {
                             return;
                           }
                           openTaskDetail(task.id);
@@ -1525,6 +1552,17 @@ export default function TasksPage() {
       {/* ======================================================== */}
       {/* TASK DETAIL MODAL / DRAWER                               */}
       {/* ======================================================== */}
+      {loadingDetail && !selectedTask && (
+        <ModalPortal>
+          <div className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Carregando detalhes da tarefa...</span>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
       {selectedTask && (<ModalPortal>
         <SafeModalBackdrop
           onClose={() => setSelectedTask(null)}

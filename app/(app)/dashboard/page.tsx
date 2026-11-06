@@ -414,7 +414,11 @@ export default function DashboardPage() {
               </div>
             ) : (
               urgent_tasks.map((task: any) => (
-                <div key={task.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between gap-4">
+                <div
+                  key={task.id}
+                  onClick={() => window.location.href = `/tasks?id=${task.id}`}
+                  className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors flex items-center justify-between gap-4 cursor-pointer"
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span

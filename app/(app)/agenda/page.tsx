@@ -698,7 +698,18 @@ export default function AgendaPage() {
                             return (
                               <div
                                 key={item.id}
-                                onClick={() => setSelectedTaskPreview(item.raw)}
+                                onClick={() => {
+                                  const t = item.raw || item;
+                                  const cleanId = (t.id || item.id || '').toString().replace(/^task-/, '');
+                                  setSelectedTaskPreview({
+                                    ...t,
+                                    id: cleanId,
+                                    title: t.name || t.title || item.title,
+                                    client_name: t.client_name || item.clientName || item.location,
+                                    delivery_date: t.delivery_date || (item as any).event_date,
+                                    event_date: t.delivery_date || (item as any).event_date,
+                                  });
+                                }}
                                 className="p-1.5 sm:p-2 rounded-xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer shadow-2xs hover:shadow-xs transition-all flex flex-col gap-1 w-full text-left group/task"
                                 title={`Tarefa: ${item.title}${item.clientName ? ` | Cliente: ${item.clientName}` : ''}${item.categoryName ? ` | Categoria: ${item.categoryName}` : ''}`}
                               >
@@ -820,7 +831,22 @@ export default function AgendaPage() {
                 .map((item) => (
                   <div
                     key={`${item.type}-${item.id}`}
-                    onClick={() => item.type === 'event' ? openEditModal(item) : setSelectedTaskPreview(item)}
+                    onClick={() => {
+                      if (item.type === 'event') {
+                        openEditModal(item);
+                      } else {
+                        const t = item.raw || item;
+                        const cleanId = (t.id || item.id || '').toString().replace(/^task-/, '');
+                        setSelectedTaskPreview({
+                          ...t,
+                          id: cleanId,
+                          title: t.name || t.title || item.title,
+                          client_name: t.client_name || item.clientName || item.location,
+                          delivery_date: t.delivery_date || item.event_date,
+                          event_date: t.delivery_date || item.event_date,
+                        });
+                      }
+                    }}
                     className="p-4 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50"
                   >
                     <div className="space-y-1">
@@ -909,7 +935,16 @@ export default function AgendaPage() {
                           if (item.type === 'event') {
                             openEditModal(item);
                           } else {
-                            setSelectedTaskPreview(item);
+                            const t = item.raw || item;
+                            const cleanId = (t.id || item.id || '').toString().replace(/^task-/, '');
+                            setSelectedTaskPreview({
+                              ...t,
+                              id: cleanId,
+                              title: t.name || t.title || item.title,
+                              client_name: t.client_name || item.clientName || item.location,
+                              delivery_date: t.delivery_date || item.event_date,
+                              event_date: t.delivery_date || item.event_date,
+                            });
                           }
                         }}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1.5 transition-colors"
@@ -1144,13 +1179,13 @@ export default function AgendaPage() {
             <div className="p-4 flex-1 overflow-y-auto space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Título</label>
-                <p className="text-sm text-gray-900">{selectedTaskPreview.title}</p>
+                <p className="text-sm font-semibold text-gray-900">{selectedTaskPreview.title || selectedTaskPreview.name}</p>
               </div>
               
-              {selectedTaskPreview.client_name && (
+              {(selectedTaskPreview.client_name || selectedTaskPreview.clientName) && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente</label>
-                  <p className="text-sm text-gray-900">{selectedTaskPreview.client_name}</p>
+                  <p className="text-sm text-gray-900">{selectedTaskPreview.client_name || selectedTaskPreview.clientName}</p>
                 </div>
               )}
 
@@ -1171,7 +1206,7 @@ export default function AgendaPage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Data de Entrega</label>
                 <p className="text-sm text-gray-900">
-                  {selectedTaskPreview.event_date ? new Date(selectedTaskPreview.event_date).toLocaleDateString('pt-BR') : 'Sem data'}
+                  {selectedTaskPreview.delivery_date || selectedTaskPreview.event_date ? formatDate(selectedTaskPreview.delivery_date || selectedTaskPreview.event_date) : 'Sem data'}
                 </p>
               </div>
             </div>
@@ -1179,9 +1214,11 @@ export default function AgendaPage() {
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
               <button
                 onClick={async () => {
-                  if (!confirm(`Tem certeza que deseja excluir a tarefa "${selectedTaskPreview.title}"?`)) return;
+                  const taskTitle = selectedTaskPreview.title || selectedTaskPreview.name || 'esta tarefa';
+                  if (!confirm(`Tem certeza que deseja excluir a tarefa "${taskTitle}"?`)) return;
                   try {
-                    const res = await fetch(`/api/tasks/${selectedTaskPreview.id}`, { method: 'DELETE' });
+                    const cleanId = (selectedTaskPreview.id || '').toString().replace(/^task-/, '');
+                    const res = await fetch(`/api/tasks/${cleanId}`, { method: 'DELETE' });
                     if (res.ok) {
                       setSelectedTaskPreview(null);
                       await fetchData();
@@ -1199,7 +1236,10 @@ export default function AgendaPage() {
               </button>
               
               <button
-                onClick={() => window.location.href = `/tasks?id=${selectedTaskPreview.id}`}
+                onClick={() => {
+                  const cleanId = (selectedTaskPreview.id || '').toString().replace(/^task-/, '');
+                  window.location.href = `/tasks?id=${cleanId}`;
+                }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors flex-1 text-center"
               >
                 Editar Completo

@@ -21,6 +21,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const db = getDb();
     const { id } = await params;
+    const cleanId = id.toString().replace(/^task-/, '');
 
     const taskRow = await db
       .prepare(`
@@ -35,7 +36,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         LEFT JOIN users u ON t.created_by = u.id
         WHERE t.id = ?
       `)
-      .bind(id)
+      .bind(cleanId)
       .first<any>();
 
     if (!taskRow) {
@@ -55,8 +56,14 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     // CLIENTE visibility check
-    if (user.role === 'CLIENTE' && task.client_id !== user.client_id) {
-      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    if (user.role === 'CLIENTE') {
+      const isOwner = user.client_id ? task.client_id === user.client_id : false;
+      if (!isOwner) {
+        const clientMatch = await db.prepare("SELECT id FROM clients WHERE lower(email) = lower(?)").bind(user.email).first<any>();
+        if (!clientMatch || task.client_id !== clientMatch.id) {
+          return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+        }
+      }
     }
 
     // Assignees
@@ -69,7 +76,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         LEFT JOIN positions p ON u.position_id = p.id
         WHERE ta.task_id = ?
       `)
-      .bind(id)
+      .bind(cleanId)
       .all<any>();
 
     // Comments
@@ -81,7 +88,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         WHERE tc.task_id = ?
         ORDER BY tc.created_at ASC
       `)
-      .bind(id)
+      .bind(cleanId)
       .all<any>();
 
     // Media links
@@ -93,7 +100,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         WHERE tml.task_id = ?
         ORDER BY tml.created_at DESC
       `)
-      .bind(id)
+      .bind(cleanId)
       .all<any>();
 
     // Status history
@@ -105,7 +112,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         WHERE tsh.task_id = ?
         ORDER BY tsh.created_at ASC
       `)
-      .bind(id)
+      .bind(cleanId)
       .all<any>();
 
     // Deletion requests
@@ -116,7 +123,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         ORDER BY created_at DESC
         LIMIT 1
       `)
-      .bind(id)
+      .bind(cleanId)
       .first<any>();
 
     return NextResponse.json({
