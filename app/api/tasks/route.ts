@@ -3,6 +3,8 @@ import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification, notifyAdmins } from '@/lib/notifications';
+import { detectMediaType } from '@/lib/media';
+import { generateId } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // GET /api/tasks
@@ -316,6 +318,48 @@ export async function POST(request: Request) {
             referenceModule: 'tasks',
             referenceId: id,
           });
+        }
+      }
+    }
+
+    // Inserção de links de mídia/vídeo/imagem criados junto à tarefa
+    const mediaToInsert: Array<{ url: string; title?: string; media_type?: string; description?: string }> = [];
+    if (body.media_url && typeof body.media_url === 'string' && body.media_url.trim()) {
+      mediaToInsert.push({
+        url: body.media_url.trim(),
+        title: body.media_title?.trim() || '',
+        media_type: body.media_type,
+        description: body.media_description || null,
+      });
+    }
+    if (Array.isArray(body.media_links)) {
+      for (const m of body.media_links) {
+        if (m && m.url && typeof m.url === 'string' && m.url.trim()) {
+          mediaToInsert.push({
+            url: m.url.trim(),
+            title: m.title?.trim() || '',
+            media_type: m.media_type,
+            description: m.description || null,
+          });
+        }
+      }
+    }
+
+    if (mediaToInsert.length > 0) {
+      for (const m of mediaToInsert) {
+        const medId = generateId('med');
+        const detectedType = m.media_type && m.media_type !== 'other' ? m.media_type : detectMediaType(m.url);
+        const finalTitle = m.title || (detectedType === 'video' ? 'Vídeo da Tarefa' : detectedType === 'image' ? 'Imagem da Tarefa' : 'Arquivo da Tarefa');
+        try {
+          await db
+            .prepare(`
+              INSERT INTO task_media_links (id, task_id, title, url, media_type, description, created_by, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `)
+            .bind(medId, id, finalTitle, m.url, detectedType, m.description || null, user.id, now)
+            .run();
+        } catch (mErr) {
+          console.error('[POST /api/tasks] Error inserting initial media link:', mErr);
         }
       }
     }

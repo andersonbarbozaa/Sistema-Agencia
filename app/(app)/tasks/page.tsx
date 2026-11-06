@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
+import { detectMediaType } from '@/lib/media';
 import MediaViewer from '@/components/MediaViewer';
 import TaskTimeTracker from '@/components/TaskTimeTracker';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -107,6 +108,9 @@ export default function TasksPage() {
     assignee_ids: [] as string[],
     visibility: 'grupo',
     calendar_id: '',
+    media_url: '',
+    media_type: 'other',
+    media_title: '',
   });
 
   // Edit Task Modal
@@ -131,7 +135,8 @@ export default function TasksPage() {
     newTask.category_id ||
     newTask.delivery_date ||
     newTask.value > 0 ||
-    newTask.assignee_ids.length > 0
+    newTask.assignee_ids.length > 0 ||
+    newTask.media_url.trim()
   );
 
   const handleCloseCreateTaskModal = () => {
@@ -147,6 +152,9 @@ export default function TasksPage() {
         assignee_ids: [],
         visibility: 'grupo',
         calendar_id: '',
+        media_url: '',
+        media_type: 'other',
+        media_title: '',
       });
     };
 
@@ -272,7 +280,13 @@ export default function TasksPage() {
       const res = await fetch(`/api/tasks/${taskId}`);
       if (res.ok) {
         const data = await res.json();
-        setSelectedTask(data.task || data);
+        const taskData = data.task || data;
+        const normalizedMedia = taskData.media || taskData.media_links || [];
+        setSelectedTask({
+          ...taskData,
+          media: normalizedMedia,
+          media_links: normalizedMedia,
+        });
       }
     } catch (err) {
       console.error(err);
@@ -328,6 +342,9 @@ export default function TasksPage() {
           visibility: 'grupo',
           calendar_id: '',
           assignee_ids: [],
+          media_url: '',
+          media_type: 'other',
+          media_title: '',
         });
         // Reload tasks
         const tRes = await fetch('/api/tasks');
@@ -335,9 +352,13 @@ export default function TasksPage() {
           const t = await tRes.json();
           setTasks(t.tasks || t.data || []);
         }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Erro ao criar tarefa.');
       }
     } catch (err) {
       console.error(err);
+      alert('Erro de conexão ao criar tarefa.');
     }
   };
 
@@ -459,21 +480,67 @@ export default function TasksPage() {
 
   const handleAddMedia = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTask || !newMedia.title || !newMedia.url) return;
+    if (!selectedTask || !newMedia.url?.trim()) return;
 
     try {
+      const detectedType = newMedia.media_type && newMedia.media_type !== 'other'
+        ? newMedia.media_type
+        : detectMediaType(newMedia.url);
+
+      const titleToSend = newMedia.title?.trim() || (detectedType === 'video' ? 'Vídeo da Tarefa' : detectedType === 'image' ? 'Imagem da Tarefa' : 'Arquivo da Tarefa');
+
       const res = await fetch(`/api/tasks/${selectedTask.id}/media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMedia),
+        body: JSON.stringify({
+          ...newMedia,
+          url: newMedia.url.trim(),
+          title: titleToSend,
+          media_type: detectedType,
+        }),
       });
+
       if (res.ok) {
         setShowAddMediaModal(false);
         setNewMedia({ title: '', url: '', description: '', media_type: 'other' });
-        openTaskDetail(selectedTask.id);
+        await openTaskDetail(selectedTask.id);
+        const tRes = await fetch('/api/tasks');
+        if (tRes.ok) {
+          const t = await tRes.json();
+          setTasks(t.tasks || t.data || []);
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Erro ao adicionar link de mídia.');
       }
     } catch (err) {
       console.error(err);
+      alert('Erro ao conectar com o servidor para adicionar mídia.');
+    }
+  };
+
+  const handleDeleteMedia = async (mediaId: string) => {
+    if (!selectedTask) return;
+    if (!confirm('Deseja realmente remover este anexo de mídia?')) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${selectedTask.id}/media/${mediaId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        await openTaskDetail(selectedTask.id);
+        const tRes = await fetch('/api/tasks');
+        if (tRes.ok) {
+          const t = await tRes.json();
+          setTasks(t.tasks || t.data || []);
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Erro ao remover mídia.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao excluir mídia.');
     }
   };
 
@@ -1663,7 +1730,7 @@ export default function TasksPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-xs text-gray-900 group-hover:text-blue-700 transition-colors truncate">
-                              {med.title}
+                              {med.title || med.description || 'Mídia da Tarefa'}
                             </p>
                             <p className="text-[11px] text-gray-500 truncate mt-0.5">
                               {med.url}
@@ -1675,6 +1742,19 @@ export default function TasksPage() {
                           <span className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             Visualizar
                           </span>
+                          {currentUser?.role !== 'CLIENTE' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMedia(med.id);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remover anexo"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -1823,25 +1903,36 @@ export default function TasksPage() {
 
             <form onSubmit={handleAddMedia} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Título do Arquivo</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  URL / Link do Vídeo ou Imagem <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="text"
-                  placeholder="Ex: Vídeo corte 1, Arte de capa..."
-                  value={newMedia.title}
-                  onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
+                  type="url"
+                  placeholder="https://..."
+                  value={newMedia.url}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const detected = detectMediaType(val);
+                    setNewMedia(prev => ({
+                      ...prev,
+                      url: val,
+                      media_type: prev.media_type === 'other' || !prev.media_type ? detected : prev.media_type,
+                    }));
+                  }}
                   required
                   className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">URL / Link Externo</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Título do Arquivo <span className="text-gray-400 font-normal">(Opcional)</span>
+                </label>
                 <input
-                  type="url"
-                  placeholder="https://..."
-                  value={newMedia.url}
-                  onChange={(e) => setNewMedia({ ...newMedia, url: e.target.value })}
-                  required
+                  type="text"
+                  placeholder="Ex: Vídeo de referência, Arte de capa..."
+                  value={newMedia.title}
+                  onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
                   className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
@@ -2113,6 +2204,64 @@ export default function TasksPage() {
                       </select>
                     </div>
                   )}
+
+                  {/* Link da Mídia (Imagem ou Vídeo) */}
+                  <div className="p-3 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <Film size={14} className="text-blue-600" />
+                        <span>Link da Imagem ou Vídeo (Opcional)</span>
+                      </label>
+                      {newTask.media_url && (
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          {newTask.media_type === 'video' ? 'Vídeo' : newTask.media_type === 'image' ? 'Imagem' : 'Link'}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="Ex: https://youtube.com/..., https://drive.google.com/..., https://.../foto.png"
+                      value={newTask.media_url || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const detected = detectMediaType(val);
+                        setNewTask({
+                          ...newTask,
+                          media_url: val,
+                          media_type: newTask.media_type === 'other' || !newTask.media_type ? detected : newTask.media_type,
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+
+                    {newTask.media_url && (
+                      <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-1">Título do Anexo</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Vídeo de referência / Arte"
+                            value={newTask.media_title || ''}
+                            onChange={(e) => setNewTask({ ...newTask, media_title: e.target.value })}
+                            className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-1">Tipo de Mídia</label>
+                          <select
+                            value={newTask.media_type || 'other'}
+                            onChange={(e) => setNewTask({ ...newTask, media_type: e.target.value })}
+                            className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="other">Auto-detectar</option>
+                            <option value="video">Vídeo</option>
+                            <option value="image">Imagem</option>
+                            <option value="document">Documento</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Coluna Direita: Descrição / Roteiro */}

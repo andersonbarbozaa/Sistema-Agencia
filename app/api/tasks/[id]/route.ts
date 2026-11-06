@@ -89,7 +89,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .prepare(`
         SELECT tml.*, u.name as created_by_name
         FROM task_media_links tml
-        LEFT JOIN users u ON tml.uploaded_by = u.id
+        LEFT JOIN users u ON tml.created_by = u.id
         WHERE tml.task_id = ?
         ORDER BY tml.created_at DESC
       `)
@@ -124,7 +124,8 @@ export async function GET(request: Request, { params }: RouteParams) {
         ...task,
         assignees,
         comments,
-        media_links: mediaLinks,
+        media: mediaLinks || [],
+        media_links: mediaLinks || [],
         status_history: statusHistory,
         deletion_request: deletionRequest || null,
       },

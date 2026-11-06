@@ -10,38 +10,26 @@ export function detectMediaType(url: string): MediaType {
     cleanUrl.includes('youtu.be') ||
     cleanUrl.includes('vimeo.com') ||
     cleanUrl.includes('loom.com') ||
-    cleanUrl.endsWith('.mp4') ||
-    cleanUrl.endsWith('.webm') ||
-    cleanUrl.endsWith('.mov') ||
-    cleanUrl.endsWith('.avi') ||
-    cleanUrl.endsWith('.mkv')
+    cleanUrl.includes('tiktok.com') ||
+    /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(cleanUrl)
   ) {
     return 'video';
   }
 
   // Images
   if (
-    cleanUrl.endsWith('.jpg') ||
-    cleanUrl.endsWith('.jpeg') ||
-    cleanUrl.endsWith('.png') ||
-    cleanUrl.endsWith('.webp') ||
-    cleanUrl.endsWith('.gif') ||
-    cleanUrl.endsWith('.svg') ||
+    /\.(jpg|jpeg|png|webp|gif|svg|avif|bmp)(\?.*)?$/i.test(cleanUrl) ||
     cleanUrl.includes('images.unsplash.com') ||
-    cleanUrl.includes('imgur.com')
+    cleanUrl.includes('imgur.com') ||
+    cleanUrl.includes('cdn.discordapp.com/attachments') ||
+    cleanUrl.startsWith('data:image')
   ) {
     return 'image';
   }
 
   // Documents
   if (
-    cleanUrl.endsWith('.pdf') ||
-    cleanUrl.endsWith('.doc') ||
-    cleanUrl.endsWith('.docx') ||
-    cleanUrl.endsWith('.xls') ||
-    cleanUrl.endsWith('.xlsx') ||
-    cleanUrl.endsWith('.ppt') ||
-    cleanUrl.endsWith('.pptx') ||
+    /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)(\?.*)?$/i.test(cleanUrl) ||
     cleanUrl.includes('docs.google.com') ||
     cleanUrl.includes('notion.so')
   ) {
@@ -50,7 +38,6 @@ export function detectMediaType(url: string): MediaType {
 
   // Google Drive files can be video, image, or doc
   if (cleanUrl.includes('drive.google.com')) {
-    // If it contains video keywords in title or params
     return 'document';
   }
 
@@ -85,6 +72,16 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
     };
   }
 
+  // Loom
+  const loomMatch = cleanUrl.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/);
+  if (loomMatch && loomMatch[1]) {
+    return {
+      embedUrl: `https://www.loom.com/embed/${loomMatch[1]}`,
+      isIframe: true,
+      canEmbed: true,
+    };
+  }
+
   // Google Drive file preview
   if (cleanUrl.includes('drive.google.com/file/d/')) {
     const fileIdMatch = cleanUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -98,7 +95,7 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   }
 
   // Direct video file
-  if (mediaType === 'video' && (cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.webm') || cleanUrl.endsWith('.mov'))) {
+  if (mediaType === 'video' || /\.(mp4|webm|mov)(\?.*)?$/i.test(cleanUrl)) {
     return {
       embedUrl: cleanUrl,
       isIframe: false,
@@ -107,7 +104,7 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   }
 
   // Direct image
-  if (mediaType === 'image') {
+  if (mediaType === 'image' || /\.(jpg|jpeg|png|webp|gif|svg|avif|bmp)(\?.*)?$/i.test(cleanUrl) || cleanUrl.startsWith('data:image')) {
     return {
       embedUrl: cleanUrl,
       isIframe: false,
@@ -116,7 +113,7 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   }
 
   // PDF direct view in iframe
-  if (cleanUrl.endsWith('.pdf')) {
+  if (/\.pdf(\?.*)?$/i.test(cleanUrl)) {
     return {
       embedUrl: cleanUrl,
       isIframe: true,
