@@ -86,6 +86,23 @@ export default function TasksPage() {
   // Media Viewer state
   const [mediaViewerState, setMediaViewerState] = useState<{ list: TaskMediaLink[]; index: number } | null>(null);
 
+  // Floating Status Dropdown state
+  const [openStatusDropdownId, setOpenStatusDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (!(e.target as HTMLElement)?.closest?.('[data-status-dropdown]')) {
+        setOpenStatusDropdownId(null);
+      }
+    };
+    if (openStatusDropdownId) {
+      document.addEventListener('pointerdown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+    };
+  }, [openStatusDropdownId]);
+
   // New Task Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -521,6 +538,27 @@ export default function TasksPage() {
     }
   };
 
+  const getStatusDotColor = (status: string) => {
+    switch (status) {
+      case 'Concluída':
+      case 'Finalizada':
+        return 'bg-emerald-500 text-white';
+      case 'Aprovada':
+        return 'bg-blue-500 text-white';
+      case 'Em aprovação':
+        return 'bg-purple-500 text-white';
+      case 'Em alteração':
+        return 'bg-amber-500 text-white';
+      case 'Em produção':
+        return 'bg-yellow-500 text-white';
+      case 'Atrasada':
+        return 'bg-red-500 text-white';
+      case 'Não iniciada':
+      default:
+        return 'bg-slate-400 text-white';
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Concluída':
@@ -764,37 +802,38 @@ export default function TasksPage() {
 
       {/* VIEW 1: LIST VIEW (Default - Requisito 19 & 20) */}
       {viewMode === 'list' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden min-h-[300px]">
+          <div className="overflow-x-auto min-h-[300px]">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 text-gray-500 hidden md:table-header-group">
+              <thead className="bg-gray-50/90 text-gray-500 border-b border-gray-100 hidden md:table-header-group text-xs font-semibold uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4">Tarefa</th>
-                  <th className="py-3.5 px-4">Cliente</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Categoria</th>
-                  <th className="py-3.5 px-4">Entrega</th>
-                  <th className="py-3.5 px-4">Mídias</th>
-                  <th className="py-3.5 px-4">Valor</th>
-                  <th className="py-3.5 px-4 text-right">Ação</th>
+                  <th className="py-2.5 px-3.5">Tarefa</th>
+                  <th className="py-2.5 px-3">Cliente</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Categorias</th>
+                  <th className="py-2.5 px-3">Valor</th>
+                  <th className="py-2.5 px-3">Entrega</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 flex flex-col md:table-row-group">
                 {filteredTasks.length === 0 ? (
                   <tr className="block md:table-row">
-                    <td colSpan={8} className="p-8 text-center text-gray-400 block md:table-cell">
+                    <td colSpan={6} className="p-8 text-center text-gray-400 block md:table-cell">
                       Nenhuma tarefa encontrada.
                     </td>
                   </tr>
                 ) : (
-                  filteredTasks.map((task) => {
+                  filteredTasks.map((task, taskIndex) => {
                     const isDeletionPending = task.deletion_request_status === 'pending';
+                    const isDropdownOpen = openStatusDropdownId === task.id;
+                    const isOverdue = isTaskOverdue(task) || (task.status as string) === 'Atrasada';
 
                     return (
                       <tr
                         key={task.id}
                         className={cn(
-                          'transition-colors cursor-pointer flex flex-col md:table-row py-3.5 px-4 md:py-0 md:px-0 border-b border-gray-100',
+                          'transition-colors cursor-pointer flex flex-col md:table-row h-auto md:h-11 border-b border-gray-100',
+                          isDropdownOpen && 'relative z-20',
                           isDeletionPending
                             ? 'bg-red-50/60 opacity-60 text-red-900 border-l-4 border-red-500 hover:bg-red-100/50'
                             : 'bg-white hover:bg-gray-50/80'
@@ -802,19 +841,88 @@ export default function TasksPage() {
                         onClick={() => openTaskDetail(task.id)}
                       >
                         {/* MOBILE VIEW */}
-                        <td className="md:hidden flex flex-col gap-1.5 w-full">
+                        <td className="md:hidden flex flex-col gap-1.5 w-full py-2.5 px-3">
                           <div className="flex justify-between items-start">
-                            <div className="flex flex-wrap gap-1 items-center">
-                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase", getTaskStatusBadgeStyle(task.status))}>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {/* Bolinha interativa de status mobile */}
+                              <div data-status-dropdown className="relative inline-flex items-center">
+                                <button
+                                  type="button"
+                                  title={`Status: ${task.status}. Clique para alterar`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenStatusDropdownId(prev => prev === task.id ? null : task.id);
+                                  }}
+                                  className={cn(
+                                    "w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-transform hover:scale-110 cursor-pointer",
+                                    getStatusDotColor(task.status)
+                                  )}
+                                >
+                                  {task.status === 'Concluída' && (
+                                    <Check size={10} strokeWidth={3} className="text-white shrink-0" />
+                                  )}
+                                </button>
+                                {isDropdownOpen && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute left-0 top-full mt-1.5 z-50 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100"
+                                  >
+                                    <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                                      Alterar status
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      {STATUS_COLUMNS.map((colStatus) => {
+                                        const isCurrent = task.status === colStatus;
+                                        return (
+                                          <button
+                                            key={colStatus}
+                                            type="button"
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              setOpenStatusDropdownId(null);
+                                              if (!isCurrent) {
+                                                await handleUpdateStatus(task.id, colStatus);
+                                              }
+                                            }}
+                                            className={cn(
+                                              "w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer",
+                                              isCurrent
+                                                ? "bg-gray-100/80 dark:bg-gray-700/60 font-semibold text-gray-900 dark:text-gray-100"
+                                                : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                            )}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span className={cn(
+                                                "w-2.5 h-2.5 rounded-full shrink-0 flex items-center justify-center",
+                                                getStatusDotColor(colStatus)
+                                              )}>
+                                                {colStatus === 'Concluída' && (
+                                                  <Check size={7} strokeWidth={3} className="text-white" />
+                                                )}
+                                              </span>
+                                              <span>{colStatus}</span>
+                                            </div>
+                                            {isCurrent && (
+                                              <Check size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold", getTaskStatusBadgeStyle(task.status))}>
                                 {task.status}
                               </span>
-                              {isTaskOverdue(task) && (
+                              {isOverdue && (
                                 (task.status === 'Concluída' || task.status === 'Aprovada') ? (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-300">
                                     Recebimento Pendente
                                   </span>
                                 ) : (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-800 border border-red-300">
                                     Atrasada
                                   </span>
                                 )
@@ -830,79 +938,171 @@ export default function TasksPage() {
                               </div>
                             )}
                           </div>
-                          <div className="font-semibold text-gray-900 text-base leading-tight mt-0.5">
-                            {task.name}
+                          <div className="font-semibold text-gray-900 text-sm leading-tight mt-0.5 flex items-center gap-1.5">
+                            <span className="truncate">{task.name}</span>
                             {isDeletionPending && (
-                              <span className="ml-2 px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold">
+                              <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold shrink-0">
                                 Exclusão
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center text-xs text-gray-500 gap-2 mt-1">
+                          <div className="flex items-center text-xs text-gray-500 gap-2 mt-0.5">
                             <span className="font-medium text-gray-700">{formatDate(task.delivery_date)}</span>
                             <span>•</span>
                             <span className="truncate">{task.client_name || '-'}</span>
+                            {task.value && task.value > 0 ? (
+                              <>
+                                <span>•</span>
+                                <span className="font-medium text-gray-900">{formatCurrency(task.value)}</span>
+                              </>
+                            ) : null}
                           </div>
                         </td>
 
                         {/* DESKTOP VIEW */}
-                        <td className="hidden md:table-cell py-3 px-4 font-semibold text-gray-900 max-w-xs md:max-w-sm whitespace-normal">
-                          <div className="flex items-start gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1"
-                              style={{ backgroundColor: task.category_color || '#3b82f6' }}
-                            />
-                            <div className="flex flex-col min-w-0">
-                              <span className="line-clamp-2 leading-snug break-words">{task.name}</span>
-                              {isDeletionPending && (
-                                <span className="inline-block mt-1 px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold w-fit">
-                                  Exclusão solicitada
-                                </span>
+                        {/* 1. Tarefa */}
+                        <td className="hidden md:table-cell py-1.5 px-3.5 align-middle max-w-[280px] lg:max-w-md xl:max-w-lg overflow-hidden">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {/* Bolinha interativa de status */}
+                            <div data-status-dropdown className="relative shrink-0 flex items-center">
+                              <button
+                                type="button"
+                                title={`Status: ${task.status}. Clique para alterar`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenStatusDropdownId(prev => prev === task.id ? null : task.id);
+                                }}
+                                className={cn(
+                                  "w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-110 shadow-xs focus:outline-hidden cursor-pointer",
+                                  getStatusDotColor(task.status)
+                                )}
+                              >
+                                {task.status === 'Concluída' && (
+                                  <Check size={10} strokeWidth={3} className="text-white shrink-0" />
+                                )}
+                              </button>
+
+                              {/* Menu Flutuante de Status */}
+                              {isDropdownOpen && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={cn(
+                                    "absolute left-0 z-50 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100",
+                                    taskIndex >= filteredTasks.length - 2 && filteredTasks.length > 2
+                                      ? "bottom-full mb-1.5 origin-bottom-left"
+                                      : "top-full mt-1.5 origin-top-left"
+                                  )}
+                                >
+                                  <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                                    Alterar status
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {STATUS_COLUMNS.map((colStatus) => {
+                                      const isCurrent = task.status === colStatus;
+                                      return (
+                                        <button
+                                          key={colStatus}
+                                          type="button"
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            setOpenStatusDropdownId(null);
+                                            if (!isCurrent) {
+                                              await handleUpdateStatus(task.id, colStatus);
+                                            }
+                                          }}
+                                          className={cn(
+                                            "w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer",
+                                            isCurrent
+                                              ? "bg-gray-100/80 dark:bg-gray-700/60 font-semibold text-gray-900 dark:text-gray-100"
+                                              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                          )}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <span className={cn(
+                                              "w-2.5 h-2.5 rounded-full shrink-0 flex items-center justify-center",
+                                              getStatusDotColor(colStatus)
+                                            )}>
+                                              {colStatus === 'Concluída' && (
+                                                <Check size={7} strokeWidth={3} className="text-white" />
+                                              )}
+                                            </span>
+                                            <span>{colStatus}</span>
+                                          </div>
+                                          {isCurrent && (
+                                            <Check size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-gray-600 truncate max-w-[140px]">
-                          {task.client_name || '-'}
-                        </td>
-                        <td className="hidden md:table-cell py-3 px-4">
-                          <div className="flex flex-col gap-1 items-start">
-                            <span className={cn("px-2.5 py-1 rounded-full text-[11px]", getTaskStatusBadgeStyle(task.status))}>
-                              {task.status}
-                            </span>
-                            {isTaskOverdue(task) && (
+
+                            {/* Tag de atraso posicionada ao lado da bolinha de status */}
+                            {isOverdue && (
                               (task.status === 'Concluída' || task.status === 'Aprovada') ? (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0">
                                   Recebimento Pendente
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-800 border border-red-300">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800 shrink-0">
                                   Atrasada
                                 </span>
                               )
                             )}
+
+                            {/* Título da tarefa */}
+                            <span className="truncate font-semibold text-gray-900 text-sm" title={task.name}>
+                              {task.name}
+                            </span>
+
+                            {/* Badge de exclusão */}
+                            {isDeletionPending && (
+                              <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold shrink-0">
+                                Exclusão solicitada
+                              </span>
+                            )}
                           </div>
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-gray-600">
-                          {task.category_name || '-'}
+
+                        {/* 2. Cliente */}
+                        <td className="hidden md:table-cell py-1.5 px-3 align-middle text-gray-600 text-xs truncate max-w-[140px] lg:max-w-[180px] overflow-hidden" title={task.client_name || ''}>
+                          {task.client_name || '-'}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-gray-700 font-medium">
-                          {formatDate(task.delivery_date)}
+
+                        {/* 3. Status */}
+                        <td className="hidden md:table-cell py-1.5 px-3 align-middle whitespace-nowrap overflow-hidden">
+                          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold", getTaskStatusBadgeStyle(task.status))}>
+                            {task.status}
+                          </span>
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4">
-                          {task.media_links_count ? (
-                            <span className="flex items-center gap-1.5 text-blue-600 font-medium text-xs">
-                              <Film size={14} /> {task.media_links_count}
-                            </span>
-                          ) : <span className="text-gray-300">-</span>}
+
+                        {/* 4. Categorias */}
+                        <td className="hidden md:table-cell py-1.5 px-3 align-middle text-gray-600 text-xs truncate max-w-[140px] overflow-hidden" title={task.category_name || ''}>
+                          {task.category_name ? (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {task.category_color && (
+                                <span
+                                  className="w-2 h-2 rounded-full shrink-0"
+                                  style={{ backgroundColor: task.category_color }}
+                                />
+                              )}
+                              <span className="truncate">{task.category_name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 font-medium text-gray-900">
+
+                        {/* 5. Valor */}
+                        <td className="hidden md:table-cell py-1.5 px-3 align-middle font-medium text-gray-900 text-xs whitespace-nowrap overflow-hidden">
                           {task.value && task.value > 0 ? formatCurrency(task.value) : <span className="text-gray-300">-</span>}
                         </td>
-                        <td className="hidden md:table-cell py-3 px-4 text-right">
-                          <button className="text-gray-400 hover:text-blue-600 transition-colors">
-                            <ChevronRight size={18} />
-                          </button>
+
+                        {/* 6. Entrega */}
+                        <td className="hidden md:table-cell py-1.5 px-3 align-middle text-gray-600 text-xs font-medium whitespace-nowrap overflow-hidden">
+                          {formatDate(task.delivery_date)}
                         </td>
                       </tr>
                     );
