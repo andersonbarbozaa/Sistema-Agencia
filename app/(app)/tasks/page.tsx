@@ -794,20 +794,28 @@ export default function TasksPage() {
 
       {/* VIEW 1: LIST VIEW (Default - Requisito 19 & 20) */}
       {viewMode === 'list' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50/90 text-gray-500 border-b border-gray-100 hidden md:table-header-group text-xs font-semibold uppercase tracking-wider">
+            <table className="w-full table-fixed text-left text-xs whitespace-nowrap">
+              <colgroup>
+                <col className="w-[32%] min-w-[220px]" />
+                <col className="w-[18%] min-w-[130px]" />
+                <col className="w-[15%] min-w-[110px]" />
+                <col className="w-[15%] min-w-[110px]" />
+                <col className="w-[10%] min-w-[80px]" />
+                <col className="w-[10%] min-w-[85px]" />
+              </colgroup>
+              <thead className="bg-gray-50/90 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 hidden md:table-header-group text-[11px] font-semibold uppercase tracking-wider h-8">
                 <tr>
-                  <th className="py-2.5 px-3.5">Tarefa</th>
-                  <th className="py-2.5 px-3">Cliente</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-3">Categorias</th>
-                  <th className="py-2.5 px-3">Valor</th>
-                  <th className="py-2.5 px-3">Entrega</th>
+                  <th className="py-2 px-3 align-middle">Tarefa</th>
+                  <th className="py-2 px-3 align-middle">Cliente</th>
+                  <th className="py-2 px-3 align-middle">Status</th>
+                  <th className="py-2 px-3 align-middle">Categorias</th>
+                  <th className="py-2 px-3 align-middle">Valor</th>
+                  <th className="py-2 px-3 align-middle">Entrega</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 flex flex-col md:table-row-group">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 flex flex-col md:table-row-group">
                 {filteredTasks.length === 0 ? (
                   <tr className="block md:table-row">
                     <td colSpan={6} className="p-8 text-center text-gray-400 block md:table-cell">
@@ -823,16 +831,16 @@ export default function TasksPage() {
                       <tr
                         key={task.id}
                         className={cn(
-                          'transition-colors cursor-pointer flex flex-col md:table-row h-auto md:h-11 border-b border-gray-100',
+                          'transition-colors cursor-pointer flex flex-col md:table-row h-auto md:h-10 md:max-h-10 border-b border-gray-100 dark:border-gray-800',
                           isDeletionPending
-                            ? 'bg-red-50/60 opacity-60 text-red-900 border-l-4 border-red-500 hover:bg-red-100/50'
-                            : 'bg-white hover:bg-gray-50/80'
+                            ? 'bg-red-50/60 dark:bg-red-950/20 opacity-60 text-red-900 dark:text-red-300 border-l-4 border-red-500 hover:bg-red-100/50'
+                            : 'bg-white dark:bg-gray-800 hover:bg-gray-50/80 dark:hover:bg-gray-750'
                         )}
                         onClick={() => openTaskDetail(task.id)}
                       >
                         {/* MOBILE VIEW */}
-                        <td className="md:hidden flex flex-col gap-1.5 w-full py-2.5 px-3">
-                          <div className="flex justify-between items-start">
+                        <td className="md:hidden flex flex-col gap-1 w-full py-2 px-3">
+                          <div className="flex justify-between items-center gap-2">
                             <div className="flex flex-wrap gap-1.5 items-center">
                               {/* Bolinha interativa de status mobile */}
                               <button
@@ -855,7 +863,7 @@ export default function TasksPage() {
                                   }
                                 }}
                                 className={cn(
-                                  "w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-transform hover:scale-110 cursor-pointer",
+                                  "w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-transform hover:scale-110 active:scale-95 cursor-pointer",
                                   getStatusDotColor(task.status)
                                 )}
                               >
@@ -864,41 +872,43 @@ export default function TasksPage() {
                                 )}
                               </button>
 
-                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold", getTaskStatusBadgeStyle(task.status))}>
-                                {task.status}
-                              </span>
+                              {/* Tag de atraso mobile posicionada ao lado da bolinha */}
                               {isOverdue && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-800 border border-red-300">
+                                <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0", getTaskStatusBadgeStyle('Atrasada'))}>
                                   Atrasada
                                 </span>
                               )}
+
+                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold", getTaskStatusBadgeStyle(task.status))}>
+                                {task.status}
+                              </span>
                             </div>
                             {task.assignees && task.assignees.length > 0 && (
-                              <div className="flex -space-x-1.5">
+                              <div className="flex -space-x-1.5 shrink-0">
                                 {task.assignees.map((a: any, i: number) => (
-                                  <div key={i} className="w-6 h-6 rounded-full bg-blue-600 border border-white flex items-center justify-center text-[10px] text-white font-bold shadow-sm" title={a.name}>
+                                  <div key={i} className="w-5 h-5 rounded-full bg-blue-600 border border-white dark:border-gray-800 flex items-center justify-center text-[9px] text-white font-bold shadow-xs" title={a.name}>
                                     {a.name.charAt(0).toUpperCase()}
                                   </div>
                                 ))}
                               </div>
                             )}
                           </div>
-                          <div className="font-semibold text-gray-900 text-sm leading-tight mt-0.5 flex items-center gap-1.5">
+                          <div className="font-semibold text-gray-900 dark:text-gray-100 text-xs leading-tight flex items-center gap-1.5 min-w-0">
                             <span className="truncate">{task.name}</span>
                             {isDeletionPending && (
-                              <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold shrink-0">
+                              <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold shrink-0">
                                 Exclusão
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center text-xs text-gray-500 gap-2 mt-0.5">
-                            <span className="font-medium text-gray-700">{formatDate(task.delivery_date)}</span>
+                          <div className="flex items-center text-[11px] text-gray-500 dark:text-gray-400 gap-1.5">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{formatDate(task.delivery_date)}</span>
                             <span>•</span>
                             <span className="truncate">{task.client_name || '-'}</span>
                             {task.value && task.value > 0 ? (
                               <>
                                 <span>•</span>
-                                <span className="font-medium text-gray-900">{formatCurrency(task.value)}</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(task.value)}</span>
                               </>
                             ) : null}
                           </div>
@@ -906,8 +916,8 @@ export default function TasksPage() {
 
                         {/* DESKTOP VIEW */}
                         {/* 1. Tarefa */}
-                        <td className="hidden md:table-cell py-1.5 px-3.5 align-middle max-w-[280px] lg:max-w-md xl:max-w-lg">
-                          <div className="flex items-center gap-2 min-w-0">
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 overflow-hidden text-ellipsis whitespace-nowrap">
+                          <div className="flex items-center gap-2 min-w-0 h-full">
                             {/* Bolinha interativa de status */}
                             <button
                               type="button"
@@ -929,7 +939,7 @@ export default function TasksPage() {
                                 }
                               }}
                               className={cn(
-                                "w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-110 shadow-xs focus:outline-hidden cursor-pointer",
+                                "w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-110 active:scale-95 shadow-2xs focus:outline-hidden cursor-pointer",
                                 getStatusDotColor(task.status)
                               )}
                             >
@@ -940,41 +950,44 @@ export default function TasksPage() {
 
                             {/* Tag de atraso posicionada ao lado da bolinha de status */}
                             {isOverdue && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800 shrink-0">
+                              <span className={cn(
+                                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-semibold shrink-0 tracking-tight",
+                                getTaskStatusBadgeStyle('Atrasada')
+                              )}>
                                 Atrasada
                               </span>
                             )}
 
                             {/* Título da tarefa */}
-                            <span className="truncate font-semibold text-gray-900 text-sm" title={task.name}>
+                            <span className="truncate font-medium text-gray-900 dark:text-gray-100 text-xs" title={task.name}>
                               {task.name}
                             </span>
 
                             {/* Badge de exclusão */}
                             {isDeletionPending && (
                               <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold shrink-0">
-                                Exclusão solicitada
+                                Exclusão
                               </span>
                             )}
                           </div>
                         </td>
 
                         {/* 2. Cliente */}
-                        <td className="hidden md:table-cell py-1.5 px-3 align-middle text-gray-600 text-xs truncate max-w-[140px] lg:max-w-[180px]" title={task.client_name || ''}>
-                          {task.client_name || '-'}
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 text-gray-600 dark:text-gray-300 text-xs overflow-hidden text-ellipsis whitespace-nowrap" title={task.client_name || ''}>
+                          <span className="truncate block">{task.client_name || '-'}</span>
                         </td>
 
                         {/* 3. Status */}
-                        <td className="hidden md:table-cell py-1.5 px-3 align-middle whitespace-nowrap">
-                          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold", getTaskStatusBadgeStyle(task.status))}>
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 whitespace-nowrap">
+                          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold", getTaskStatusBadgeStyle(task.status))}>
                             {task.status}
                           </span>
                         </td>
 
                         {/* 4. Categorias */}
-                        <td className="hidden md:table-cell py-1.5 px-3 align-middle text-gray-600 text-xs truncate max-w-[140px]" title={task.category_name || ''}>
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 text-gray-600 dark:text-gray-300 text-xs overflow-hidden text-ellipsis whitespace-nowrap" title={task.category_name || ''}>
                           {task.category_name ? (
-                            <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0 truncate">
                               {task.category_color && (
                                 <span
                                   className="w-2 h-2 rounded-full shrink-0"
@@ -984,17 +997,17 @@ export default function TasksPage() {
                               <span className="truncate">{task.category_name}</span>
                             </div>
                           ) : (
-                            <span className="text-gray-300">-</span>
+                            <span className="text-gray-300 dark:text-gray-600">-</span>
                           )}
                         </td>
 
                         {/* 5. Valor */}
-                        <td className="hidden md:table-cell py-1.5 px-3 align-middle font-medium text-gray-900 text-xs whitespace-nowrap">
-                          {task.value && task.value > 0 ? formatCurrency(task.value) : <span className="text-gray-300">-</span>}
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 font-medium text-gray-900 dark:text-gray-100 text-xs whitespace-nowrap">
+                          {task.value && task.value > 0 ? formatCurrency(task.value) : <span className="text-gray-300 dark:text-gray-600">-</span>}
                         </td>
 
                         {/* 6. Entrega */}
-                        <td className="hidden md:table-cell py-1.5 px-3 align-middle text-gray-600 text-xs font-medium whitespace-nowrap">
+                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 text-gray-600 dark:text-gray-300 text-xs font-medium whitespace-nowrap">
                           {formatDate(task.delivery_date)}
                         </td>
                       </tr>
