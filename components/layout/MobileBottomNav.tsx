@@ -50,7 +50,7 @@ export default function MobileBottomNav({ user }: MobileBottomNavProps) {
     },
     {
       href: '/tasks',
-      label: 'Tarefas',
+      label: 'teste',
       icon: CheckSquare,
       active: pathname.startsWith('/tasks'),
     },
