@@ -50,20 +50,30 @@ function TaskImagePreviewCard({
 }) {
   const gDriveId = getGoogleDriveFileId(media.url);
   const [loading, setLoading] = useState(true);
+  const [gDriveDirectImgFailed, setGDriveDirectImgFailed] = useState(false);
 
   useEffect(() => {
     setLoading(true);
+    setGDriveDirectImgFailed(false);
   }, [media.url]);
 
+  // Se for Google Drive, tenta imagem direta primeiro para preencher 4x5 sem barras pretas/chrome de iframe
+  const directImageUrl = gDriveId && !gDriveDirectImgFailed
+    ? `https://drive.google.com/thumbnail?id=${gDriveId}&sz=w1600`
+    : media.url;
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
-      <div className="px-3 py-2 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden flex flex-col transition-all">
+      <div className="px-3.5 py-2.5 bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="p-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-md shrink-0">
             <ImageIcon size={14} />
           </span>
           <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
             {media.title || 'Imagem da Tarefa'}
+          </span>
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
+            4:5
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -72,7 +82,7 @@ function TaskImagePreviewCard({
             target="_blank"
             rel="noopener noreferrer"
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="Abrir no Google Drive (nova aba)"
+            title="Abrir link original (nova aba)"
           >
             <ExternalLink size={13} />
           </a>
@@ -87,49 +97,55 @@ function TaskImagePreviewCard({
         </div>
       </div>
 
-      <div className="relative bg-gray-950 flex items-center justify-center min-h-[220px] max-h-[300px] overflow-hidden group">
-        {gDriveId ? (
-          <div className="w-full h-full flex flex-col">
+      <div
+        className="relative w-full aspect-[4/5] bg-gray-950 overflow-hidden group flex items-center justify-center cursor-pointer"
+        style={{ aspectRatio: '4/5' }}
+        onClick={onExpand}
+      >
+        {gDriveId && gDriveDirectImgFailed ? (
+          <div className="w-full h-full relative" onClick={(e) => e.stopPropagation()}>
             <iframe
               src={`https://drive.google.com/file/d/${gDriveId}/preview`}
-              className="w-full h-[250px] border-0 bg-black"
+              className="w-full h-full border-0 bg-black"
               title={media.title || 'Imagem Google Drive'}
               allow="autoplay; encrypted-media; fullscreen"
               allowFullScreen
             />
-            <div className="px-3 py-1.5 bg-gray-900/95 border-t border-gray-800 flex items-center justify-between">
-              <span className="text-[11px] text-gray-400">Google Drive Preview</span>
+            <div className="absolute bottom-0 inset-x-0 px-3 py-2 bg-gray-950/90 border-t border-gray-800 flex items-center justify-between">
+              <span className="text-[11px] text-gray-300">Google Drive Preview</span>
               <button
                 type="button"
                 onClick={onExpand}
                 className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
               >
-                <Maximize2 size={12} /> Ver em tela cheia
+                <Maximize2 size={12} /> Expandir tela cheia
               </button>
             </div>
           </div>
         ) : (
           <>
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 z-10">
-                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-950/70 z-10">
+                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
             <img
-              src={media.url}
+              src={directImageUrl}
               alt={media.title || 'Imagem da Tarefa'}
               onLoad={() => setLoading(false)}
-              onError={() => setLoading(false)}
-              className="w-full h-auto max-h-[260px] object-contain cursor-pointer transition-transform duration-200 group-hover:scale-[1.02]"
-              onClick={onExpand}
+              onError={() => {
+                if (gDriveId && !gDriveDirectImgFailed) {
+                  setGDriveDirectImgFailed(true);
+                }
+                setLoading(false);
+              }}
+              className="w-full h-full object-cover select-none transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
+              draggable={false}
             />
-            <div
-              onClick={onExpand}
-              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-            >
-              <span className="px-3 py-1.5 bg-black/75 backdrop-blur-sm text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md">
-                <Maximize2 size={13} /> Clique para ampliar
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+              <span className="px-3.5 py-2 bg-black/80 backdrop-blur-md text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-xl border border-white/10">
+                <Maximize2 size={14} /> Clique para ampliar
               </span>
             </div>
           </>
@@ -147,10 +163,41 @@ function TaskVideoPreviewCard({
   onExpand: () => void;
 }) {
   const { embedUrl, isIframe, canEmbed } = getEmbedInfo(media.url, 'video');
+  const cleanUrl = (media.url || '').toLowerCase();
+  const isInitiallyVertical =
+    cleanUrl.includes('tiktok.com') ||
+    cleanUrl.includes('/shorts/') ||
+    cleanUrl.includes('/reel/') ||
+    cleanUrl.includes('reels') ||
+    cleanUrl.includes('story') ||
+    cleanUrl.includes('stories') ||
+    cleanUrl.includes('9x16') ||
+    cleanUrl.includes('9:16');
+
+  const [aspectMode, setAspectMode] = useState<'16/9' | '9/16'>(
+    isInitiallyVertical ? '9/16' : '16/9'
+  );
+
+  useEffect(() => {
+    setAspectMode(isInitiallyVertical ? '9/16' : '16/9');
+  }, [media.url, isInitiallyVertical]);
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video.videoWidth && video.videoHeight) {
+      if (video.videoHeight > video.videoWidth) {
+        setAspectMode('9/16');
+      } else {
+        setAspectMode('16/9');
+      }
+    }
+  };
+
+  const isVertical = aspectMode === '9/16';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
-      <div className="px-3 py-2 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden flex flex-col transition-all">
+      <div className="px-3.5 py-2.5 bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="p-1 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 rounded-md shrink-0">
             <Film size={14} />
@@ -159,7 +206,17 @@ function TaskVideoPreviewCard({
             {media.title || 'Vídeo da Tarefa'}
           </span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setAspectMode(prev => (prev === '16/9' ? '9/16' : '16/9'))}
+            className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors"
+            title="Alternar proporção do vídeo (16:9 ou 9:16)"
+          >
+            {isVertical ? '9:16 (Vertical)' : '16:9 (Horizontal)'}
+          </button>
+
           <a
             href={media.url}
             target="_blank"
@@ -180,38 +237,50 @@ function TaskVideoPreviewCard({
         </div>
       </div>
 
-      <div className="relative bg-black flex items-center justify-center min-h-[180px] max-h-[260px] overflow-hidden">
-        {canEmbed && embedUrl ? (
-          isIframe ? (
-            <iframe
-              src={embedUrl}
-              title={media.title || 'Vídeo da Tarefa'}
-              className="w-full h-[220px] border-0 bg-black"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-              allowFullScreen
-            />
+      <div className="p-2 sm:p-3 bg-gray-950/95 flex items-center justify-center">
+        <div
+          className={cn(
+            "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-lg transition-all",
+            isVertical
+              ? "max-w-[320px] aspect-[9/16] max-h-[560px]"
+              : "aspect-[16/9]"
+          )}
+          style={{ aspectRatio: isVertical ? '9/16' : '16/9' }}
+        >
+          {canEmbed && embedUrl ? (
+            isIframe ? (
+              <iframe
+                src={embedUrl}
+                title={media.title || 'Vídeo da Tarefa'}
+                className="w-full h-full border-0 bg-black"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+              />
+            ) : (
+              <video
+                src={embedUrl}
+                controls
+                playsInline
+                onLoadedMetadata={handleVideoLoadedMetadata}
+                className="w-full h-full object-contain bg-black"
+              >
+                Seu navegador não suporta este vídeo.
+              </video>
+            )
           ) : (
-            <video
-              src={embedUrl}
-              controls
-              className="w-full max-h-[220px] object-contain bg-black"
-            >
-              Seu navegador não suporta este vídeo.
-            </video>
-          )
-        ) : (
-          <div className="p-6 text-center text-xs text-gray-400">
-            <p className="mb-2">Player incorporado não disponível.</p>
-            <a
-              href={media.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-500 transition-colors"
-            >
-              <ExternalLink size={13} /> Abrir vídeo
-            </a>
-          </div>
-        )}
+            <div className="p-6 text-center text-xs text-gray-400">
+              <p className="mb-2">Player incorporado não disponível.</p>
+              <a
+                href={media.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-500 transition-colors"
+              >
+                <ExternalLink size={13} /> Abrir vídeo
+              </a>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -268,7 +337,12 @@ export default function TasksPage() {
   useEffect(() => {
     setActiveLateralImgIdx(0);
     setActiveLateralVidIdx(0);
-    setSelectedMediaId(null);
+    const mediaArr = selectedTask?.media || selectedTask?.media_links || [];
+    if (mediaArr.length > 0 && mediaArr[0]?.id) {
+      setSelectedMediaId(mediaArr[0].id);
+    } else {
+      setSelectedMediaId(null);
+    }
   }, [selectedTask?.id]);
 
   // Media Viewer state
@@ -1781,10 +1855,10 @@ export default function TasksPage() {
 
         const hasImagePreview = imageMediaList.length > 0;
         const hasVideoPreview = videoMediaList.length > 0;
-        const hasLateralPreviews = hasImagePreview || hasVideoPreview;
+        const hasLateralPreviews = taskMediaList.length > 0;
 
-        const currentImageMedia = imageMediaList[activeLateralImgIdx] || imageMediaList[0];
-        const currentVideoMedia = videoMediaList[activeLateralVidIdx] || videoMediaList[0];
+        const activeMedia = taskMediaList.find(m => m.id === selectedMediaId) || taskMediaList[0];
+        const activeIsVideo = activeMedia ? isVideoMedia(activeMedia) : false;
 
         return (
           <ModalPortal>
@@ -1795,20 +1869,20 @@ export default function TasksPage() {
               <div
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  "w-full h-full sm:h-[90vh] sm:max-h-[92vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 transition-all",
+                  "w-full h-full sm:h-[90vh] sm:max-h-[92vh] sm:rounded-2xl bg-white dark:bg-gray-900 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 transition-all",
                   hasLateralPreviews
-                    ? "sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl"
+                    ? "sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1500px]"
                     : "sm:max-w-2xl"
                 )}
               >
                 {/* Modal Header */}
-                <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50 sticky top-0 z-10 shrink-0">
+                <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between bg-gray-50 dark:bg-gray-850 sticky top-0 z-10 shrink-0">
                   <div className="min-w-0 pr-4">
-                    <h3 className="text-lg font-bold text-gray-900 leading-snug">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-snug">
                       {selectedTask.name}
                     </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Cliente: <span className="font-semibold text-gray-800">{selectedTask.client_name}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Cliente: <span className="font-semibold text-gray-800 dark:text-gray-200">{selectedTask.client_name}</span>
                     </p>
                     {selectedTask.visibility === 'privado' && (
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 mt-1.5">
@@ -1827,7 +1901,7 @@ export default function TasksPage() {
                     </span>
                     <button
                       onClick={() => setSelectedTask(null)}
-                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors"
                       title="Fechar"
                     >
                       <X size={20} />
@@ -1838,7 +1912,7 @@ export default function TasksPage() {
                 {/* Modal Body & Lateral Preview */}
                 <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
                   {/* Left Column: Task Details */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6 min-w-0">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 min-w-0 bg-white dark:bg-gray-900">
               {/* Deletion Pending Alert */}
               {selectedTask.deletion_request_status === 'pending' && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
@@ -1963,10 +2037,10 @@ export default function TasksPage() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                       Mídia
                     </h4>
-                    <span className="text-xs bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 font-bold px-2 py-0.5 rounded-full">
                       {selectedTask.media?.length || 0}
                     </span>
                   </div>
@@ -1974,7 +2048,7 @@ export default function TasksPage() {
                   {currentUser?.role !== 'CLIENTE' && (
                     <button
                       onClick={() => setShowAddMediaModal(true)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                     >
                       <Plus size={14} /> Adicionar Link
                     </button>
@@ -1983,62 +2057,66 @@ export default function TasksPage() {
 
                 <div className="space-y-2">
                   {!selectedTask.media || selectedTask.media.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-gray-400 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="p-4 text-center text-xs text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
                       Nenhum link de mídia anexado a esta tarefa.
                     </div>
                   ) : (
                     selectedTask.media.map((med: TaskMediaLink, idx: number) => {
                       const isSelected =
                         med.id === selectedMediaId ||
-                        (!selectedMediaId && (currentImageMedia?.id === med.id || currentVideoMedia?.id === med.id));
+                        (!selectedMediaId && (activeMedia?.id === med.id || idx === 0));
 
                       return (
                         <div
                           key={med.id}
                           onClick={() => {
                             setSelectedMediaId(med.id);
-                            const isDrive = Boolean(getGoogleDriveFileId(med.url) || med.url?.toLowerCase().includes('drive.google.com'));
-                            const isVid = med.media_type === 'video' || (isDrive && (/\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(med.url) || med.url.toLowerCase().includes('video')));
-
-                            if (isVid) {
-                              const vIdx = videoMediaList.findIndex((m: TaskMediaLink) => m.id === med.id);
-                              if (vIdx !== -1) setActiveLateralVidIdx(vIdx);
-                            } else {
-                              const iIdx = imageMediaList.findIndex((m: TaskMediaLink) => m.id === med.id);
-                              if (iIdx !== -1) setActiveLateralImgIdx(iIdx);
-                            }
                           }}
                           className={cn(
                             "p-3.5 border rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all group",
                             isSelected
-                              ? "bg-blue-50/80 border-blue-400 ring-1 ring-blue-300 shadow-sm"
-                              : "bg-gray-50 hover:bg-gray-100/80 border-gray-200"
+                              ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-500/30"
+                              : "bg-gray-50 dark:bg-gray-800/70 hover:bg-gray-100/80 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
                           )}
-                          title="Clique para exibir este item na lateral"
+                          title="Clique para exibir este item na pré-visualização"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={cn(
                               "p-2.5 rounded-lg flex-shrink-0 border transition-colors",
                               isSelected
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "bg-white border-gray-200 text-blue-600 group-hover:border-blue-300"
+                                ? "bg-white/20 text-white border-white/30"
+                                : "bg-white dark:bg-gray-750 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 group-hover:border-blue-300"
                             )}>
-                              {med.media_type === 'video' ? <Film size={18} /> : med.media_type === 'image' || getGoogleDriveFileId(med.url) ? <ImageIcon size={18} /> : <FileText size={18} />}
+                              {isVideoMedia(med) ? (
+                                <Film size={18} />
+                              ) : isImageMedia(med) ? (
+                                <ImageIcon size={18} />
+                              ) : (
+                                <FileText size={18} />
+                              )}
                             </div>
                             <div className="min-w-0">
                               <p className={cn(
                                 "font-semibold text-xs truncate transition-colors",
-                                isSelected ? "text-blue-900 font-bold" : "text-gray-900 group-hover:text-blue-700"
+                                isSelected ? "text-white font-bold" : "text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400"
                               )}>
                                 {med.title || med.description || 'Mídia da Tarefa'}
                               </p>
-                              <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                              <p className={cn(
+                                "text-[11px] truncate mt-0.5",
+                                isSelected ? "text-blue-100 font-medium" : "text-gray-500 dark:text-gray-400"
+                              )}>
                                 {med.url}
                               </p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2 flex-shrink-0">
+                            {isSelected && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white tracking-wider">
+                                Ativo
+                              </span>
+                            )}
                             {currentUser?.role !== 'CLIENTE' && (
                               <button
                                 type="button"
@@ -2046,7 +2124,12 @@ export default function TasksPage() {
                                   e.stopPropagation();
                                   handleDeleteMedia(med.id);
                                 }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                className={cn(
+                                  "p-1.5 rounded-lg transition-colors",
+                                  isSelected
+                                    ? "text-blue-100 hover:text-white hover:bg-white/20"
+                                    : "text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                )}
                                 title="Remover anexo"
                               >
                                 <Trash2 size={15} />
@@ -2114,99 +2197,113 @@ export default function TasksPage() {
             </div>
 
             {/* Lateral Previews Column */}
-            {hasLateralPreviews && (
-              <div className="w-full lg:w-[380px] xl:w-[440px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 p-5 flex flex-col gap-4 overflow-y-auto">
+            {hasLateralPreviews && activeMedia && (
+              <div className="w-full lg:w-[460px] xl:w-[500px] 2xl:w-[540px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850 p-5 flex flex-col gap-4 overflow-y-auto">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                       Pré-visualização
                     </span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
-                      {imageMediaList.length + videoMediaList.length} {imageMediaList.length + videoMediaList.length === 1 ? 'item' : 'itens'}
+                      {taskMediaList.indexOf(activeMedia) + 1} de {taskMediaList.length}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setMediaViewerState({ list: taskMediaList, index: 0 })}
-                    className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                  >
-                    <Maximize2 size={12} /> Galeria completa
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {taskMediaList.length > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={taskMediaList.indexOf(activeMedia) <= 0}
+                          onClick={() => {
+                            const curIdx = taskMediaList.indexOf(activeMedia);
+                            if (curIdx > 0) {
+                              setSelectedMediaId(taskMediaList[curIdx - 1].id);
+                            }
+                          }}
+                          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                          title="Mídia anterior"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={taskMediaList.indexOf(activeMedia) >= taskMediaList.length - 1}
+                          onClick={() => {
+                            const curIdx = taskMediaList.indexOf(activeMedia);
+                            if (curIdx < taskMediaList.length - 1) {
+                              setSelectedMediaId(taskMediaList[curIdx + 1].id);
+                            }
+                          }}
+                          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                          title="Próxima mídia"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
+                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                      }}
+                      className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <Maximize2 size={12} /> Galeria completa
+                    </button>
+                  </div>
                 </div>
 
-                {/* Image Preview (se tiver imagem) */}
-                {hasImagePreview && currentImageMedia && (
-                  <div className="space-y-1.5">
-                    {imageMediaList.length > 1 && (
-                      <div className="flex items-center justify-between px-1 text-[11px] text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Imagem {activeLateralImgIdx + 1} de {imageMediaList.length}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            disabled={activeLateralImgIdx === 0}
-                            onClick={() => setActiveLateralImgIdx(prev => Math.max(0, prev - 1))}
-                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Imagem anterior"
-                          >
-                            <ChevronLeft size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={activeLateralImgIdx >= imageMediaList.length - 1}
-                            onClick={() => setActiveLateralImgIdx(prev => Math.min(imageMediaList.length - 1, prev + 1))}
-                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Próxima imagem"
-                          >
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    <TaskImagePreviewCard
-                      media={currentImageMedia}
-                      onExpand={() => {
-                        const orig = taskMediaList.findIndex(m => m.id === currentImageMedia.id);
-                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
-                      }}
-                    />
-                  </div>
+                {/* Active Media Preview Card */}
+                {activeIsVideo ? (
+                  <TaskVideoPreviewCard
+                    key={activeMedia.id}
+                    media={activeMedia}
+                    onExpand={() => {
+                      const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
+                      setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                    }}
+                  />
+                ) : (
+                  <TaskImagePreviewCard
+                    key={activeMedia.id}
+                    media={activeMedia}
+                    onExpand={() => {
+                      const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
+                      setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                    }}
+                  />
                 )}
 
-                {/* Video Preview (se tiver vídeo) */}
-                {hasVideoPreview && currentVideoMedia && (
-                  <div className="space-y-1.5">
-                    {videoMediaList.length > 1 && (
-                      <div className="flex items-center justify-between px-1 text-[11px] text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Vídeo {activeLateralVidIdx + 1} de {videoMediaList.length}</span>
-                        <div className="flex items-center gap-1">
+                {/* Multiple media selector bar */}
+                {taskMediaList.length > 1 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Outras mídias desta tarefa ({taskMediaList.length})
+                    </span>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
+                      {taskMediaList.map((m, idx) => {
+                        const isCur = m.id === activeMedia.id;
+                        const isVid = isVideoMedia(m);
+                        return (
                           <button
+                            key={m.id}
                             type="button"
-                            disabled={activeLateralVidIdx === 0}
-                            onClick={() => setActiveLateralVidIdx(prev => Math.max(0, prev - 1))}
-                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Vídeo anterior"
+                            onClick={() => setSelectedMediaId(m.id)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all border",
+                              isCur
+                                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            )}
                           >
-                            <ChevronLeft size={14} />
+                            {isVid ? <Film size={13} /> : <ImageIcon size={13} />}
+                            <span className="truncate max-w-[120px]">{m.title || `Item ${idx + 1}`}</span>
                           </button>
-                          <button
-                            type="button"
-                            disabled={activeLateralVidIdx >= videoMediaList.length - 1}
-                            onClick={() => setActiveLateralVidIdx(prev => Math.min(videoMediaList.length - 1, prev + 1))}
-                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Próximo vídeo"
-                          >
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    <TaskVideoPreviewCard
-                      media={currentVideoMedia}
-                      onExpand={() => {
-                        const orig = taskMediaList.findIndex(m => m.id === currentVideoMedia.id);
-                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
-                      }}
-                    />
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
