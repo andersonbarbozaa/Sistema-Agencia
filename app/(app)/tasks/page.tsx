@@ -263,10 +263,12 @@ export default function TasksPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [activeLateralImgIdx, setActiveLateralImgIdx] = useState(0);
   const [activeLateralVidIdx, setActiveLateralVidIdx] = useState(0);
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveLateralImgIdx(0);
     setActiveLateralVidIdx(0);
+    setSelectedMediaId(null);
   }, [selectedTask?.id]);
 
   // Media Viewer state
@@ -1956,13 +1958,13 @@ export default function TasksPage() {
               )}
 
               {/* ======================================================== */}
-              {/* MEDIA LINKS SECTION (Requisitos 5, 6, 62)                */}
+              {/* MEDIA SECTION                                            */}
               {/* ======================================================== */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Mídias e Entregáveis
+                      Mídia
                     </h4>
                     <span className="text-xs bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">
                       {selectedTask.media?.length || 0}
@@ -1985,46 +1987,75 @@ export default function TasksPage() {
                       Nenhum link de mídia anexado a esta tarefa.
                     </div>
                   ) : (
-                    selectedTask.media.map((med: TaskMediaLink, idx: number) => (
-                      <div
-                        key={med.id}
-                        onClick={() => setMediaViewerState({ list: selectedTask.media, index: idx })}
-                        className="p-3.5 bg-gray-50 hover:bg-blue-50/60 border border-gray-200 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-colors group"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="p-2.5 bg-white border border-gray-200 rounded-lg text-blue-600 flex-shrink-0">
-                            {med.media_type === 'video' ? <Film size={18} /> : med.media_type === 'image' ? <ImageIcon size={18} /> : <FileText size={18} />}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-xs text-gray-900 group-hover:text-blue-700 transition-colors truncate">
-                              {med.title || med.description || 'Mídia da Tarefa'}
-                            </p>
-                            <p className="text-[11px] text-gray-500 truncate mt-0.5">
-                              {med.url}
-                            </p>
-                          </div>
-                        </div>
+                    selectedTask.media.map((med: TaskMediaLink, idx: number) => {
+                      const isSelected =
+                        med.id === selectedMediaId ||
+                        (!selectedMediaId && (currentImageMedia?.id === med.id || currentVideoMedia?.id === med.id));
 
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                            Visualizar
-                          </span>
-                          {currentUser?.role !== 'CLIENTE' && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteMedia(med.id);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remover anexo"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                      return (
+                        <div
+                          key={med.id}
+                          onClick={() => {
+                            setSelectedMediaId(med.id);
+                            const isDrive = Boolean(getGoogleDriveFileId(med.url) || med.url?.toLowerCase().includes('drive.google.com'));
+                            const isVid = med.media_type === 'video' || (isDrive && (/\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(med.url) || med.url.toLowerCase().includes('video')));
+
+                            if (isVid) {
+                              const vIdx = videoMediaList.findIndex((m: TaskMediaLink) => m.id === med.id);
+                              if (vIdx !== -1) setActiveLateralVidIdx(vIdx);
+                            } else {
+                              const iIdx = imageMediaList.findIndex((m: TaskMediaLink) => m.id === med.id);
+                              if (iIdx !== -1) setActiveLateralImgIdx(iIdx);
+                            }
+                          }}
+                          className={cn(
+                            "p-3.5 border rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all group",
+                            isSelected
+                              ? "bg-blue-50/80 border-blue-400 ring-1 ring-blue-300 shadow-sm"
+                              : "bg-gray-50 hover:bg-gray-100/80 border-gray-200"
                           )}
+                          title="Clique para exibir este item na lateral"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={cn(
+                              "p-2.5 rounded-lg flex-shrink-0 border transition-colors",
+                              isSelected
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white border-gray-200 text-blue-600 group-hover:border-blue-300"
+                            )}>
+                              {med.media_type === 'video' ? <Film size={18} /> : med.media_type === 'image' || getGoogleDriveFileId(med.url) ? <ImageIcon size={18} /> : <FileText size={18} />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className={cn(
+                                "font-semibold text-xs truncate transition-colors",
+                                isSelected ? "text-blue-900 font-bold" : "text-gray-900 group-hover:text-blue-700"
+                              )}>
+                                {med.title || med.description || 'Mídia da Tarefa'}
+                              </p>
+                              <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                                {med.url}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {currentUser?.role !== 'CLIENTE' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteMedia(med.id);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Remover anexo"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
