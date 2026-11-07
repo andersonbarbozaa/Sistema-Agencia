@@ -32,9 +32,10 @@ const MONTH_NAMES = [
 interface FinancialSummaryDashboardProps {
   onRefresh?: () => void;
   className?: string;
+  monthlyRevenueGoal?: number;
 }
 
-export default function FinancialSummaryDashboard({ onRefresh, className }: FinancialSummaryDashboardProps) {
+export default function FinancialSummaryDashboard({ onRefresh, className, monthlyRevenueGoal = 50000 }: FinancialSummaryDashboardProps) {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
@@ -93,21 +94,25 @@ export default function FinancialSummaryDashboard({ onRefresh, className }: Fina
   const projectedProfit = summary?.lucro_projetado_mes ?? (totalReceitas - totalDespesas);
   const marginRealized = summary?.margem_realizada ?? (receivedVal > 0 ? Math.round((profitVal / receivedVal) * 100) : 0);
 
+  const goal = monthlyRevenueGoal || 50000;
+  const pct = goal > 0 ? Math.min(100, Math.round((receivedVal / goal) * 100)) : 0;
+  const remaining = Math.max(0, goal - receivedVal);
+
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cn('space-y-3', className)}>
       {/* ======================================================== */}
       {/* FILTRO DE PERÍODO SUPERIOR                                */}
       {/* ======================================================== */}
-      <div className="bg-white dark:bg-gray-800 p-3 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-gray-50/80 dark:bg-gray-800/80 p-2.5 rounded-xl border border-gray-200/80 dark:border-gray-700 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-            <Calendar className="w-4 h-4" />
+          <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <Calendar className="w-3.5 h-3.5" />
           </div>
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
               Período de Análise
             </span>
-            <div className="flex items-center gap-1 font-bold text-gray-900 dark:text-gray-100 text-sm">
+            <div className="flex items-center gap-1 font-bold text-gray-900 dark:text-gray-100 text-xs">
               <span>{currentMonthName}</span>
               <span className="text-gray-400 font-normal">/</span>
               <span>{selectedYear}</span>
@@ -116,20 +121,20 @@ export default function FinancialSummaryDashboard({ onRefresh, className }: Fina
         </div>
 
         {/* Navegação < > e Seletores de Mês / Ano */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
             title="Mês anterior"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5" />
           </button>
 
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
-            className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700 dark:text-gray-200 shadow-xs cursor-pointer"
+            className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700 dark:text-gray-200 shadow-2xs cursor-pointer"
           >
             {MONTH_NAMES.map((name, idx) => (
               <option key={idx + 1} value={idx + 1}>
@@ -141,7 +146,7 @@ export default function FinancialSummaryDashboard({ onRefresh, className }: Fina
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-            className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700 dark:text-gray-200 shadow-xs cursor-pointer"
+            className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-700 dark:text-gray-200 shadow-2xs cursor-pointer"
           >
             {[selectedYear - 2, selectedYear - 1, selectedYear, selectedYear + 1].map((y) => (
               <option key={y} value={y}>
@@ -153,98 +158,75 @@ export default function FinancialSummaryDashboard({ onRefresh, className }: Fina
           <button
             type="button"
             onClick={handleNextMonth}
-            className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
             title="Próximo mês"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* CARDS CONSOLIDADOS (2 CARDS PRINCIPAIS + LUCRO AUDITADO) */}
+      {/* 4 CARDS COMPACTOS (PADRÃO MOVIMENTAÇÃO POR SÓCIO)         */}
       {/* ======================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* CARD 1: TOTAL DE RECEITAS */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs flex flex-col justify-between hover:border-emerald-300 transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Total de Receitas
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                Recebido
-              </span>
-            </div>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <ArrowUpRight className="w-5 h-5 stroke-[2.5]" />
-            </div>
+        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-xs flex flex-col justify-between hover:border-emerald-300 transition-all">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-gray-800 dark:text-gray-200">
+              Total de Receitas
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              Recebido
+            </span>
           </div>
           <div>
-            <span className="text-[11px] text-gray-400 font-medium">Receitas no período</span>
-            <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-1">
+            <p className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
               {formatCurrency(receivedVal)}
             </p>
+            <span className="text-[10px] text-gray-400 mt-0.5 block">Receitas no período</span>
           </div>
         </div>
 
         {/* CARD 2: TOTAL DE DESPESAS */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs flex flex-col justify-between hover:border-rose-300 transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Total de Despesas
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                Pago
-              </span>
-            </div>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-              <ArrowDownRight className="w-5 h-5 stroke-[2.5]" />
-            </div>
+        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-xs flex flex-col justify-between hover:border-rose-300 transition-all">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-gray-800 dark:text-gray-200">
+              Total de Despesas
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+              Pago
+            </span>
           </div>
           <div>
-            <span className="text-[11px] text-gray-400 font-medium">Despesas no período</span>
-            <p className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 leading-tight mt-1">
+            <p className="text-base sm:text-lg font-bold text-rose-600 dark:text-rose-400 leading-tight">
               {formatCurrency(paidVal)}
             </p>
+            <span className="text-[10px] text-gray-400 mt-0.5 block">Despesas no período</span>
           </div>
         </div>
 
         {/* CARD 3: LUCRO REALIZADO */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs flex flex-col justify-between hover:border-blue-300 transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Lucro Realizado
-              </span>
-              <span
-                className={cn(
-                  'px-2 py-0.5 rounded-full text-[10px] font-bold border',
-                  profitVal >= 0
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300'
-                )}
-              >
-                {profitVal >= 0 ? 'Superávit' : 'Déficit'}
-              </span>
-            </div>
-            <div
+        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-xs flex flex-col justify-between hover:border-blue-300 transition-all">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-gray-800 dark:text-gray-200">
+              Lucro Realizado
+            </span>
+            <span
               className={cn(
-                'w-8 h-8 rounded-xl flex items-center justify-center',
+                'px-1.5 py-0.5 rounded-full text-[9px] font-bold border',
                 profitVal >= 0
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300'
               )}
             >
-              <DollarSign className="w-5 h-5 stroke-[2.5]" />
-            </div>
+              {profitVal >= 0 ? 'Superávit' : 'Déficit'}
+            </span>
           </div>
           <div>
-            <span className="text-[11px] text-gray-400 font-medium">Resultado líquido realizado</span>
             <p
               className={cn(
-                'text-2xl sm:text-3xl font-black leading-tight mt-1',
+                'text-base sm:text-lg font-bold leading-tight',
                 profitVal >= 0
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-rose-600 dark:text-rose-400'
@@ -252,6 +234,36 @@ export default function FinancialSummaryDashboard({ onRefresh, className }: Fina
             >
               {formatCurrency(profitVal)}
             </p>
+            <span className="text-[10px] text-gray-400 mt-0.5 block">Resultado líquido</span>
+          </div>
+        </div>
+
+        {/* CARD 4: META DE RECEITA MENSAL */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-xs flex flex-col justify-between hover:border-blue-300 transition-all">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-gray-800 dark:text-gray-200">
+              Meta de Receita
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              {pct}% atingido
+            </span>
+          </div>
+          <div>
+            <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
+              {formatCurrency(receivedVal)}{' '}
+              <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400">
+                / {formatCurrency(goal)}
+              </span>
+            </p>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden mt-1.5">
+              <div
+                className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(4, pct)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 block truncate">
+              Falta: <strong className="text-gray-700 dark:text-gray-300">{formatCurrency(remaining)}</strong>
+            </span>
           </div>
         </div>
       </div>

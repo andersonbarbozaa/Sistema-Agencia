@@ -80,7 +80,7 @@ function TaskImagePreviewCard({
             {media.title || 'Imagem da Tarefa'}
           </span>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
-            4:5
+            Imagem
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -140,7 +140,7 @@ function TaskImagePreviewCard({
                   setLoading(false);
                 }
               }}
-              className="w-full h-full object-cover select-none transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-contain select-none"
               loading="lazy"
               draggable={false}
             />
@@ -1164,7 +1164,125 @@ export default function TasksPage() {
       {/* VIEW 1: LIST VIEW (Default - Requisito 19 & 20) */}
       {viewMode === 'list' && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* VISUALIZAÇÃO MOBILE (LINHAS INDIVIDUAIS COM O MESMO TAMANHO, SEM CORTES) */}
+          <div className="block md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+            {filteredTasks.length === 0 ? (
+              <div className="p-8 text-center text-xs text-gray-400">
+                Nenhuma tarefa encontrada.
+              </div>
+            ) : (
+              filteredTasks.map((task) => {
+                const isDeletionPending = task.deletion_request_status === 'pending';
+                const isOverdue = Boolean(isTaskOverdue(task));
+                const catObj = categories.find((c) => c.id === task.category_id || c.name === task.category_name);
+                const catColor = task.category_color || catObj?.color || '#3b82f6';
+                const catName = task.category_name || catObj?.name;
+
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => openTaskDetail(task.id)}
+                    className={cn(
+                      'p-3 flex flex-col justify-between h-[92px] transition-colors cursor-pointer',
+                      isDeletionPending
+                        ? 'bg-red-50/60 dark:bg-red-950/20 text-red-900 dark:text-red-300 border-l-4 border-red-500'
+                        : 'bg-white dark:bg-gray-800 hover:bg-gray-50/80 dark:hover:bg-gray-750'
+                    )}
+                  >
+                    {/* Acima: Data de entrega e na frente a empresa */}
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400 min-w-0 leading-none">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-semibold text-gray-700 dark:text-gray-300 shrink-0">
+                          {formatDate(task.delivery_date)}
+                        </span>
+                        <span className="shrink-0">•</span>
+                        <span className="font-medium text-gray-600 dark:text-gray-300 truncate">
+                          {task.client_name || 'Sem empresa'}
+                        </span>
+                      </div>
+                      {task.assignees && task.assignees.length > 0 && (
+                        <div className="flex -space-x-1 shrink-0">
+                          {task.assignees.slice(0, 3).map((a: any, i: number) => (
+                            <div key={i} className="w-4 h-4 rounded-full bg-blue-600 border border-white dark:border-gray-800 flex items-center justify-center text-[8px] text-white font-bold" title={a.name}>
+                              {a.name.charAt(0).toUpperCase()}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Meio: Só o título */}
+                    <div className="font-bold text-xs text-gray-900 dark:text-gray-100 truncate leading-tight flex items-center gap-1.5">
+                      <span className="truncate">{task.name}</span>
+                      {isDeletionPending && (
+                        <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold shrink-0">
+                          Exclusão
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Abaixo do card: Tags de status e categoria */}
+                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                      <button
+                        type="button"
+                        title={`Status: ${task.status}. Clique para alterar`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (statusMenuState?.taskId === task.id) {
+                            setStatusMenuState(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const openUpward = rect.bottom + 240 > (typeof window !== 'undefined' ? window.innerHeight : 800);
+                            setStatusMenuState({
+                              taskId: task.id,
+                              currentStatus: task.status,
+                              x: rect.left,
+                              y: openUpward ? rect.top - 8 : rect.bottom + 6,
+                              openUpward,
+                            });
+                          }
+                        }}
+                        className={cn(
+                          "w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-transform hover:scale-110 active:scale-95 cursor-pointer",
+                          getStatusDotColor(task.status)
+                        )}
+                      >
+                        {task.status === 'Concluída' && (
+                          <Check size={8} strokeWidth={3} className="text-white shrink-0" />
+                        )}
+                      </button>
+
+                      {isOverdue && (
+                        <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold shrink-0 leading-none", getTaskStatusBadgeStyle('Atrasado'))}>
+                          Atrasado
+                        </span>
+                      )}
+
+                      <span className={cn("px-2 py-0.5 rounded-full text-[9px] uppercase font-bold shrink-0 leading-none", getTaskStatusBadgeStyle(task.status))}>
+                        {task.status}
+                      </span>
+
+                      {catName && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[9px] font-semibold truncate max-w-[120px] border shrink-0 leading-none"
+                          style={{
+                            backgroundColor: catColor,
+                            borderColor: catColor,
+                            color: getCategoryTextColor(catColor),
+                          }}
+                        >
+                          {catName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* VISUALIZAÇÃO DESKTOP (TABELA) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-fixed text-left text-xs whitespace-nowrap">
               <colgroup>
                 <col className="w-[28%] min-w-[200px]" />
@@ -1174,7 +1292,7 @@ export default function TasksPage() {
                 <col className="w-[11%] min-w-[80px]" />
                 <col className="w-[11%] min-w-[85px]" />
               </colgroup>
-              <thead className="bg-gray-50/90 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 hidden md:table-header-group text-[11px] font-semibold uppercase tracking-wider h-8">
+              <thead className="bg-gray-50/90 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 text-[11px] font-semibold uppercase tracking-wider h-8">
                 <tr>
                   <th className="py-2 px-3 align-middle">Tarefa</th>
                   <th className="py-2 px-3 align-middle">Cliente</th>
@@ -1184,7 +1302,7 @@ export default function TasksPage() {
                   <th className="py-2 px-3 align-middle">Entrega</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 flex flex-col md:table-row-group">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filteredTasks.length === 0 ? (
                   <tr className="block md:table-row">
                     <td colSpan={6} className="p-8 text-center text-gray-400 block md:table-cell">
@@ -1203,105 +1321,15 @@ export default function TasksPage() {
                       <tr
                         key={task.id}
                         className={cn(
-                          'transition-colors cursor-pointer flex flex-col md:table-row h-auto md:h-10 md:max-h-10 border-b border-gray-100 dark:border-gray-800',
+                          'transition-colors cursor-pointer h-10 max-h-10 border-b border-gray-100 dark:border-gray-800',
                           isDeletionPending
                             ? 'bg-red-50/60 dark:bg-red-950/20 opacity-60 text-red-900 dark:text-red-300 border-l-4 border-red-500 hover:bg-red-100/50'
                             : 'bg-white dark:bg-gray-800 hover:bg-gray-50/80 dark:hover:bg-gray-750'
                         )}
                         onClick={() => openTaskDetail(task.id)}
                       >
-                        {/* MOBILE VIEW */}
-                        <td className="md:hidden flex flex-col gap-1 w-full py-2 px-3">
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex flex-wrap gap-1.5 items-center">
-                              {/* Bolinha interativa de status mobile */}
-                              <button
-                                type="button"
-                                title={`Status: ${task.status}. Clique para alterar`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (statusMenuState?.taskId === task.id) {
-                                    setStatusMenuState(null);
-                                  } else {
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const openUpward = rect.bottom + 240 > (typeof window !== 'undefined' ? window.innerHeight : 800);
-                                    setStatusMenuState({
-                                      taskId: task.id,
-                                      currentStatus: task.status,
-                                      x: rect.left,
-                                      y: openUpward ? rect.top - 8 : rect.bottom + 6,
-                                      openUpward,
-                                    });
-                                  }
-                                }}
-                                className={cn(
-                                  "w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-transform hover:scale-110 active:scale-95 cursor-pointer",
-                                  getStatusDotColor(task.status)
-                                )}
-                              >
-                                {task.status === 'Concluída' && (
-                                  <Check size={10} strokeWidth={3} className="text-white shrink-0" />
-                                )}
-                              </button>
-
-                              {/* Tag de atraso mobile à frente do status */}
-                              {isOverdue && (
-                                <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0", getTaskStatusBadgeStyle('Atrasado'))}>
-                                  Atrasado
-                                </span>
-                              )}
-
-                              <span className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold", getTaskStatusBadgeStyle(task.status))}>
-                                {task.status}
-                              </span>
-
-                              {catName && (
-                                <span
-                                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold truncate max-w-[120px] shadow-2xs border"
-                                  style={{
-                                    backgroundColor: catColor,
-                                    borderColor: catColor,
-                                    color: getCategoryTextColor(catColor),
-                                  }}
-                                >
-                                  {catName}
-                                </span>
-                              )}
-                            </div>
-                            {task.assignees && task.assignees.length > 0 && (
-                              <div className="flex -space-x-1.5 shrink-0">
-                                {task.assignees.map((a: any, i: number) => (
-                                  <div key={i} className="w-5 h-5 rounded-full bg-blue-600 border border-white dark:border-gray-800 flex items-center justify-center text-[9px] text-white font-bold shadow-xs" title={a.name}>
-                                    {a.name.charAt(0).toUpperCase()}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="font-semibold text-gray-900 dark:text-gray-100 text-xs leading-tight flex items-center gap-1.5 min-w-0">
-                            <span className="truncate">{task.name}</span>
-                            {isDeletionPending && (
-                              <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold shrink-0">
-                                Exclusão
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center text-[11px] text-gray-500 dark:text-gray-400 gap-1.5">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{formatDate(task.delivery_date)}</span>
-                            <span>•</span>
-                            <span className="truncate">{task.client_name || '-'}</span>
-                            {task.value && task.value > 0 ? (
-                              <>
-                                <span>•</span>
-                                <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(task.value)}</span>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-
-                        {/* DESKTOP VIEW */}
                         {/* 1. Tarefa */}
-                        <td className="hidden md:table-cell py-1 px-3 align-middle h-10 max-h-10 overflow-hidden text-ellipsis whitespace-nowrap">
+                        <td className="py-1 px-3 align-middle h-10 max-h-10 overflow-hidden text-ellipsis whitespace-nowrap">
                           <div className="flex items-center gap-2 min-w-0 h-full">
                             {/* Bolinha interativa de status */}
                             <button
@@ -1649,33 +1677,33 @@ export default function TasksPage() {
 
       {/* VIEW 3: CALENDAR VIEW */}
       {viewMode === 'calendar' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
             <div>
-              <h3 className="text-lg font-bold text-gray-900 capitalize">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 capitalize">
                 {currentMonthDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 Calendário mensal com prazos de entrega e cores de status
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={prevMonth}
-                className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors"
+                className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300 transition-colors"
                 title="Mês Anterior"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={todayMonth}
-                className="px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 transition-colors"
               >
                 Hoje
               </button>
               <button
                 onClick={nextMonth}
-                className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors"
+                className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300 transition-colors"
                 title="Próximo Mês"
               >
                 <ChevronRight size={16} />
@@ -1683,12 +1711,13 @@ export default function TasksPage() {
             </div>
           </div>
 
-          {/* Calendar Table Grid */}
-          <div className="overflow-x-auto -mx-2 sm:mx-0 pb-2">
-            <div className="min-w-[650px] grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden border border-gray-200">
+          {/* Calendar Table Grid (Sem barra de rolagem horizontal no mobile) */}
+          <div className="w-full">
+            <div className="w-full grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-                <div key={day} className="bg-gray-50 py-2.5 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                  {day}
+                <div key={day} className="bg-gray-50 dark:bg-gray-800 py-1.5 sm:py-2.5 text-center text-[10px] sm:text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  <span className="hidden sm:inline">{day}</span>
+                  <span className="inline sm:hidden">{day.charAt(0)}</span>
                 </div>
               ))}
 
@@ -1705,8 +1734,8 @@ export default function TasksPage() {
               for (let i = 0; i < firstDayOfWeek; i++) {
                 const prevDayNum = daysInPrevMonth - firstDayOfWeek + i + 1;
                 cells.push(
-                  <div key={`prev-${i}`} className="bg-gray-50/60 min-h-[110px] p-1.5 opacity-40">
-                    <span className="text-[11px] font-medium text-gray-400">{prevDayNum}</span>
+                  <div key={`prev-${i}`} className="bg-gray-50/60 dark:bg-gray-800/40 min-h-[60px] sm:min-h-[110px] p-1 sm:p-1.5 opacity-40">
+                    <span className="text-[10px] sm:text-[11px] font-medium text-gray-400">{prevDayNum}</span>
                   </div>
                 );
               }
@@ -1727,25 +1756,25 @@ export default function TasksPage() {
                   <div
                     key={`day-${day}`}
                     className={cn(
-                      'bg-white min-h-[110px] p-2 flex flex-col justify-between transition-colors hover:bg-blue-50/20',
+                      'bg-white dark:bg-gray-800 min-h-[60px] sm:min-h-[110px] p-1 sm:p-2 flex flex-col justify-between transition-colors hover:bg-blue-50/20',
                       isToday ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/10' : ''
                     )}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center justify-between mb-1">
                       <span className={cn(
-                        'text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full',
-                        isToday ? 'bg-blue-600 text-white' : 'text-gray-700'
+                        'text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full',
+                        isToday ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300'
                       )}>
                         {day}
                       </span>
                       {dayTasks.length > 0 && (
-                        <span className="text-[10px] font-bold text-gray-400">
+                        <span className="hidden sm:inline text-[10px] font-bold text-gray-400">
                           {dayTasks.length} {dayTasks.length === 1 ? 'tarefa' : 'tarefas'}
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[120px]">
+                    <div className="space-y-1 flex-1 overflow-y-auto max-h-[100px] sm:max-h-[120px]">
                       {dayTasks.map((task) => {
                         let pillBg = 'bg-slate-600 hover:bg-slate-700';
                         if (task.status === 'Concluída' || (task.status as any) === 'Finalizada') {
@@ -1767,22 +1796,16 @@ export default function TasksPage() {
                             key={task.id}
                             onClick={() => openTaskDetail(task.id)}
                             className={cn(
-                              'px-2 py-1 rounded-md sm:rounded-lg text-left cursor-pointer transition-all shadow-xs text-white flex flex-col gap-0.5',
+                              'px-1 sm:px-2 py-0.5 sm:py-1 rounded text-left cursor-pointer transition-all shadow-2xs text-white flex flex-col gap-0.5 min-w-0 overflow-hidden',
                               pillBg
                             )}
                             title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
                           >
-                            <div className="flex items-center gap-1.5 w-full">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
-                              <span className="text-[9px] font-bold text-white/90 uppercase tracking-wider truncate">
-                                {task.status}
-                              </span>
-                            </div>
-                            <p className="font-bold text-[11px] text-white leading-tight line-clamp-2 break-words">
+                            <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
                               {task.name}
                             </p>
                             {task.client_name && (
-                              <p className="text-[10px] text-white/80 truncate">
+                              <p className="text-[8px] sm:text-[10px] text-white/80 truncate leading-none">
                                 {task.client_name}
                               </p>
                             )}
@@ -1799,8 +1822,8 @@ export default function TasksPage() {
               const remaining = (7 - (totalCells % 7)) % 7;
               for (let i = 1; i <= remaining; i++) {
                 cells.push(
-                  <div key={`next-${i}`} className="bg-gray-50/60 min-h-[110px] p-1.5 opacity-40">
-                    <span className="text-[11px] font-medium text-gray-400">{i}</span>
+                  <div key={`next-${i}`} className="bg-gray-50/60 dark:bg-gray-800/40 min-h-[60px] sm:min-h-[110px] p-1 sm:p-1.5 opacity-40">
+                    <span className="text-[10px] sm:text-[11px] font-medium text-gray-400">{i}</span>
                   </div>
                 );
               }
@@ -1828,28 +1851,63 @@ export default function TasksPage() {
 
       {selectedTask && (() => {
         const taskMediaList: TaskMediaLink[] = selectedTask.media || selectedTask.media_links || [];
-        const isImageMedia = (m: TaskMediaLink) => {
-          if (!m || !m.url) return false;
-          const isDrive = Boolean(getGoogleDriveFileId(m.url) || m.url.toLowerCase().includes('drive.google.com'));
-          if (isDrive) {
-            const isVid = /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(m.url) || m.url.toLowerCase().includes('video');
-            return !isVid;
+        const getMediaCategory = (m: TaskMediaLink): 'video' | 'image' | 'document' => {
+          if (!m || !m.url) return 'document';
+          const cleanUrl = (m.url || '').toLowerCase().trim();
+
+          // 1. Respeitar media_type se especificado explicitamente
+          if (m.media_type === 'video') return 'video';
+          if (m.media_type === 'document') return 'document';
+          if (m.media_type === 'image') return 'image';
+
+          // 2. Extensões e plataformas de vídeo
+          if (
+            cleanUrl.includes('youtube.com') ||
+            cleanUrl.includes('youtu.be') ||
+            cleanUrl.includes('vimeo.com') ||
+            cleanUrl.includes('loom.com') ||
+            cleanUrl.includes('tiktok.com') ||
+            cleanUrl.includes('/shorts/') ||
+            cleanUrl.includes('/reel/') ||
+            /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(cleanUrl)
+          ) {
+            return 'video';
           }
-          if (m.media_type === 'image') return true;
-          if (m.media_type === 'video') return false;
-          return detectMediaType(m.url) === 'image';
+
+          // 3. Extensões e plataformas de documentos
+          if (
+            /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)(\?.*)?$/i.test(cleanUrl) ||
+            cleanUrl.includes('docs.google.com/document') ||
+            cleanUrl.includes('docs.google.com/spreadsheets') ||
+            cleanUrl.includes('docs.google.com/presentation') ||
+            cleanUrl.includes('notion.so')
+          ) {
+            return 'document';
+          }
+
+          // 4. Extensões de imagem
+          if (
+            /\.(jpg|jpeg|png|webp|gif|svg|avif|bmp)(\?.*)?$/i.test(cleanUrl) ||
+            cleanUrl.includes('images.unsplash.com') ||
+            cleanUrl.includes('imgur.com') ||
+            cleanUrl.startsWith('data:image')
+          ) {
+            return 'image';
+          }
+
+          // 5. Google Drive
+          if (cleanUrl.includes('drive.google.com') || cleanUrl.includes('/file/d/')) {
+            if (cleanUrl.includes('video') || /\.(mp4|webm|mov|avi|mkv|m4v)/i.test(cleanUrl)) return 'video';
+            if (/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)/i.test(cleanUrl)) return 'document';
+            return 'image';
+          }
+
+          return 'document';
         };
 
-        const isVideoMedia = (m: TaskMediaLink) => {
-          if (!m || !m.url) return false;
-          const isDrive = Boolean(getGoogleDriveFileId(m.url) || m.url.toLowerCase().includes('drive.google.com'));
-          if (isDrive) {
-            return /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(m.url) || m.url.toLowerCase().includes('video');
-          }
-          if (m.media_type === 'video') return true;
-          if (m.media_type === 'image') return false;
-          return detectMediaType(m.url) === 'video';
-        };
+        const isImageMedia = (m: TaskMediaLink) => getMediaCategory(m) === 'image';
+        const isVideoMedia = (m: TaskMediaLink) => getMediaCategory(m) === 'video';
+        const isDocumentMedia = (m: TaskMediaLink) => getMediaCategory(m) === 'document';
 
         const imageMediaList = taskMediaList.filter(isImageMedia);
         const videoMediaList = taskMediaList.filter(isVideoMedia);
@@ -2057,12 +2115,12 @@ export default function TasksPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {!selectedTask.media || selectedTask.media.length === 0 ? (
+                  {taskMediaList.length === 0 ? (
                     <div className="p-4 text-center text-xs text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
                       Nenhum link de mídia anexado a esta tarefa.
                     </div>
                   ) : (
-                    selectedTask.media.map((med: TaskMediaLink, idx: number) => {
+                    taskMediaList.map((med: TaskMediaLink, idx: number) => {
                       const isSelected =
                         med.id === selectedMediaId ||
                         (!selectedMediaId && (activeMedia?.id === med.id || idx === 0));
@@ -2089,11 +2147,11 @@ export default function TasksPage() {
                                 : "border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-750 text-gray-500 dark:text-gray-400 group-hover:border-blue-300"
                             )}>
                               {isVideoMedia(med) ? (
-                                <Film size={18} />
+                                <Film size={18} className="text-blue-500" />
                               ) : isImageMedia(med) ? (
-                                <ImageIcon size={18} />
+                                <ImageIcon size={18} className="text-emerald-500" />
                               ) : (
-                                <FileText size={18} />
+                                <FileText size={18} className="text-amber-500" />
                               )}
                             </div>
                             <div className="min-w-0">
@@ -2281,6 +2339,7 @@ export default function TasksPage() {
                       {taskMediaList.map((m, idx) => {
                         const isCur = m.id === activeMedia.id;
                         const isVid = isVideoMedia(m);
+                        const isImg = isImageMedia(m);
                         return (
                           <button
                             key={m.id}
@@ -2295,8 +2354,10 @@ export default function TasksPage() {
                           >
                             {isVid ? (
                               <Film size={13} className={isCur ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"} />
-                            ) : (
+                            ) : isImg ? (
                               <ImageIcon size={13} className={isCur ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"} />
+                            ) : (
+                              <FileText size={13} className={isCur ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"} />
                             )}
                             <span className="truncate max-w-[130px]">{m.title || `Item ${idx + 1}`}</span>
                           </button>

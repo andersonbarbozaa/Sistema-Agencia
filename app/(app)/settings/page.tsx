@@ -1643,8 +1643,8 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Barra de Navegação Superior das Configurações */}
-      <div className="bg-white dark:bg-gray-850 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xs flex items-center gap-1.5 overflow-x-auto">
+            {/* Barra de Navegação Superior das Configurações (Oculta no Mobile) */}
+      <div className="hidden md:flex bg-white dark:bg-gray-850 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xs items-center gap-1.5 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('overview')}
@@ -2025,14 +2025,9 @@ function SettingsContent() {
                       <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                         <Calendar className="w-5 h-5" />
                       </div>
-                      <div>
-                        <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors block">
-                          Gerenciador de Agendas
-                        </span>
-                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                          Agendas da equipe e sincronização com Google, Outlook e iCal
-                        </span>
-                      </div>
+                      <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        Gerenciador de Agendas
+                      </span>
                     </div>
                     <div className="flex items-center gap-2.5 shrink-0">
                       <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-xs font-semibold">

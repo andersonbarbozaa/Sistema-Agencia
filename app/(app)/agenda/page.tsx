@@ -576,23 +576,23 @@ export default function AgendaPage() {
         </div>
       ) : viewMode === 'calendar' ? (
         /* CALENDAR VIEW */
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          {/* Contêiner com rolagem horizontal fluida para manter grade legível no mobile */}
-          <div className="overflow-x-auto scrollbar-thin overscroll-x-contain">
-            <div className="min-w-[680px] md:min-w-full">
+        <div className="bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-750 rounded-2xl overflow-hidden shadow-sm">
+          {/* Contêiner de tamanho fixo sem barra de rolagem horizontal */}
+          <div className="w-full">
+            <div className="w-full">
               {/* Weekday Headers (DOM a SÁB) */}
-              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/80 text-center py-2.5 text-xs font-bold text-gray-600 uppercase tracking-wider select-none">
-                <div>DOM</div>
-                <div>SEG</div>
-                <div>TER</div>
-                <div>QUA</div>
-                <div>QUI</div>
-                <div>SEX</div>
-                <div>SÁB</div>
+              <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-750 bg-gray-50/80 dark:bg-gray-800 text-center py-1.5 sm:py-2.5 text-[10px] sm:text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider select-none">
+                <div><span className="hidden sm:inline">DOM</span><span className="inline sm:hidden">D</span></div>
+                <div><span className="hidden sm:inline">SEG</span><span className="inline sm:hidden">S</span></div>
+                <div><span className="hidden sm:inline">TER</span><span className="inline sm:hidden">T</span></div>
+                <div><span className="hidden sm:inline">QUA</span><span className="inline sm:hidden">Q</span></div>
+                <div><span className="hidden sm:inline">QUI</span><span className="inline sm:hidden">Q</span></div>
+                <div><span className="hidden sm:inline">SEX</span><span className="inline sm:hidden">S</span></div>
+                <div><span className="hidden sm:inline">SÁB</span><span className="inline sm:hidden">S</span></div>
               </div>
 
               {/* Days Grid */}
-              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[500px] md:min-h-[560px]">
+              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 dark:divide-gray-750 min-h-[380px] sm:min-h-[480px]">
                 {calendarDays.map((cell, idx) => {
                   const dayEvents = (selectedCalendarId === 'all'
                     ? events
@@ -648,23 +648,23 @@ export default function AgendaPage() {
                     <div
                       key={idx}
                       className={cn(
-                        'p-1.5 sm:p-2 transition-colors relative flex flex-col justify-between min-h-[110px] sm:min-h-[135px] group',
+                        'p-1 sm:p-2 transition-colors relative flex flex-col justify-between min-h-[68px] sm:min-h-[110px] group',
                         cell.currentMonth
                           ? isToday
                             ? 'bg-blue-50/25 hover:bg-blue-50/40'
-                            : 'bg-white hover:bg-gray-50/60'
-                          : 'bg-gray-50/40 opacity-40'
+                            : 'bg-white dark:bg-gray-850 hover:bg-gray-50/60 dark:hover:bg-gray-800'
+                          : 'bg-gray-50/40 dark:bg-gray-900/40 opacity-40'
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span
                           className={cn(
-                            'text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full',
+                            'text-[10px] sm:text-xs font-bold w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full',
                             isToday
                               ? 'bg-blue-600 text-white shadow-xs'
                               : cell.currentMonth
-                              ? 'text-gray-800'
-                              : 'text-gray-400'
+                              ? 'text-gray-800 dark:text-gray-200'
+                              : 'text-gray-400 dark:text-gray-600'
                           )}
                         >
                           {cell.day}
@@ -684,17 +684,16 @@ export default function AgendaPage() {
                       </div>
 
                       {/* Compromissos e Tarefas */}
-                      <div className="space-y-1.5 overflow-y-auto max-h-32 sm:max-h-44 flex-1 scrollbar-none pr-0.5">
+                      <div className="space-y-1 overflow-y-auto max-h-28 sm:max-h-40 flex-1 scrollbar-none pr-0.5">
                         {dayItems.map((item) => {
                           const isEvent = item.type === 'event';
                           const cal = customCalendars.find((c) => c.id === item.calendarId);
 
                           if (!isEvent) {
                             // CARD DE TAREFA NA AGENDA:
-                            // - Status acima do card
-                            // - Categoria do lado do status
-                            // - Nome da tarefa
-                            // - Abaixo do título: Nome do cliente
+                            // - Tags com texto um pouco menor
+                            // - Título da tarefa
+                            // - Nome da empresa/cliente
                             return (
                               <div
                                 key={item.id}
@@ -710,14 +709,14 @@ export default function AgendaPage() {
                                     event_date: t.delivery_date || (item as any).event_date,
                                   });
                                 }}
-                                className="p-1.5 sm:p-2 rounded-xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer shadow-2xs hover:shadow-xs transition-all flex flex-col gap-1 w-full text-left group/task"
-                                title={`Tarefa: ${item.title}${item.clientName ? ` | Cliente: ${item.clientName}` : ''}${item.categoryName ? ` | Categoria: ${item.categoryName}` : ''}`}
+                                className="p-1 sm:p-1.5 rounded-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer shadow-2xs hover:shadow-xs transition-all flex flex-col gap-0.5 w-full text-left group/task"
+                                title={`Tarefa: ${item.title}${item.clientName ? ` | Empresa: ${item.clientName}` : ''}${item.categoryName ? ` | Categoria: ${item.categoryName}` : ''}`}
                               >
-                                {/* 1. Status acima do card + Categoria ao lado do status */}
-                                <div className="flex items-center gap-1.5 flex-wrap w-full">
+                                {/* Status e Categoria com texto menor */}
+                                <div className="flex items-center gap-1 flex-wrap w-full">
                                   <span
                                     className={cn(
-                                      'text-[9px] font-bold px-1.5 py-0.5 rounded border leading-none shrink-0',
+                                      'text-[8px] sm:text-[9px] font-bold px-1 py-0.5 rounded border leading-none shrink-0',
                                       item.status === 'Concluída' || (item.status as any) === 'Finalizada'
                                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                                         : item.status === 'Aprovada'
@@ -735,7 +734,7 @@ export default function AgendaPage() {
                                   </span>
 
                                   {item.categoryName && (
-                                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 text-gray-700 dark:text-gray-300 truncate max-w-[100px] flex items-center gap-1 shrink-0">
+                                    <span className="text-[8px] sm:text-[9px] font-semibold px-1 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 text-gray-700 dark:text-gray-300 truncate max-w-[80px] sm:max-w-[100px] flex items-center gap-0.5 shrink-0">
                                       <span
                                         className="w-1.5 h-1.5 rounded-full shrink-0"
                                         style={{ backgroundColor: item.categoryColor || '#3B82F6' }}
@@ -743,58 +742,40 @@ export default function AgendaPage() {
                                       <span className="truncate">{item.categoryName}</span>
                                     </span>
                                   )}
-
-                                  {item.startTime && (
-                                    <span className="text-[9px] font-mono text-gray-400 dark:text-gray-500 ml-auto leading-none shrink-0">
-                                      {item.startTime}
-                                    </span>
-                                  )}
                                 </div>
 
-                                {/* 2. Nome da Tarefa */}
-                                <div className="font-bold text-gray-900 dark:text-gray-100 text-[11px] leading-tight line-clamp-2 group-hover/task:text-blue-600 dark:group-hover/task:text-blue-400 transition-colors">
+                                {/* Título da Tarefa */}
+                                <div className="font-bold text-gray-900 dark:text-gray-100 text-[10px] sm:text-[11px] leading-tight truncate group-hover/task:text-blue-600 dark:group-hover/task:text-blue-400 transition-colors">
                                   {item.title}
                                 </div>
 
-                                {/* 3. Abaixo do título: Nome do Cliente */}
+                                {/* Abaixo do título: Nome da Empresa / Cliente */}
                                 {item.clientName && (
-                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate flex items-center gap-1 pt-0.5 border-t border-gray-100 dark:border-gray-750">
-                                    <User size={10} className="shrink-0 text-gray-400" />
-                                    <span className="truncate">{item.clientName}</span>
+                                  <div className="text-[8px] sm:text-[9px] text-gray-500 dark:text-gray-400 font-medium truncate">
+                                    {item.clientName}
                                   </div>
                                 )}
                               </div>
                             );
                           }
 
-                          // CARD DE COMPROMISSO/EVENTO NA AGENDA
+                          // CARD DE COMPROMISSO/EVENTO NA AGENDA (só título do compromisso e nome da empresa)
                           return (
                             <div
                               key={item.id}
                               onClick={() => openEditModal(item.raw)}
                               style={cal?.color ? { backgroundColor: cal.color } : undefined}
                               className={cn(
-                                'px-2 py-1.5 rounded-xl text-[10px] sm:text-[11px] cursor-pointer transition-all flex flex-col items-start gap-0.5 min-w-0 shadow-2xs group/pill text-white',
+                                'px-1.5 sm:px-2 py-1 rounded-lg text-[10px] sm:text-[11px] cursor-pointer transition-all flex flex-col items-start gap-0.5 min-w-0 shadow-2xs group/pill text-white overflow-hidden',
                                 !cal?.color && 'bg-blue-600 hover:bg-blue-700'
                               )}
-                              title={`${item.startTime ? item.startTime + ' - ' : ''}${item.title} (${item.location || 'Sem local'})`}
+                              title={`${item.title}${item.location ? ` (${item.location})` : ''}`}
                             >
-                              <div className="flex items-center gap-1.5 w-full">
-                                <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-white" />
-                                {item.startTime && (
-                                  <span className="font-bold text-[9px] sm:text-[10px] shrink-0 leading-none text-white/90">
-                                    {item.startTime}
-                                  </span>
-                                )}
-                                <span className="text-[9px] font-semibold text-white/80 uppercase tracking-wider">
-                                  Compromisso
-                                </span>
-                              </div>
-                              <span className="font-bold text-white line-clamp-2 break-words leading-tight w-full">
+                              <span className="font-bold text-white leading-tight truncate w-full text-[10px] sm:text-[11px]">
                                 {item.title}
                               </span>
                               {item.location && (
-                                <span className="text-[9px] text-white/80 truncate">
+                                <span className="text-[8px] sm:text-[9px] text-white/85 truncate leading-none w-full">
                                   {item.location}
                                 </span>
                               )}

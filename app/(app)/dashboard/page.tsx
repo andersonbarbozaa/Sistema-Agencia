@@ -314,85 +314,7 @@ export default function DashboardPage() {
       </div>
       )}
 
-      {/* Financial Overview (If Admin) */}
-      {layoutPrefs.showFinanceiro && financial && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="font-bold text-base text-gray-900">Financeiro</h3>
-
-            </div>
-            <Link href="/finance" className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
-              Ver Financeiro <ArrowRight size={14} />
-            </Link>
-          </div>
-
-          {/* Meta de Receita (Mesmo padrão visual de Saldo em Contas) */}
-          {(() => {
-            const goal = financial.monthly_revenue_goal || 50000;
-            const entries = financial.current_month?.entries || 0;
-            const pct = goal > 0 ? Math.min(100, Math.round((entries / goal) * 100)) : 0;
-            const remaining = Math.max(0, goal - entries);
-
-            return (
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
-                  <div>
-                    <span className="text-xs text-gray-500 font-medium">Meta de Receita Mensal</span>
-                    <p className="text-xl font-bold text-gray-900 mt-1">
-                      {formatCurrency(entries)}{' '}
-                      <span className="text-xs font-normal text-gray-500">de {formatCurrency(goal)}</span>
-                    </p>
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <span className="text-xs text-gray-500 font-medium">
-                      Falta para a meta:{' '}
-                      <span className="font-bold text-gray-900">{formatCurrency(remaining)}</span>
-                    </span>
-                    <p className="text-[11px] text-gray-500 mt-0.5">Progresso: {pct}% atingido</p>
-                  </div>
-                </div>
-
-                {/* Barra de porcentagem */}
-                <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.max(4, pct)}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })()}
-
-          <FinancialSummaryDashboard />
-
-          {/* Partner Analytical Comparison (Sem ranking - Requisito 14 & 28) */}
-          {partner_expenses && partner_expenses.length > 0 && (
-            <div className="mt-5 pt-5 border-t border-gray-100">
-              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
-                Movimentação por Sócio / Parceiro
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {partner_expenses.map((partner: any) => (
-                  <div key={partner.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs">
-                    <p className="font-semibold text-gray-800">{partner.name}</p>
-                    <div className="mt-2 flex justify-between text-gray-600">
-                      <span>Despesas no mês:</span>
-                      <span className="font-semibold text-red-600">{formatCurrency(partner.month_expenses)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600 mt-0.5">
-                      <span>Receitas atribuídas:</span>
-                      <span className="font-semibold text-emerald-600">{formatCurrency(partner.month_entries)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Main Grid: Urgent Tasks + Active Projects */}
+      {/* Main Grid: Urgent Tasks + Active Projects (Aparece logo abaixo dos cards de tarefas) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Urgent Tasks */}
         {layoutPrefs.showProximasEntregas && (
@@ -551,6 +473,46 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Financial Overview (If Admin) - Exibido por último após as entregas, leads e agenda */}
+      {layoutPrefs.showFinanceiro && financial && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-base text-gray-900">Financeiro</h3>
+            </div>
+            <Link href="/finance" className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+              Ver Financeiro <ArrowRight size={14} />
+            </Link>
+          </div>
+
+          <FinancialSummaryDashboard monthlyRevenueGoal={financial.monthly_revenue_goal || 50000} />
+
+          {/* Partner Analytical Comparison (Sem ranking - Requisito 14 & 28) */}
+          {partner_expenses && partner_expenses.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2.5">
+                Movimentação por Sócio / Parceiro
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {partner_expenses.map((partner: any) => (
+                  <div key={partner.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs">
+                    <p className="font-semibold text-gray-800">{partner.name}</p>
+                    <div className="mt-2 flex justify-between text-gray-600">
+                      <span>Despesas no mês:</span>
+                      <span className="font-semibold text-red-600">{formatCurrency(partner.month_expenses)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600 mt-0.5">
+                      <span>Receitas atribuídas:</span>
+                      <span className="font-semibold text-emerald-600">{formatCurrency(partner.month_entries)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* DASHBOARD: MODAL EDITAR LEAD */}
       {selectedDashboardLead && (

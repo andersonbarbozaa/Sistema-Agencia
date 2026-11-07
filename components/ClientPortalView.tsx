@@ -22,6 +22,8 @@ import {
   Image as ImageIcon,
   PlayCircle,
   Paperclip,
+  Film,
+  FileText,
   Sparkles,
   ChevronRight,
   ArrowRight,
@@ -1510,8 +1512,20 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {taskDetail.media_links.map((media: any) => {
-                            const isImg = /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(media.url) || media.url.startsWith('data:image');
-                            const isYt = /(?:youtu\.be\/|youtube\.com)/i.test(media.url);
+                            const cleanUrl = (media.url || '').toLowerCase();
+                            const isVid = media.media_type === 'video' ||
+                              /(?:youtu\.be\/|youtube\.com|vimeo\.com|loom\.com|tiktok\.com|\.(mp4|webm|mov|avi|mkv|m4v))/i.test(cleanUrl) ||
+                              (cleanUrl.includes('drive.google.com') && cleanUrl.includes('video'));
+                            const isDoc = media.media_type === 'document' ||
+                              /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)/i.test(cleanUrl) ||
+                              cleanUrl.includes('docs.google.com') ||
+                              cleanUrl.includes('notion.so');
+                            const isImg = !isVid && !isDoc && (
+                              media.media_type === 'image' ||
+                              /\.(jpg|jpeg|png|webp|gif|svg|avif|bmp)/i.test(cleanUrl) ||
+                              cleanUrl.startsWith('data:image') ||
+                              cleanUrl.includes('drive.google.com')
+                            );
 
                             return (
                               <div
@@ -1519,8 +1533,14 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
                                 className="p-3 bg-gray-50 hover:bg-blue-50/40 rounded-2xl border border-gray-200/80 transition-all flex items-center justify-between gap-3 group"
                               >
                                 <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0 text-blue-600 shadow-2xs">
-                                    {isImg ? <ImageIcon size={18} /> : isYt ? <PlayCircle size={18} className="text-red-600" /> : <Paperclip size={18} />}
+                                  <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0 shadow-2xs">
+                                    {isVid ? (
+                                      <Film size={18} className="text-blue-600" />
+                                    ) : isImg ? (
+                                      <ImageIcon size={18} className="text-emerald-600" />
+                                    ) : (
+                                      <FileText size={18} className="text-amber-600" />
+                                    )}
                                   </div>
                                   <div className="min-w-0">
                                     <p className="font-bold text-xs text-gray-900 truncate">
