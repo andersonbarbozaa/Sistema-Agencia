@@ -13,8 +13,6 @@ import {
   AlertCircle,
   Film,
   Image as ImageIcon,
-  Smartphone,
-  Monitor,
 } from 'lucide-react';
 import { TaskMediaLink } from '@/types';
 import { getEmbedInfo, getGoogleDriveFileId } from '@/lib/media';
@@ -93,15 +91,18 @@ export default function MediaViewer({
     );
 
   const [isVertical, setIsVertical] = useState(Boolean(isInitiallyVertical));
+  const [naturalAspect, setNaturalAspect] = useState<string | null>(null);
 
   useEffect(() => {
     setIsVertical(Boolean(isInitiallyVertical));
+    setNaturalAspect(null);
   }, [currentMedia.id, isInitiallyVertical]);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (video.videoWidth && video.videoHeight) {
       setIsVertical(video.videoHeight > video.videoWidth);
+      setNaturalAspect(`${video.videoWidth} / ${video.videoHeight}`);
     }
   };
 
@@ -147,24 +148,6 @@ export default function MediaViewer({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
-          {/* Vertical / Horizontal toggle for video */}
-          {isVideo && (
-            <button
-              type="button"
-              onClick={() => setIsVertical(prev => !prev)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border",
-                isVertical
-                  ? "bg-purple-900/60 text-purple-200 border-purple-500/50"
-                  : "bg-white/10 hover:bg-white/20 text-white border-white/10"
-              )}
-              title="Alternar formato Vertical (9:16) ou Horizontal (16:9)"
-            >
-              {isVertical ? <Smartphone size={14} /> : <Monitor size={14} />}
-              <span className="hidden sm:inline">{isVertical ? 'Vertical (9:16)' : 'Horizontal (16:9)'}</span>
-            </button>
-          )}
-
           {/* Zoom controls for image */}
           {currentMedia.media_type === 'image' && (
             <div className="flex items-center bg-white/10 rounded-lg p-1 mr-2">
@@ -237,12 +220,15 @@ export default function MediaViewer({
         )}
 
         {/* Media Renderer */}
-        <div className={cn(
-          "flex items-center justify-center overflow-hidden rounded-xl transition-all mx-auto",
-          isVertical
-            ? "w-full max-w-[340px] sm:max-w-[420px] aspect-[9/16] max-h-[85vh] shadow-2xl bg-black"
-            : (isIframe ? "w-full max-w-5xl aspect-video max-h-[82vh] shadow-2xl bg-black" : "w-full h-full max-w-6xl max-h-[82vh]")
-        )}>
+        <div
+          className={cn(
+            "flex items-center justify-center overflow-hidden rounded-xl transition-all mx-auto",
+            isVertical
+              ? "w-full max-w-[340px] sm:max-w-[420px] aspect-[9/16] max-h-[85vh] shadow-2xl bg-black"
+              : (isIframe ? "w-full max-w-5xl aspect-video max-h-[82vh] shadow-2xl bg-black" : "w-full h-full max-w-6xl max-h-[82vh]")
+          )}
+          style={naturalAspect ? { aspectRatio: naturalAspect } : undefined}
+        >
           {canEmbed && embedUrl ? (
             isIframe ? (
               <iframe
@@ -252,20 +238,26 @@ export default function MediaViewer({
                 className="w-full h-full rounded-xl border-0 bg-black shadow-2xl"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
               />
             ) : isVideo ? (
               <video
                 key={embedUrl}
-                src={embedUrl}
                 controls
                 playsInline
                 preload="auto"
                 onLoadedMetadata={handleVideoLoadedMetadata}
-                className="w-full h-full object-contain rounded-xl shadow-2xl bg-black"
+                onLoadedData={handleVideoLoadedMetadata}
+                onCanPlay={handleVideoLoadedMetadata}
+                onClick={(e) => {
+                  const v = e.currentTarget;
+                  if (v.paused) v.play().catch(() => {});
+                  else v.pause();
+                }}
+                className="w-full h-full object-contain rounded-xl shadow-2xl bg-black cursor-pointer"
               >
                 <source src={embedUrl} type="video/mp4" />
                 <source src={embedUrl} type="video/webm" />
+                <source src={embedUrl} type="video/quicktime" />
                 <source src={embedUrl} />
                 Seu navegador não suporta a reprodução deste vídeo.
               </video>

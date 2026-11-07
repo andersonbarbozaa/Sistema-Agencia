@@ -67,11 +67,31 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   if (!url) return { embedUrl: null, isIframe: false, canEmbed: false };
   const cleanUrl = url.trim();
 
-  // YouTube (supports watch?v=, youtu.be/, embed/, shorts/, live/, and query params)
-  const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?.*v=))([\w-]{11})/i);
+  // YouTube (supports watch?v=, youtu.be/, embed/, shorts/, live/, m.youtube, and query params)
+  const ytMatch = cleanUrl.match(/(?:youtu\.be\/|(?:[a-zA-Z0-9-]+\.)?youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|shorts\/|live\/|(?:.*[?&]v=)))([\w-]{11})/i);
   if (ytMatch && ytMatch[1]) {
     return {
-      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0&enablejsapi=1`,
+      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0&rel=0`,
+      isIframe: true,
+      canEmbed: true,
+    };
+  }
+
+  // Instagram Reels and Posts
+  const igMatch = cleanUrl.match(/instagram\.com\/(?:reel|reels|p)\/([a-zA-Z0-9_-]+)/i);
+  if (igMatch && igMatch[1]) {
+    return {
+      embedUrl: `https://www.instagram.com/reel/${igMatch[1]}/embed`,
+      isIframe: true,
+      canEmbed: true,
+    };
+  }
+
+  // TikTok video
+  const ttMatch = cleanUrl.match(/tiktok\.com\/.*\/video\/(\d+)/i);
+  if (ttMatch && ttMatch[1]) {
+    return {
+      embedUrl: `https://www.tiktok.com/embed/v2/${ttMatch[1]}`,
       isIframe: true,
       canEmbed: true,
     };
@@ -118,9 +138,10 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
     };
   }
 
-  // Direct video file (.mp4, .webm, .mov, .m4v, .ogv, data:video, blob:)
+  // Direct video file (.mp4, .webm, .mov, .m4v, .ogv, data:video, blob:) or explicit video mediaType
   const isDirectVideo =
-    /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(cleanUrl) ||
+    mediaType === 'video' ||
+    /\.(mp4|webm|mov|m4v|ogv|avi|mkv)(\?.*)?$/i.test(cleanUrl) ||
     cleanUrl.startsWith('data:video') ||
     cleanUrl.startsWith('blob:') ||
     cleanUrl.includes('firebasestorage.googleapis.com') ||

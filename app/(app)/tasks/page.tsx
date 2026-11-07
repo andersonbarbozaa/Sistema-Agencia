@@ -32,8 +32,6 @@ import {
   Sparkles,
   Check,
   Maximize2,
-  Smartphone,
-  Monitor,
 } from 'lucide-react';
 import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
@@ -228,21 +226,6 @@ function TaskVideoPreviewCard({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsVertical(prev => !prev)}
-            className={cn(
-              "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all border",
-              isVertical
-                ? "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
-                : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
-            )}
-            title="Alternar entre formato Vertical (9:16) e Horizontal (16:9)"
-          >
-            {isVertical ? <Smartphone size={12} /> : <Monitor size={12} />}
-            <span>{isVertical ? 'Vertical' : 'Horizontal'}</span>
-          </button>
-
           <a
             href={media.url}
             target="_blank"
@@ -268,8 +251,8 @@ function TaskVideoPreviewCard({
           className={cn(
             "relative rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-2xl transition-all mx-auto",
             isVertical
-              ? "w-full max-w-[280px] sm:max-w-[320px] aspect-[9/16] max-h-[68vh]"
-              : "w-full aspect-video"
+              ? "w-full max-w-[280px] sm:max-w-[340px] aspect-[9/16] max-h-[68vh]"
+              : "w-full max-w-full aspect-video max-h-[68vh]"
           )}
           style={naturalAspect ? { aspectRatio: naturalAspect } : { aspectRatio: isVertical ? '9/16' : '16/9' }}
         >
@@ -282,20 +265,26 @@ function TaskVideoPreviewCard({
                 className="w-full h-full border-0 bg-black"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
               />
             ) : (
               <video
                 key={embedUrl}
-                src={embedUrl}
                 controls
                 playsInline
                 preload="auto"
                 onLoadedMetadata={handleVideoLoadedMetadata}
-                className="w-full h-full object-contain bg-black"
+                onLoadedData={handleVideoLoadedMetadata}
+                onCanPlay={handleVideoLoadedMetadata}
+                onClick={(e) => {
+                  const v = e.currentTarget;
+                  if (v.paused) v.play().catch(() => {});
+                  else v.pause();
+                }}
+                className="w-full h-full object-contain bg-black cursor-pointer"
               >
                 <source src={embedUrl} type="video/mp4" />
                 <source src={embedUrl} type="video/webm" />
+                <source src={embedUrl} type="video/quicktime" />
                 <source src={embedUrl} />
                 Seu navegador não suporta este vídeo.
               </video>
