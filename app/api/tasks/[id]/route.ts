@@ -34,9 +34,9 @@ export async function GET(request: Request, { params }: RouteParams) {
         LEFT JOIN clients c ON t.client_id = c.id
         LEFT JOIN task_categories tc ON t.category_id = tc.id
         LEFT JOIN users u ON t.created_by = u.id
-        WHERE t.id = ?
+        WHERE t.id = ? OR t.id = ? OR t.id = ?
       `)
-      .bind(cleanId)
+      .bind(cleanId, id, `task_${cleanId}`)
       .first<any>();
 
     if (!taskRow) {
@@ -100,10 +100,10 @@ export async function GET(request: Request, { params }: RouteParams) {
                u.name as created_by_name
         FROM task_media_links tml
         LEFT JOIN users u ON COALESCE(tml.created_by, tml.uploaded_by) = u.id
-        WHERE tml.task_id = ? OR tml.task_id = ?
+        WHERE tml.task_id = ? OR tml.task_id = ? OR tml.task_id = ?
         ORDER BY tml.created_at DESC
       `)
-      .bind(cleanId, id)
+      .bind(cleanId, id, `task_${cleanId}`)
       .all<any>();
 
     // Status history

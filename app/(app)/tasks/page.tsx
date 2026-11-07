@@ -49,26 +49,11 @@ function TaskImagePreviewCard({
   onExpand: () => void;
 }) {
   const gDriveId = getGoogleDriveFileId(media.url);
-  const [failStage, setFailStage] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setFailStage(0);
     setLoading(true);
   }, [media.url]);
-
-  let imgSrc = media.url;
-  if (gDriveId) {
-    if (failStage === 0) {
-      imgSrc = `https://lh3.googleusercontent.com/d/${gDriveId}`;
-    } else if (failStage === 1) {
-      imgSrc = `https://drive.google.com/thumbnail?id=${gDriveId}&sz=w1600`;
-    } else if (failStage === 2) {
-      imgSrc = `https://drive.google.com/uc?export=view&id=${gDriveId}`;
-    }
-  }
-
-  const useIframe = gDriveId && failStage >= 3;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
@@ -87,7 +72,7 @@ function TaskImagePreviewCard({
             target="_blank"
             rel="noopener noreferrer"
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="Abrir link original"
+            title="Abrir no Google Drive (nova aba)"
           >
             <ExternalLink size={13} />
           </a>
@@ -102,14 +87,27 @@ function TaskImagePreviewCard({
         </div>
       </div>
 
-      <div className="relative bg-gray-950 flex items-center justify-center min-h-[180px] max-h-[260px] overflow-hidden group">
-        {useIframe ? (
-          <iframe
-            src={`https://drive.google.com/file/d/${gDriveId}/preview`}
-            className="w-full h-[220px] border-0 bg-black"
-            title={media.title || 'Imagem Google Drive'}
-            allow="autoplay; encrypted-media"
-          />
+      <div className="relative bg-gray-950 flex items-center justify-center min-h-[220px] max-h-[300px] overflow-hidden group">
+        {gDriveId ? (
+          <div className="w-full h-full flex flex-col">
+            <iframe
+              src={`https://drive.google.com/file/d/${gDriveId}/preview`}
+              className="w-full h-[250px] border-0 bg-black"
+              title={media.title || 'Imagem Google Drive'}
+              allow="autoplay; encrypted-media; fullscreen"
+              allowFullScreen
+            />
+            <div className="px-3 py-1.5 bg-gray-900/95 border-t border-gray-800 flex items-center justify-between">
+              <span className="text-[11px] text-gray-400">Google Drive Preview</span>
+              <button
+                type="button"
+                onClick={onExpand}
+                className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+              >
+                <Maximize2 size={12} /> Ver em tela cheia
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             {loading && (
@@ -118,13 +116,10 @@ function TaskImagePreviewCard({
               </div>
             )}
             <img
-              src={imgSrc}
+              src={media.url}
               alt={media.title || 'Imagem da Tarefa'}
               onLoad={() => setLoading(false)}
-              onError={() => {
-                setLoading(false);
-                setFailStage((prev) => prev + 1);
-              }}
+              onError={() => setLoading(false)}
               className="w-full h-auto max-h-[260px] object-contain cursor-pointer transition-transform duration-200 group-hover:scale-[1.02]"
               onClick={onExpand}
               loading="lazy"
@@ -1756,16 +1751,31 @@ export default function TasksPage() {
 
       {selectedTask && (() => {
         const taskMediaList: TaskMediaLink[] = selectedTask.media || selectedTask.media_links || [];
-        const imageMediaList = taskMediaList.filter((m: TaskMediaLink) => {
+        const isImageMedia = (m: TaskMediaLink) => {
+          if (!m || !m.url) return false;
+          const isDrive = Boolean(getGoogleDriveFileId(m.url) || m.url.toLowerCase().includes('drive.google.com'));
+          if (isDrive) {
+            const isVid = /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(m.url) || m.url.toLowerCase().includes('video');
+            return !isVid;
+          }
           if (m.media_type === 'image') return true;
           if (m.media_type === 'video') return false;
           return detectMediaType(m.url) === 'image';
-        });
-        const videoMediaList = taskMediaList.filter((m: TaskMediaLink) => {
+        };
+
+        const isVideoMedia = (m: TaskMediaLink) => {
+          if (!m || !m.url) return false;
+          const isDrive = Boolean(getGoogleDriveFileId(m.url) || m.url.toLowerCase().includes('drive.google.com'));
+          if (isDrive) {
+            return /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(m.url) || m.url.toLowerCase().includes('video');
+          }
           if (m.media_type === 'video') return true;
           if (m.media_type === 'image') return false;
           return detectMediaType(m.url) === 'video';
-        });
+        };
+
+        const imageMediaList = taskMediaList.filter(isImageMedia);
+        const videoMediaList = taskMediaList.filter(isVideoMedia);
 
         const hasImagePreview = imageMediaList.length > 0;
         const hasVideoPreview = videoMediaList.length > 0;

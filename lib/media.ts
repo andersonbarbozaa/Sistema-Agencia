@@ -97,25 +97,12 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
     };
   }
 
-  // Google Drive file preview
+  // Google Drive file preview (imagens, vídeos e documentos)
   const gDriveId = getGoogleDriveFileId(cleanUrl);
   if (gDriveId) {
-    const isVideo =
-      mediaType === 'video' ||
-      /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(cleanUrl) ||
-      cleanUrl.includes('video');
-
-    if (isVideo) {
-      return {
-        embedUrl: `https://drive.google.com/file/d/${gDriveId}/preview`,
-        isIframe: true,
-        canEmbed: true,
-      };
-    }
-
     return {
-      embedUrl: `https://lh3.googleusercontent.com/d/${gDriveId}`,
-      isIframe: false,
+      embedUrl: `https://drive.google.com/file/d/${gDriveId}/preview`,
+      isIframe: true,
       canEmbed: true,
     };
   }

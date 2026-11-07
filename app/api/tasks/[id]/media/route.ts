@@ -26,10 +26,10 @@ export async function GET(request: Request, { params }: RouteParams) {
                u.name as created_by_name
         FROM task_media_links ml
         LEFT JOIN users u ON COALESCE(ml.created_by, ml.uploaded_by) = u.id
-        WHERE ml.task_id = ? OR ml.task_id = ?
+        WHERE ml.task_id = ? OR ml.task_id = ? OR ml.task_id = ?
         ORDER BY ml.created_at ASC
       `)
-      .bind(cleanTaskId, taskId)
+      .bind(cleanTaskId, taskId, `task_${cleanTaskId}`)
       .all();
 
     return NextResponse.json({

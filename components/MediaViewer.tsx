@@ -59,6 +59,9 @@ export default function MediaViewer({
 
   const currentMedia = mediaList[currentIndex] || mediaList[0];
   const { embedUrl, isIframe, canEmbed } = getEmbedInfo(currentMedia.url, currentMedia.media_type);
+  const isGDrive = Boolean(getGoogleDriveFileId(currentMedia.url));
+  const isVideo = currentMedia.media_type === 'video' || (isGDrive && (/\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(currentMedia.url) || currentMedia.url.toLowerCase().includes('video')));
+  const isImage = currentMedia.media_type === 'image' || (isGDrive && !isVideo);
 
   const handleNext = () => {
     if (currentIndex < mediaList.length - 1) {
@@ -80,9 +83,9 @@ export default function MediaViewer({
       <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/80 to-transparent px-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-3 text-white">
           <div className="p-2 bg-white/10 rounded-lg">
-            {currentMedia.media_type === 'video' ? (
+            {isVideo ? (
               <Film size={18} className="text-blue-400" />
-            ) : currentMedia.media_type === 'image' ? (
+            ) : isImage ? (
               <ImageIcon size={18} className="text-emerald-400" />
             ) : (
               <FileText size={18} className="text-amber-400" />
@@ -193,14 +196,6 @@ export default function MediaViewer({
               >
                 Seu navegador não suporta a reprodução deste vídeo.
               </video>
-            ) : imgError && getGoogleDriveFileId(currentMedia.url) ? (
-              <iframe
-                src={`https://drive.google.com/file/d/${getGoogleDriveFileId(currentMedia.url)}/preview`}
-                title={currentMedia.title}
-                className="w-full h-full rounded-xl border-0 shadow-2xl bg-black"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-              />
             ) : (
               <div
                 className="overflow-auto max-w-full max-h-full flex items-center justify-center transition-transform duration-150"
