@@ -334,6 +334,7 @@ export default function TasksPage() {
   const [activeLateralImgIdx, setActiveLateralImgIdx] = useState(0);
   const [activeLateralVidIdx, setActiveLateralVidIdx] = useState(0);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
+  const previewSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setActiveLateralImgIdx(0);
@@ -2130,6 +2131,11 @@ export default function TasksPage() {
                           key={med.id}
                           onClick={() => {
                             setSelectedMediaId(med.id);
+                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                              setTimeout(() => {
+                                previewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 60);
+                            }
                           }}
                           className={cn(
                             "p-3.5 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all group outline-none",
@@ -2247,11 +2253,94 @@ export default function TasksPage() {
                   </button>
                 </form>
               </div>
+
+              {/* Pré-visualização no Mobile (No fluxo normal de rolagem abaixo da tarefa, sem sobrepor) */}
+              {hasLateralPreviews && activeMedia && (
+                <div ref={previewSectionRef} className="block lg:hidden pt-6 border-t border-gray-200 dark:border-gray-800 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        Pré-visualização
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                        {taskMediaList.indexOf(activeMedia) + 1} de {taskMediaList.length}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {taskMediaList.length > 1 && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={taskMediaList.indexOf(activeMedia) <= 0}
+                            onClick={() => {
+                              const curIdx = taskMediaList.indexOf(activeMedia);
+                              if (curIdx > 0) {
+                                setSelectedMediaId(taskMediaList[curIdx - 1].id);
+                              }
+                            }}
+                            className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                            title="Mídia anterior"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={taskMediaList.indexOf(activeMedia) >= taskMediaList.length - 1}
+                            onClick={() => {
+                              const curIdx = taskMediaList.indexOf(activeMedia);
+                              if (curIdx < taskMediaList.length - 1) {
+                                setSelectedMediaId(taskMediaList[curIdx + 1].id);
+                              }
+                            }}
+                            className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                            title="Próxima mídia"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
+                          setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                        }}
+                        className="px-2.5 py-1 text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors"
+                      >
+                        <Maximize2 size={12} /> Galeria completa
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Media Preview Card Mobile */}
+                  {activeIsVideo ? (
+                    <TaskVideoPreviewCard
+                      key={`mob-${activeMedia.id}`}
+                      media={activeMedia}
+                      onExpand={() => {
+                        const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
+                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                      }}
+                    />
+                  ) : (
+                    <TaskImagePreviewCard
+                      key={`mob-${activeMedia.id}`}
+                      media={activeMedia}
+                      onExpand={() => {
+                        const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
+                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                      }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Lateral Previews Column */}
+            {/* Lateral Previews Column (Apenas em telas Desktop / Grandes) */}
             {hasLateralPreviews && activeMedia && (
-              <div className="w-full lg:w-[500px] xl:w-[580px] 2xl:w-[660px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850 p-5 sm:p-6 flex flex-col gap-4 overflow-y-auto">
+              <div className="hidden lg:flex w-[500px] xl:w-[580px] 2xl:w-[660px] shrink-0 border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850 p-5 sm:p-6 flex-col gap-4 overflow-y-auto">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
