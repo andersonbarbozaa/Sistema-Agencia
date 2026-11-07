@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Film,
   Image as ImageIcon,
+  Smartphone,
+  Monitor,
 } from 'lucide-react';
 import { TaskMediaLink } from '@/types';
 import { getEmbedInfo, getGoogleDriveFileId } from '@/lib/media';
@@ -23,6 +25,7 @@ interface MediaViewerProps {
   initialIndex?: number;
   isOpen: boolean;
   onClose: () => void;
+  defaultIsVertical?: boolean;
 }
 
 export default function MediaViewer({
@@ -30,6 +33,7 @@ export default function MediaViewer({
   initialIndex = 0,
   isOpen,
   onClose,
+  defaultIsVertical,
 }: MediaViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -63,6 +67,43 @@ export default function MediaViewer({
   const isGDrive = Boolean(getGoogleDriveFileId(currentMedia.url));
   const isVideo = currentMedia.media_type === 'video' || (isGDrive && (/\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(currentMedia.url) || currentMedia.url.toLowerCase().includes('video')));
   const isImage = currentMedia.media_type === 'image' || (isGDrive && !isVideo);
+
+  const cleanUrl = (currentMedia.url || '').toLowerCase();
+  const titleClean = (currentMedia.title || '').toLowerCase();
+  const descClean = (currentMedia.description || '').toLowerCase();
+
+  const isInitiallyVertical =
+    defaultIsVertical ?? (
+      cleanUrl.includes('tiktok.com') ||
+      cleanUrl.includes('/shorts/') ||
+      cleanUrl.includes('/reel/') ||
+      cleanUrl.includes('reels') ||
+      cleanUrl.includes('story') ||
+      cleanUrl.includes('stories') ||
+      cleanUrl.includes('9x16') ||
+      cleanUrl.includes('9:16') ||
+      cleanUrl.includes('vertical') ||
+      cleanUrl.includes('portrait') ||
+      titleClean.includes('vertical') ||
+      titleClean.includes('reels') ||
+      titleClean.includes('shorts') ||
+      titleClean.includes('tiktok') ||
+      descClean.includes('vertical') ||
+      descClean.includes('reels')
+    );
+
+  const [isVertical, setIsVertical] = useState(Boolean(isInitiallyVertical));
+
+  useEffect(() => {
+    setIsVertical(Boolean(isInitiallyVertical));
+  }, [currentMedia.id, isInitiallyVertical]);
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video.videoWidth && video.videoHeight) {
+      setIsVertical(video.videoHeight > video.videoWidth);
+    }
+  };
 
   const handleNext = () => {
     if (currentIndex < mediaList.length - 1) {
@@ -106,6 +147,24 @@ export default function MediaViewer({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Vertical / Horizontal toggle for video */}
+          {isVideo && (
+            <button
+              type="button"
+              onClick={() => setIsVertical(prev => !prev)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                isVertical
+                  ? "bg-purple-900/60 text-purple-200 border-purple-500/50"
+                  : "bg-white/10 hover:bg-white/20 text-white border-white/10"
+              )}
+              title="Alternar formato Vertical (9:16) ou Horizontal (16:9)"
+            >
+              {isVertical ? <Smartphone size={14} /> : <Monitor size={14} />}
+              <span className="hidden sm:inline">{isVertical ? 'Vertical (9:16)' : 'Horizontal (16:9)'}</span>
+            </button>
+          )}
+
           {/* Zoom controls for image */}
           {currentMedia.media_type === 'image' && (
             <div className="flex items-center bg-white/10 rounded-lg p-1 mr-2">
@@ -179,12 +238,15 @@ export default function MediaViewer({
 
         {/* Media Renderer */}
         <div className={cn(
-          "flex items-center justify-center overflow-hidden rounded-xl",
-          isIframe ? "w-full max-w-5xl aspect-video max-h-[82vh]" : "w-full h-full max-w-6xl max-h-[82vh]"
+          "flex items-center justify-center overflow-hidden rounded-xl transition-all mx-auto",
+          isVertical
+            ? "w-full max-w-[340px] sm:max-w-[420px] aspect-[9/16] max-h-[85vh] shadow-2xl bg-black"
+            : (isIframe ? "w-full max-w-5xl aspect-video max-h-[82vh] shadow-2xl bg-black" : "w-full h-full max-w-6xl max-h-[82vh]")
         )}>
           {canEmbed && embedUrl ? (
             isIframe ? (
               <iframe
+                key={embedUrl}
                 src={embedUrl}
                 title={currentMedia.title}
                 className="w-full h-full rounded-xl border-0 bg-black shadow-2xl"
@@ -194,12 +256,17 @@ export default function MediaViewer({
               />
             ) : isVideo ? (
               <video
+                key={embedUrl}
                 src={embedUrl}
                 controls
                 playsInline
-                preload="metadata"
-                className="max-w-full max-h-full rounded-xl shadow-2xl bg-black object-contain"
+                preload="auto"
+                onLoadedMetadata={handleVideoLoadedMetadata}
+                className="w-full h-full object-contain rounded-xl shadow-2xl bg-black"
               >
+                <source src={embedUrl} type="video/mp4" />
+                <source src={embedUrl} type="video/webm" />
+                <source src={embedUrl} />
                 Seu navegador não suporta a reprodução deste vídeo.
               </video>
             ) : (

@@ -32,6 +32,8 @@ import {
   Sparkles,
   Check,
   Maximize2,
+  Smartphone,
+  Monitor,
 } from 'lucide-react';
 import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
@@ -159,12 +161,18 @@ function TaskImagePreviewCard({
 function TaskVideoPreviewCard({
   media,
   onExpand,
+  taskName,
 }: {
   media: TaskMediaLink;
-  onExpand: () => void;
+  onExpand: (isVert: boolean) => void;
+  taskName?: string;
 }) {
   const { embedUrl, isIframe, canEmbed } = getEmbedInfo(media.url, 'video');
   const cleanUrl = (media.url || '').toLowerCase();
+  const titleClean = (media.title || '').toLowerCase();
+  const descClean = (media.description || '').toLowerCase();
+  const taskNameClean = (taskName || '').toLowerCase();
+
   const isInitiallyVertical =
     cleanUrl.includes('tiktok.com') ||
     cleanUrl.includes('/shorts/') ||
@@ -173,18 +181,39 @@ function TaskVideoPreviewCard({
     cleanUrl.includes('story') ||
     cleanUrl.includes('stories') ||
     cleanUrl.includes('9x16') ||
-    cleanUrl.includes('9:16');
+    cleanUrl.includes('9:16') ||
+    cleanUrl.includes('vertical') ||
+    cleanUrl.includes('portrait') ||
+    titleClean.includes('vertical') ||
+    titleClean.includes('reels') ||
+    titleClean.includes('shorts') ||
+    titleClean.includes('tiktok') ||
+    titleClean.includes('story') ||
+    titleClean.includes('9:16') ||
+    titleClean.includes('9x16') ||
+    descClean.includes('vertical') ||
+    descClean.includes('reels') ||
+    descClean.includes('shorts') ||
+    taskNameClean.includes('vertical') ||
+    taskNameClean.includes('reels') ||
+    taskNameClean.includes('shorts') ||
+    taskNameClean.includes('tiktok');
 
+  const [isVertical, setIsVertical] = useState(isInitiallyVertical);
   const [naturalAspect, setNaturalAspect] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsVertical(isInitiallyVertical);
+  }, [media.url, media.title, isInitiallyVertical]);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (video.videoWidth && video.videoHeight) {
+      const isVert = video.videoHeight > video.videoWidth;
+      setIsVertical(isVert);
       setNaturalAspect(`${video.videoWidth} / ${video.videoHeight}`);
     }
   };
-
-  const isVertical = isInitiallyVertical || naturalAspect === '9 / 16';
 
   return (
     <div className="bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col transition-all">
@@ -199,6 +228,21 @@ function TaskVideoPreviewCard({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsVertical(prev => !prev)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all border",
+              isVertical
+                ? "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+                : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+            )}
+            title="Alternar entre formato Vertical (9:16) e Horizontal (16:9)"
+          >
+            {isVertical ? <Smartphone size={12} /> : <Monitor size={12} />}
+            <span>{isVertical ? 'Vertical' : 'Horizontal'}</span>
+          </button>
+
           <a
             href={media.url}
             target="_blank"
@@ -210,7 +254,7 @@ function TaskVideoPreviewCard({
           </a>
           <button
             type="button"
-            onClick={onExpand}
+            onClick={() => onExpand(isVertical)}
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="Expandir em tela cheia"
           >
@@ -222,16 +266,17 @@ function TaskVideoPreviewCard({
       <div className="p-2 sm:p-4 bg-gray-950 flex items-center justify-center">
         <div
           className={cn(
-            "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-2xl transition-all",
+            "relative rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-2xl transition-all mx-auto",
             isVertical
-              ? "max-w-[340px] sm:max-w-[380px] aspect-[9/16] max-h-[75vh]"
-              : "aspect-video w-full"
+              ? "w-full max-w-[280px] sm:max-w-[320px] aspect-[9/16] max-h-[68vh]"
+              : "w-full aspect-video"
           )}
           style={naturalAspect ? { aspectRatio: naturalAspect } : { aspectRatio: isVertical ? '9/16' : '16/9' }}
         >
           {canEmbed && embedUrl ? (
             isIframe ? (
               <iframe
+                key={embedUrl}
                 src={embedUrl}
                 title={media.title || 'Vídeo da Tarefa'}
                 className="w-full h-full border-0 bg-black"
@@ -241,13 +286,17 @@ function TaskVideoPreviewCard({
               />
             ) : (
               <video
+                key={embedUrl}
                 src={embedUrl}
                 controls
                 playsInline
-                preload="metadata"
+                preload="auto"
                 onLoadedMetadata={handleVideoLoadedMetadata}
                 className="w-full h-full object-contain bg-black"
               >
+                <source src={embedUrl} type="video/mp4" />
+                <source src={embedUrl} type="video/webm" />
+                <source src={embedUrl} />
                 Seu navegador não suporta este vídeo.
               </video>
             )
@@ -331,7 +380,7 @@ export default function TasksPage() {
   }, [selectedTask?.id]);
 
   // Media Viewer state
-  const [mediaViewerState, setMediaViewerState] = useState<{ list: TaskMediaLink[]; index: number } | null>(null);
+  const [mediaViewerState, setMediaViewerState] = useState<{ list: TaskMediaLink[]; index: number; isVertical?: boolean } | null>(null);
 
   // Floating Status Dropdown state
   const [statusMenuState, setStatusMenuState] = useState<{
@@ -2241,60 +2290,45 @@ export default function TasksPage() {
               {hasLateralPreviews && activeMedia && (
                 <div ref={previewSectionRef} className="block lg:hidden pt-6 border-t border-gray-200 dark:border-gray-800 space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                        Pré-visualização
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
-                        {taskMediaList.indexOf(activeMedia) + 1} de {taskMediaList.length}
-                      </span>
-                    </div>
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      Pré-visualização
+                    </span>
 
-                    <div className="flex items-center gap-2">
-                      {taskMediaList.length > 1 && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            disabled={taskMediaList.indexOf(activeMedia) <= 0}
-                            onClick={() => {
-                              const curIdx = taskMediaList.indexOf(activeMedia);
-                              if (curIdx > 0) {
-                                setSelectedMediaId(taskMediaList[curIdx - 1].id);
-                              }
-                            }}
-                            className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-                            title="Mídia anterior"
-                          >
-                            <ChevronLeft size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={taskMediaList.indexOf(activeMedia) >= taskMediaList.length - 1}
-                            onClick={() => {
-                              const curIdx = taskMediaList.indexOf(activeMedia);
-                              if (curIdx < taskMediaList.length - 1) {
-                                setSelectedMediaId(taskMediaList[curIdx + 1].id);
-                              }
-                            }}
-                            className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-                            title="Próxima mídia"
-                          >
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
-                          setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
-                        }}
-                        className="px-2.5 py-1 text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors"
-                      >
-                        <Maximize2 size={12} /> Galeria completa
-                      </button>
-                    </div>
+                    {taskMediaList.length > 1 && (
+                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <button
+                          type="button"
+                          disabled={taskMediaList.indexOf(activeMedia) <= 0}
+                          onClick={() => {
+                            const curIdx = taskMediaList.indexOf(activeMedia);
+                            if (curIdx > 0) {
+                              setSelectedMediaId(taskMediaList[curIdx - 1].id);
+                            }
+                          }}
+                          className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                          title="Mídia anterior"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300 px-1 select-none">
+                          {taskMediaList.indexOf(activeMedia) + 1} de {taskMediaList.length}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={taskMediaList.indexOf(activeMedia) >= taskMediaList.length - 1}
+                          onClick={() => {
+                            const curIdx = taskMediaList.indexOf(activeMedia);
+                            if (curIdx < taskMediaList.length - 1) {
+                              setSelectedMediaId(taskMediaList[curIdx + 1].id);
+                            }
+                          }}
+                          className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                          title="Próxima mídia"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Active Media Preview Card Mobile */}
@@ -2302,9 +2336,10 @@ export default function TasksPage() {
                     <TaskVideoPreviewCard
                       key={`mob-${activeMedia.id}`}
                       media={activeMedia}
-                      onExpand={() => {
+                      taskName={selectedTask?.name}
+                      onExpand={(isVert) => {
                         const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
-                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig), isVertical: isVert });
                       }}
                     />
                   ) : (
@@ -2325,59 +2360,45 @@ export default function TasksPage() {
             {hasLateralPreviews && activeMedia && (
               <div className="hidden lg:flex w-[500px] xl:w-[580px] 2xl:w-[660px] shrink-0 border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850 p-5 sm:p-6 flex-col gap-4 overflow-y-auto">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                      Pré-visualização
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
-                      {taskMediaList.indexOf(activeMedia) + 1} de {taskMediaList.length}
-                    </span>
-                  </div>
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                    Pré-visualização
+                  </span>
 
-                  <div className="flex items-center gap-2">
-                    {taskMediaList.length > 1 && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          disabled={taskMediaList.indexOf(activeMedia) <= 0}
-                          onClick={() => {
-                            const curIdx = taskMediaList.indexOf(activeMedia);
-                            if (curIdx > 0) {
-                              setSelectedMediaId(taskMediaList[curIdx - 1].id);
-                            }
-                          }}
-                          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-                          title="Mídia anterior"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={taskMediaList.indexOf(activeMedia) >= taskMediaList.length - 1}
-                          onClick={() => {
-                            const curIdx = taskMediaList.indexOf(activeMedia);
-                            if (curIdx < taskMediaList.length - 1) {
-                              setSelectedMediaId(taskMediaList[curIdx + 1].id);
-                            }
-                          }}
-                          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-                          title="Próxima mídia"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
-                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
-                      }}
-                      className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                    >
-                      <Maximize2 size={12} /> Galeria completa
-                    </button>
-                  </div>
+                  {taskMediaList.length > 1 && (
+                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <button
+                        type="button"
+                        disabled={taskMediaList.indexOf(activeMedia) <= 0}
+                        onClick={() => {
+                          const curIdx = taskMediaList.indexOf(activeMedia);
+                          if (curIdx > 0) {
+                            setSelectedMediaId(taskMediaList[curIdx - 1].id);
+                          }
+                        }}
+                        className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                        title="Mídia anterior"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300 px-1 select-none">
+                        {taskMediaList.indexOf(activeMedia) + 1} de {taskMediaList.length}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={taskMediaList.indexOf(activeMedia) >= taskMediaList.length - 1}
+                        onClick={() => {
+                          const curIdx = taskMediaList.indexOf(activeMedia);
+                          if (curIdx < taskMediaList.length - 1) {
+                            setSelectedMediaId(taskMediaList[curIdx + 1].id);
+                          }
+                        }}
+                        className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                        title="Próxima mídia"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Active Media Preview Card */}
@@ -2385,9 +2406,10 @@ export default function TasksPage() {
                   <TaskVideoPreviewCard
                     key={activeMedia.id}
                     media={activeMedia}
-                    onExpand={() => {
+                    taskName={selectedTask?.name}
+                    onExpand={(isVert) => {
                       const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
-                      setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                      setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig), isVertical: isVert });
                     }}
                   />
                 ) : (
@@ -3215,6 +3237,7 @@ export default function TasksPage() {
             isOpen={true}
             mediaList={mediaViewerState.list}
             initialIndex={mediaViewerState.index}
+            defaultIsVertical={mediaViewerState.isVertical}
             onClose={() => setMediaViewerState(null)}
           />
         </ModalPortal>

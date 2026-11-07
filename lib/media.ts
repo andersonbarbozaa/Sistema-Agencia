@@ -71,8 +71,19 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?.*v=))([\w-]{11})/i);
   if (ytMatch && ytMatch[1]) {
     return {
-      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0&rel=0&enablejsapi=1`,
+      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0&enablejsapi=1`,
       isIframe: true,
+      canEmbed: true,
+    };
+  }
+
+  // Dropbox direct streaming
+  if (cleanUrl.includes('dropbox.com')) {
+    const rawDropbox = cleanUrl.replace(/[?&]dl=0/, '').replace(/[?&]dl=1/, '');
+    const sep = rawDropbox.includes('?') ? '&' : '?';
+    return {
+      embedUrl: `${rawDropbox}${sep}raw=1`,
+      isIframe: false,
       canEmbed: true,
     };
   }
