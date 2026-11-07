@@ -50,33 +50,40 @@ function TaskImagePreviewCard({
 }) {
   const gDriveId = getGoogleDriveFileId(media.url);
   const [loading, setLoading] = useState(true);
-  const [gDriveDirectImgFailed, setGDriveDirectImgFailed] = useState(false);
+  const [imgAttempt, setImgAttempt] = useState(0);
 
   useEffect(() => {
     setLoading(true);
-    setGDriveDirectImgFailed(false);
+    setImgAttempt(0);
   }, [media.url]);
 
-  // Se for Google Drive, tenta imagem direta primeiro para preencher 4x5 sem barras pretas/chrome de iframe
-  const directImageUrl = gDriveId && !gDriveDirectImgFailed
-    ? `https://drive.google.com/thumbnail?id=${gDriveId}&sz=w1600`
-    : media.url;
+  // URLs candidatas para imagem direta de alta qualidade sem cair no iframe com moldura do Google Drive
+  const candidateUrls = gDriveId
+    ? [
+        `https://lh3.googleusercontent.com/d/${gDriveId}`,
+        `https://drive.google.com/thumbnail?id=${gDriveId}&sz=w2500`,
+        `https://drive.google.com/uc?export=view&id=${gDriveId}`,
+      ]
+    : [media.url];
+
+  const currentImgUrl = candidateUrls[imgAttempt];
+  const useIframeFallback = gDriveId && imgAttempt >= candidateUrls.length;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden flex flex-col transition-all">
-      <div className="px-3.5 py-2.5 bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+    <div className="bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col transition-all">
+      <div className="px-4 py-3 bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="p-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-md shrink-0">
-            <ImageIcon size={14} />
+          <span className="p-1.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-lg shrink-0">
+            <ImageIcon size={15} />
           </span>
           <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
             {media.title || 'Imagem da Tarefa'}
           </span>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
             4:5
           </span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <a
             href={media.url}
             target="_blank"
@@ -84,7 +91,7 @@ function TaskImagePreviewCard({
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="Abrir link original (nova aba)"
           >
-            <ExternalLink size={13} />
+            <ExternalLink size={14} />
           </a>
           <button
             type="button"
@@ -92,60 +99,54 @@ function TaskImagePreviewCard({
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="Expandir em tela cheia"
           >
-            <Maximize2 size={13} />
+            <Maximize2 size={14} />
           </button>
         </div>
       </div>
 
       <div
-        className="relative w-full aspect-[4/5] bg-gray-950 overflow-hidden group flex items-center justify-center cursor-pointer"
+        className="relative w-full aspect-[4/5] min-h-[500px] sm:min-h-[560px] lg:min-h-[640px] xl:min-h-[700px] bg-gray-950 overflow-hidden group flex items-center justify-center cursor-pointer"
         style={{ aspectRatio: '4/5' }}
         onClick={onExpand}
       >
-        {gDriveId && gDriveDirectImgFailed ? (
+        {useIframeFallback ? (
           <div className="w-full h-full relative" onClick={(e) => e.stopPropagation()}>
             <iframe
               src={`https://drive.google.com/file/d/${gDriveId}/preview`}
-              className="w-full h-full border-0 bg-black"
+              className="w-full h-full min-h-[500px] sm:min-h-[560px] lg:min-h-[640px] xl:min-h-[700px] border-0 bg-black"
               title={media.title || 'Imagem Google Drive'}
               allow="autoplay; encrypted-media; fullscreen"
               allowFullScreen
             />
-            <div className="absolute bottom-0 inset-x-0 px-3 py-2 bg-gray-950/90 border-t border-gray-800 flex items-center justify-between">
-              <span className="text-[11px] text-gray-300">Google Drive Preview</span>
-              <button
-                type="button"
-                onClick={onExpand}
-                className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
-              >
-                <Maximize2 size={12} /> Expandir tela cheia
-              </button>
-            </div>
           </div>
         ) : (
           <>
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-950/70 z-10">
-                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 z-10">
+                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
             <img
-              src={directImageUrl}
+              src={currentImgUrl}
               alt={media.title || 'Imagem da Tarefa'}
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
               onLoad={() => setLoading(false)}
               onError={() => {
-                if (gDriveId && !gDriveDirectImgFailed) {
-                  setGDriveDirectImgFailed(true);
+                if (imgAttempt < candidateUrls.length - 1) {
+                  setImgAttempt(prev => prev + 1);
+                } else {
+                  setImgAttempt(candidateUrls.length);
+                  setLoading(false);
                 }
-                setLoading(false);
               }}
               className="w-full h-full object-cover select-none transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
               draggable={false}
             />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-              <span className="px-3.5 py-2 bg-black/80 backdrop-blur-md text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-xl border border-white/10">
-                <Maximize2 size={14} /> Clique para ampliar
+              <span className="px-4 py-2 bg-black/85 backdrop-blur-md text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-2xl border border-white/15">
+                <Maximize2 size={15} /> Clique para ampliar
               </span>
             </div>
           </>
@@ -196,11 +197,11 @@ function TaskVideoPreviewCard({
   const isVertical = aspectMode === '9/16';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden flex flex-col transition-all">
-      <div className="px-3.5 py-2.5 bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+    <div className="bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col transition-all">
+      <div className="px-4 py-3 bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="p-1 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 rounded-md shrink-0">
-            <Film size={14} />
+          <span className="p-1.5 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 rounded-lg shrink-0">
+            <Film size={15} />
           </span>
           <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
             {media.title || 'Vídeo da Tarefa'}
@@ -211,7 +212,7 @@ function TaskVideoPreviewCard({
           <button
             type="button"
             onClick={() => setAspectMode(prev => (prev === '16/9' ? '9/16' : '16/9'))}
-            className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors"
+            className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors"
             title="Alternar proporção do vídeo (16:9 ou 9:16)"
           >
             {isVertical ? '9:16 (Vertical)' : '16:9 (Horizontal)'}
@@ -224,7 +225,7 @@ function TaskVideoPreviewCard({
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="Abrir link original"
           >
-            <ExternalLink size={13} />
+            <ExternalLink size={14} />
           </a>
           <button
             type="button"
@@ -232,18 +233,18 @@ function TaskVideoPreviewCard({
             className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="Expandir em tela cheia"
           >
-            <Maximize2 size={13} />
+            <Maximize2 size={14} />
           </button>
         </div>
       </div>
 
-      <div className="p-2 sm:p-3 bg-gray-950/95 flex items-center justify-center">
+      <div className="p-2 sm:p-4 bg-gray-950 flex items-center justify-center">
         <div
           className={cn(
-            "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-lg transition-all",
+            "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-2xl transition-all",
             isVertical
-              ? "max-w-[320px] aspect-[9/16] max-h-[560px]"
-              : "aspect-[16/9]"
+              ? "max-w-[400px] lg:max-w-[460px] aspect-[9/16] min-h-[560px] sm:min-h-[640px] lg:min-h-[720px]"
+              : "aspect-[16/9] min-h-[300px] sm:min-h-[350px] lg:min-h-[400px]"
           )}
           style={{ aspectRatio: isVertical ? '9/16' : '16/9' }}
         >
@@ -252,7 +253,7 @@ function TaskVideoPreviewCard({
               <iframe
                 src={embedUrl}
                 title={media.title || 'Vídeo da Tarefa'}
-                className="w-full h-full border-0 bg-black"
+                className="w-full h-full border-0 bg-black min-h-[300px]"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
               />
@@ -268,15 +269,15 @@ function TaskVideoPreviewCard({
               </video>
             )
           ) : (
-            <div className="p-6 text-center text-xs text-gray-400">
-              <p className="mb-2">Player incorporado não disponível.</p>
+            <div className="p-8 text-center text-xs text-gray-400">
+              <p className="mb-3 text-sm">Player incorporado não disponível.</p>
               <a
                 href={media.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-500 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 transition-colors shadow-md"
               >
-                <ExternalLink size={13} /> Abrir vídeo
+                <ExternalLink size={14} /> Abrir vídeo no navegador
               </a>
             </div>
           )}
@@ -1869,9 +1870,9 @@ export default function TasksPage() {
               <div
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  "w-full h-full sm:h-[90vh] sm:max-h-[92vh] sm:rounded-2xl bg-white dark:bg-gray-900 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 transition-all",
+                  "w-full h-full sm:h-[94vh] sm:max-h-[96vh] sm:rounded-2xl bg-white dark:bg-gray-900 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 transition-all",
                   hasLateralPreviews
-                    ? "sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1500px]"
+                    ? "sm:max-w-5xl md:max-w-6xl lg:max-w-7xl xl:max-w-[1550px] 2xl:max-w-[1720px]"
                     : "sm:max-w-2xl"
                 )}
               >
@@ -2073,10 +2074,10 @@ export default function TasksPage() {
                             setSelectedMediaId(med.id);
                           }}
                           className={cn(
-                            "p-3.5 border rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all group",
+                            "p-3.5 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all group outline-none",
                             isSelected
-                              ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-500/30"
-                              : "bg-gray-50 dark:bg-gray-800/70 hover:bg-gray-100/80 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
+                              ? "border-2 border-blue-600 dark:border-blue-500 ring-2 ring-blue-500/25 bg-blue-50/20 dark:bg-blue-950/20 shadow-xs"
+                              : "border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/60 hover:bg-gray-100/80 dark:hover:bg-gray-800"
                           )}
                           title="Clique para exibir este item na pré-visualização"
                         >
@@ -2084,8 +2085,8 @@ export default function TasksPage() {
                             <div className={cn(
                               "p-2.5 rounded-lg flex-shrink-0 border transition-colors",
                               isSelected
-                                ? "bg-white/20 text-white border-white/30"
-                                : "bg-white dark:bg-gray-750 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 group-hover:border-blue-300"
+                                ? "border-blue-500/40 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400"
+                                : "border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-750 text-gray-500 dark:text-gray-400 group-hover:border-blue-300"
                             )}>
                               {isVideoMedia(med) ? (
                                 <Film size={18} />
@@ -2097,15 +2098,14 @@ export default function TasksPage() {
                             </div>
                             <div className="min-w-0">
                               <p className={cn(
-                                "font-semibold text-xs truncate transition-colors",
-                                isSelected ? "text-white font-bold" : "text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                                "text-xs truncate transition-colors",
+                                isSelected
+                                  ? "font-bold text-blue-600 dark:text-blue-400"
+                                  : "font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400"
                               )}>
                                 {med.title || med.description || 'Mídia da Tarefa'}
                               </p>
-                              <p className={cn(
-                                "text-[11px] truncate mt-0.5",
-                                isSelected ? "text-blue-100 font-medium" : "text-gray-500 dark:text-gray-400"
-                              )}>
+                              <p className="text-[11px] truncate mt-0.5 text-gray-500 dark:text-gray-400">
                                 {med.url}
                               </p>
                             </div>
@@ -2113,7 +2113,7 @@ export default function TasksPage() {
 
                           <div className="flex items-center gap-2 flex-shrink-0">
                             {isSelected && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white tracking-wider">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 tracking-wider">
                                 Ativo
                               </span>
                             )}
@@ -2124,12 +2124,7 @@ export default function TasksPage() {
                                   e.stopPropagation();
                                   handleDeleteMedia(med.id);
                                 }}
-                                className={cn(
-                                  "p-1.5 rounded-lg transition-colors",
-                                  isSelected
-                                    ? "text-blue-100 hover:text-white hover:bg-white/20"
-                                    : "text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                )}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                                 title="Remover anexo"
                               >
                                 <Trash2 size={15} />
@@ -2198,7 +2193,7 @@ export default function TasksPage() {
 
             {/* Lateral Previews Column */}
             {hasLateralPreviews && activeMedia && (
-              <div className="w-full lg:w-[460px] xl:w-[500px] 2xl:w-[540px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850 p-5 flex flex-col gap-4 overflow-y-auto">
+              <div className="w-full lg:w-[500px] xl:w-[580px] 2xl:w-[660px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-850 p-5 sm:p-6 flex flex-col gap-4 overflow-y-auto">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
@@ -2292,14 +2287,18 @@ export default function TasksPage() {
                             type="button"
                             onClick={() => setSelectedMediaId(m.id)}
                             className={cn(
-                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all border",
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all outline-none focus:outline-none shrink-0",
                               isCur
-                                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                ? "border-2 border-blue-600 dark:border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/30 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-bold shadow-xs"
+                                : "border border-gray-200 dark:border-gray-700 bg-gray-100/80 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750 font-medium"
                             )}
                           >
-                            {isVid ? <Film size={13} /> : <ImageIcon size={13} />}
-                            <span className="truncate max-w-[120px]">{m.title || `Item ${idx + 1}`}</span>
+                            {isVid ? (
+                              <Film size={13} className={isCur ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"} />
+                            ) : (
+                              <ImageIcon size={13} className={isCur ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"} />
+                            )}
+                            <span className="truncate max-w-[130px]">{m.title || `Item ${idx + 1}`}</span>
                           </button>
                         );
                       })}
