@@ -67,11 +67,11 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   if (!url) return { embedUrl: null, isIframe: false, canEmbed: false };
   const cleanUrl = url.trim();
 
-  // YouTube
-  const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+  // YouTube (supports watch?v=, youtu.be/, embed/, shorts/, live/, and query params)
+  const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?.*v=))([\w-]{11})/i);
   if (ytMatch && ytMatch[1]) {
     return {
-      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0`,
+      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0&rel=0&enablejsapi=1`,
       isIframe: true,
       canEmbed: true,
     };
@@ -107,8 +107,15 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
     };
   }
 
-  // Direct video file
-  if (mediaType === 'video' || /\.(mp4|webm|mov)(\?.*)?$/i.test(cleanUrl)) {
+  // Direct video file (.mp4, .webm, .mov, .m4v, .ogv, data:video, blob:)
+  const isDirectVideo =
+    /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(cleanUrl) ||
+    cleanUrl.startsWith('data:video') ||
+    cleanUrl.startsWith('blob:') ||
+    cleanUrl.includes('firebasestorage.googleapis.com') ||
+    (cleanUrl.includes('cloudinary.com') && cleanUrl.includes('/video/'));
+
+  if (isDirectVideo) {
     return {
       embedUrl: cleanUrl,
       isIframe: false,

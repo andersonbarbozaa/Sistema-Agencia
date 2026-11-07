@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { TaskMediaLink } from '@/types';
 import { getEmbedInfo, getGoogleDriveFileId } from '@/lib/media';
+import { cn } from '@/lib/utils';
 
 interface MediaViewerProps {
   mediaList: TaskMediaLink[];
@@ -78,7 +79,7 @@ export default function MediaViewer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-200">
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/80 to-transparent px-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-3 text-white">
@@ -177,22 +178,27 @@ export default function MediaViewer({
         )}
 
         {/* Media Renderer */}
-        <div className="w-full h-full max-w-6xl max-h-[82vh] flex items-center justify-center overflow-hidden rounded-xl">
+        <div className={cn(
+          "flex items-center justify-center overflow-hidden rounded-xl",
+          isIframe ? "w-full max-w-5xl aspect-video max-h-[82vh]" : "w-full h-full max-w-6xl max-h-[82vh]"
+        )}>
           {canEmbed && embedUrl ? (
             isIframe ? (
               <iframe
                 src={embedUrl}
                 title={currentMedia.title}
-                className="w-full h-full rounded-xl border-0 shadow-2xl bg-black"
+                className="w-full h-full rounded-xl border-0 bg-black shadow-2xl"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
               />
-            ) : currentMedia.media_type === 'video' ? (
+            ) : isVideo ? (
               <video
                 src={embedUrl}
                 controls
-                autoPlay
-                className="max-w-full max-h-full rounded-xl shadow-2xl"
+                playsInline
+                preload="metadata"
+                className="max-w-full max-h-full rounded-xl shadow-2xl bg-black object-contain"
               >
                 Seu navegador não suporta a reprodução deste vídeo.
               </video>

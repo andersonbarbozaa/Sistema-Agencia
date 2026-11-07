@@ -175,26 +175,16 @@ function TaskVideoPreviewCard({
     cleanUrl.includes('9x16') ||
     cleanUrl.includes('9:16');
 
-  const [aspectMode, setAspectMode] = useState<'16/9' | '9/16'>(
-    isInitiallyVertical ? '9/16' : '16/9'
-  );
-
-  useEffect(() => {
-    setAspectMode(isInitiallyVertical ? '9/16' : '16/9');
-  }, [media.url, isInitiallyVertical]);
+  const [naturalAspect, setNaturalAspect] = useState<string | null>(null);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (video.videoWidth && video.videoHeight) {
-      if (video.videoHeight > video.videoWidth) {
-        setAspectMode('9/16');
-      } else {
-        setAspectMode('16/9');
-      }
+      setNaturalAspect(`${video.videoWidth} / ${video.videoHeight}`);
     }
   };
 
-  const isVertical = aspectMode === '9/16';
+  const isVertical = isInitiallyVertical || naturalAspect === '9 / 16';
 
   return (
     <div className="bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col transition-all">
@@ -209,15 +199,6 @@ function TaskVideoPreviewCard({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setAspectMode(prev => (prev === '16/9' ? '9/16' : '16/9'))}
-            className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors"
-            title="Alternar proporção do vídeo (16:9 ou 9:16)"
-          >
-            {isVertical ? '9:16 (Vertical)' : '16:9 (Horizontal)'}
-          </button>
-
           <a
             href={media.url}
             target="_blank"
@@ -243,25 +224,27 @@ function TaskVideoPreviewCard({
           className={cn(
             "relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-2xl transition-all",
             isVertical
-              ? "max-w-[400px] lg:max-w-[460px] aspect-[9/16] min-h-[560px] sm:min-h-[640px] lg:min-h-[720px]"
-              : "aspect-[16/9] min-h-[300px] sm:min-h-[350px] lg:min-h-[400px]"
+              ? "max-w-[340px] sm:max-w-[380px] aspect-[9/16] max-h-[75vh]"
+              : "aspect-video w-full"
           )}
-          style={{ aspectRatio: isVertical ? '9/16' : '16/9' }}
+          style={naturalAspect ? { aspectRatio: naturalAspect } : { aspectRatio: isVertical ? '9/16' : '16/9' }}
         >
           {canEmbed && embedUrl ? (
             isIframe ? (
               <iframe
                 src={embedUrl}
                 title={media.title || 'Vídeo da Tarefa'}
-                className="w-full h-full border-0 bg-black min-h-[300px]"
+                className="w-full h-full border-0 bg-black"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
               />
             ) : (
               <video
                 src={embedUrl}
                 controls
                 playsInline
+                preload="metadata"
                 onLoadedMetadata={handleVideoLoadedMetadata}
                 className="w-full h-full object-contain bg-black"
               >
@@ -3225,14 +3208,16 @@ export default function TasksPage() {
         </SafeModalBackdrop>
       </ModalPortal>)}
 
-      {/* MediaViewer Overlay */}
+      {/* MediaViewer Overlay (ModalPortal garante renderização acima da tarefa com z-[100]) */}
       {mediaViewerState && (
-        <MediaViewer
-          isOpen={true}
-          mediaList={mediaViewerState.list}
-          initialIndex={mediaViewerState.index}
-          onClose={() => setMediaViewerState(null)}
-        />
+        <ModalPortal>
+          <MediaViewer
+            isOpen={true}
+            mediaList={mediaViewerState.list}
+            initialIndex={mediaViewerState.index}
+            onClose={() => setMediaViewerState(null)}
+          />
+        </ModalPortal>
       )}
     
       <ConfirmModal
