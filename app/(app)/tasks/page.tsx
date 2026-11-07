@@ -31,14 +31,196 @@ import {
   Send,
   Sparkles,
   Check,
+  Maximize2,
 } from 'lucide-react';
 import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
-import { detectMediaType } from '@/lib/media';
+import { detectMediaType, getGoogleDriveFileId, getEmbedInfo } from '@/lib/media';
 import MediaViewer from '@/components/MediaViewer';
 import TaskTimeTracker from '@/components/TaskTimeTracker';
 import RichTextEditor from '@/components/RichTextEditor';
 import ClientPortalView from '@/components/ClientPortalView';
+
+function TaskImagePreviewCard({
+  media,
+  onExpand,
+}: {
+  media: TaskMediaLink;
+  onExpand: () => void;
+}) {
+  const gDriveId = getGoogleDriveFileId(media.url);
+  const [failStage, setFailStage] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setFailStage(0);
+    setLoading(true);
+  }, [media.url]);
+
+  let imgSrc = media.url;
+  if (gDriveId) {
+    if (failStage === 0) {
+      imgSrc = `https://lh3.googleusercontent.com/d/${gDriveId}`;
+    } else if (failStage === 1) {
+      imgSrc = `https://drive.google.com/thumbnail?id=${gDriveId}&sz=w1600`;
+    } else if (failStage === 2) {
+      imgSrc = `https://drive.google.com/uc?export=view&id=${gDriveId}`;
+    }
+  }
+
+  const useIframe = gDriveId && failStage >= 3;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+      <div className="px-3 py-2 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="p-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-md shrink-0">
+            <ImageIcon size={14} />
+          </span>
+          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+            {media.title || 'Imagem da Tarefa'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <a
+            href={media.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Abrir link original"
+          >
+            <ExternalLink size={13} />
+          </a>
+          <button
+            type="button"
+            onClick={onExpand}
+            className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Expandir em tela cheia"
+          >
+            <Maximize2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      <div className="relative bg-gray-950 flex items-center justify-center min-h-[180px] max-h-[260px] overflow-hidden group">
+        {useIframe ? (
+          <iframe
+            src={`https://drive.google.com/file/d/${gDriveId}/preview`}
+            className="w-full h-[220px] border-0 bg-black"
+            title={media.title || 'Imagem Google Drive'}
+            allow="autoplay; encrypted-media"
+          />
+        ) : (
+          <>
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 z-10">
+                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            <img
+              src={imgSrc}
+              alt={media.title || 'Imagem da Tarefa'}
+              onLoad={() => setLoading(false)}
+              onError={() => {
+                setLoading(false);
+                setFailStage((prev) => prev + 1);
+              }}
+              className="w-full h-auto max-h-[260px] object-contain cursor-pointer transition-transform duration-200 group-hover:scale-[1.02]"
+              onClick={onExpand}
+              loading="lazy"
+            />
+            <div
+              onClick={onExpand}
+              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+            >
+              <span className="px-3 py-1.5 bg-black/75 backdrop-blur-sm text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md">
+                <Maximize2 size={13} /> Clique para ampliar
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TaskVideoPreviewCard({
+  media,
+  onExpand,
+}: {
+  media: TaskMediaLink;
+  onExpand: () => void;
+}) {
+  const { embedUrl, isIframe, canEmbed } = getEmbedInfo(media.url, 'video');
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+      <div className="px-3 py-2 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="p-1 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 rounded-md shrink-0">
+            <Film size={14} />
+          </span>
+          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+            {media.title || 'Vídeo da Tarefa'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <a
+            href={media.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Abrir link original"
+          >
+            <ExternalLink size={13} />
+          </a>
+          <button
+            type="button"
+            onClick={onExpand}
+            className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Expandir em tela cheia"
+          >
+            <Maximize2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      <div className="relative bg-black flex items-center justify-center min-h-[180px] max-h-[260px] overflow-hidden">
+        {canEmbed && embedUrl ? (
+          isIframe ? (
+            <iframe
+              src={embedUrl}
+              title={media.title || 'Vídeo da Tarefa'}
+              className="w-full h-[220px] border-0 bg-black"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <video
+              src={embedUrl}
+              controls
+              className="w-full max-h-[220px] object-contain bg-black"
+            >
+              Seu navegador não suporta este vídeo.
+            </video>
+          )
+        ) : (
+          <div className="p-6 text-center text-xs text-gray-400">
+            <p className="mb-2">Player incorporado não disponível.</p>
+            <a
+              href={media.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-500 transition-colors"
+            >
+              <ExternalLink size={13} /> Abrir vídeo
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const STATUS_COLUMNS: TaskStatus[] = [
   'Não iniciada',
@@ -84,6 +266,13 @@ export default function TasksPage() {
   // Selected Task for Detail Modal
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [activeLateralImgIdx, setActiveLateralImgIdx] = useState(0);
+  const [activeLateralVidIdx, setActiveLateralVidIdx] = useState(0);
+
+  useEffect(() => {
+    setActiveLateralImgIdx(0);
+    setActiveLateralVidIdx(0);
+  }, [selectedTask?.id]);
 
   // Media Viewer state
   const [mediaViewerState, setMediaViewerState] = useState<{ list: TaskMediaLink[]; index: number } | null>(null);
@@ -1565,51 +1754,79 @@ export default function TasksPage() {
         </ModalPortal>
       )}
 
-      {selectedTask && (<ModalPortal>
-        <SafeModalBackdrop
-          onClose={() => setSelectedTask(null)}
-          className="fixed inset-0 !m-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300"
-          >
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50 sticky top-0 z-10">
-              <div className="min-w-0 pr-4">
-                <h3 className="text-lg font-bold text-gray-900 leading-snug">
-                  {selectedTask.name}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Cliente: <span className="font-semibold text-gray-800">{selectedTask.client_name}</span>
-                </p>
-                {selectedTask.visibility === 'privado' && (
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 mt-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                    Privado (Apenas Administrador)
-                  </span>
+      {selectedTask && (() => {
+        const taskMediaList: TaskMediaLink[] = selectedTask.media || selectedTask.media_links || [];
+        const imageMediaList = taskMediaList.filter((m: TaskMediaLink) => {
+          if (m.media_type === 'image') return true;
+          if (m.media_type === 'video') return false;
+          return detectMediaType(m.url) === 'image';
+        });
+        const videoMediaList = taskMediaList.filter((m: TaskMediaLink) => {
+          if (m.media_type === 'video') return true;
+          if (m.media_type === 'image') return false;
+          return detectMediaType(m.url) === 'video';
+        });
+
+        const hasImagePreview = imageMediaList.length > 0;
+        const hasVideoPreview = videoMediaList.length > 0;
+        const hasLateralPreviews = hasImagePreview || hasVideoPreview;
+
+        const currentImageMedia = imageMediaList[activeLateralImgIdx] || imageMediaList[0];
+        const currentVideoMedia = videoMediaList[activeLateralVidIdx] || videoMediaList[0];
+
+        return (
+          <ModalPortal>
+            <SafeModalBackdrop
+              onClose={() => setSelectedTask(null)}
+              className="fixed inset-0 !m-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  "w-full h-full sm:h-[90vh] sm:max-h-[92vh] sm:rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 transition-all",
+                  hasLateralPreviews
+                    ? "sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl"
+                    : "sm:max-w-2xl"
                 )}
-              </div>
+              >
+                {/* Modal Header */}
+                <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-gray-50 sticky top-0 z-10 shrink-0">
+                  <div className="min-w-0 pr-4">
+                    <h3 className="text-lg font-bold text-gray-900 leading-snug">
+                      {selectedTask.name}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Cliente: <span className="font-semibold text-gray-800">{selectedTask.client_name}</span>
+                    </p>
+                    {selectedTask.visibility === 'privado' && (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 mt-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        Privado (Apenas Administrador)
+                      </span>
+                    )}
+                  </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className="text-[10px] font-bold px-2.5 py-1 rounded-full text-white uppercase tracking-wider"
-                  style={{ backgroundColor: selectedTask.category_color || '#3b82f6' }}
-                >
-                  {selectedTask.category_name || 'Geral'}
-                </span>
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                  title="Fechar"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-full text-white uppercase tracking-wider"
+                      style={{ backgroundColor: selectedTask.category_color || '#3b82f6' }}
+                    >
+                      {selectedTask.category_name || 'Geral'}
+                    </span>
+                    <button
+                      onClick={() => setSelectedTask(null)}
+                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                      title="Fechar"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Modal Body & Lateral Preview */}
+                <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+                  {/* Left Column: Task Details */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 min-w-0">
               {/* Deletion Pending Alert */}
               {selectedTask.deletion_request_status === 'pending' && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
@@ -1855,27 +2072,129 @@ export default function TasksPage() {
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-              <button
-                onClick={handleDeleteTask}
-                className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-              >
-                <Trash2 size={14} />
-                {currentUser?.role === 'COLABORADOR' ? 'Solicitar Exclusão' : 'Excluir Tarefa'}
-              </button>
+            {/* Lateral Previews Column */}
+            {hasLateralPreviews && (
+              <div className="w-full lg:w-[380px] xl:w-[440px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 p-5 flex flex-col gap-4 overflow-y-auto">
+                <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      Pré-visualização
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                      {imageMediaList.length + videoMediaList.length} {imageMediaList.length + videoMediaList.length === 1 ? 'item' : 'itens'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMediaViewerState({ list: taskMediaList, index: 0 })}
+                    className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    <Maximize2 size={12} /> Galeria completa
+                  </button>
+                </div>
 
-              <button
-                onClick={() => openEditTask(selectedTask)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
-              >
-                <Edit2 size={14} />
-                <span>Editar Tarefa</span>
-              </button>
-            </div>
+                {/* Image Preview (se tiver imagem) */}
+                {hasImagePreview && currentImageMedia && (
+                  <div className="space-y-1.5">
+                    {imageMediaList.length > 1 && (
+                      <div className="flex items-center justify-between px-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="font-semibold">Imagem {activeLateralImgIdx + 1} de {imageMediaList.length}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={activeLateralImgIdx === 0}
+                            onClick={() => setActiveLateralImgIdx(prev => Math.max(0, prev - 1))}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Imagem anterior"
+                          >
+                            <ChevronLeft size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={activeLateralImgIdx >= imageMediaList.length - 1}
+                            onClick={() => setActiveLateralImgIdx(prev => Math.min(imageMediaList.length - 1, prev + 1))}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Próxima imagem"
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <TaskImagePreviewCard
+                      media={currentImageMedia}
+                      onExpand={() => {
+                        const orig = taskMediaList.findIndex(m => m.id === currentImageMedia.id);
+                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Video Preview (se tiver vídeo) */}
+                {hasVideoPreview && currentVideoMedia && (
+                  <div className="space-y-1.5">
+                    {videoMediaList.length > 1 && (
+                      <div className="flex items-center justify-between px-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="font-semibold">Vídeo {activeLateralVidIdx + 1} de {videoMediaList.length}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={activeLateralVidIdx === 0}
+                            onClick={() => setActiveLateralVidIdx(prev => Math.max(0, prev - 1))}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Vídeo anterior"
+                          >
+                            <ChevronLeft size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={activeLateralVidIdx >= videoMediaList.length - 1}
+                            onClick={() => setActiveLateralVidIdx(prev => Math.min(videoMediaList.length - 1, prev + 1))}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Próximo vídeo"
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <TaskVideoPreviewCard
+                      media={currentVideoMedia}
+                      onExpand={() => {
+                        const orig = taskMediaList.findIndex(m => m.id === currentVideoMedia.id);
+                        setMediaViewerState({ list: taskMediaList, index: Math.max(0, orig) });
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </SafeModalBackdrop>
-      </ModalPortal>)}
+
+          {/* Modal Footer */}
+          <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
+            <button
+              onClick={handleDeleteTask}
+              className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={14} />
+              {currentUser?.role === 'COLABORADOR' ? 'Solicitar Exclusão' : 'Excluir Tarefa'}
+            </button>
+
+            <button
+              onClick={() => openEditTask(selectedTask)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+            >
+              <Edit2 size={14} />
+              <span>Editar Tarefa</span>
+            </button>
+          </div>
+        </div>
+      </SafeModalBackdrop>
+    </ModalPortal>
+  );
+})()}
 
       {/* ======================================================== */}
       {/* MODAL: SOLICITAR ALTERAÇÃO (Obrigatório descrever)       */}

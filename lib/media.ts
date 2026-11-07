@@ -27,21 +27,36 @@ export function detectMediaType(url: string): MediaType {
     return 'image';
   }
 
+  // Google Drive files: por padrão em agências são entregáveis visuais (imagem) a menos que explicitamente vídeo
+  if (cleanUrl.includes('drive.google.com') || cleanUrl.includes('/file/d/')) {
+    if (/\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(cleanUrl) || cleanUrl.includes('video')) {
+      return 'video';
+    }
+    return 'image';
+  }
+
   // Documents
   if (
     /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)(\?.*)?$/i.test(cleanUrl) ||
-    cleanUrl.includes('docs.google.com') ||
+    cleanUrl.includes('docs.google.com/document') ||
+    cleanUrl.includes('docs.google.com/spreadsheets') ||
+    cleanUrl.includes('docs.google.com/presentation') ||
     cleanUrl.includes('notion.so')
   ) {
     return 'document';
   }
 
-  // Google Drive files can be video, image, or doc
-  if (cleanUrl.includes('drive.google.com')) {
-    return 'document';
-  }
-
   return 'other';
+}
+
+export function getGoogleDriveFileId(url: string): string | null {
+  if (!url) return null;
+  const cleanUrl = url.trim();
+  const match =
+    cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+    cleanUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+    cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
 }
 
 export function getEmbedInfo(url: string, mediaType: MediaType): {
@@ -83,15 +98,26 @@ export function getEmbedInfo(url: string, mediaType: MediaType): {
   }
 
   // Google Drive file preview
-  if (cleanUrl.includes('drive.google.com/file/d/')) {
-    const fileIdMatch = cleanUrl.match(/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (fileIdMatch && fileIdMatch[1]) {
+  const gDriveId = getGoogleDriveFileId(cleanUrl);
+  if (gDriveId) {
+    const isVideo =
+      mediaType === 'video' ||
+      /\.(mp4|webm|mov|avi|mkv|m4v)(\?.*)?$/i.test(cleanUrl) ||
+      cleanUrl.includes('video');
+
+    if (isVideo) {
       return {
-        embedUrl: `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`,
+        embedUrl: `https://drive.google.com/file/d/${gDriveId}/preview`,
         isIframe: true,
         canEmbed: true,
       };
     }
+
+    return {
+      embedUrl: `https://lh3.googleusercontent.com/d/${gDriveId}`,
+      isIframe: false,
+      canEmbed: true,
+    };
   }
 
   // Direct video file

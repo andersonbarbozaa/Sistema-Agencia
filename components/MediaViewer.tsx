@@ -15,7 +15,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { TaskMediaLink } from '@/types';
-import { getEmbedInfo } from '@/lib/media';
+import { getEmbedInfo, getGoogleDriveFileId } from '@/lib/media';
 
 interface MediaViewerProps {
   mediaList: TaskMediaLink[];
@@ -33,10 +33,12 @@ export default function MediaViewer({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
     setZoomLevel(1);
+    setImgError(false);
   }, [initialIndex, isOpen]);
 
   // Handle keyboard navigation
@@ -191,6 +193,14 @@ export default function MediaViewer({
               >
                 Seu navegador não suporta a reprodução deste vídeo.
               </video>
+            ) : imgError && getGoogleDriveFileId(currentMedia.url) ? (
+              <iframe
+                src={`https://drive.google.com/file/d/${getGoogleDriveFileId(currentMedia.url)}/preview`}
+                title={currentMedia.title}
+                className="w-full h-full rounded-xl border-0 shadow-2xl bg-black"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+              />
             ) : (
               <div
                 className="overflow-auto max-w-full max-h-full flex items-center justify-center transition-transform duration-150"
@@ -199,6 +209,7 @@ export default function MediaViewer({
                 <img
                   src={embedUrl}
                   alt={currentMedia.title}
+                  onError={() => setImgError(true)}
                   className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl select-none"
                   draggable={false}
                 />
