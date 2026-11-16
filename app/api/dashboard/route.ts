@@ -42,7 +42,7 @@ export async function GET(request: Request) {
           WHERE ${clientWhereTasks}
           ORDER BY 
             CASE 
-              WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1
+              WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1
               WHEN LOWER(t.status) LIKE '%produ%' THEN 2
               WHEN LOWER(t.status) LIKE '%altera%' THEN 3
               WHEN LOWER(t.status) LIKE '%iniciada%' OR LOWER(t.status) LIKE '%pendente%' THEN 4
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
         .prepare(`
           SELECT 
             COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' THEN 1 END) as open_tasks,
-            COUNT(CASE WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1 END) as awaiting_approval,
+            COUNT(CASE WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1 END) as awaiting_approval,
             COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND t.delivery_date IS NOT NULL AND date(t.delivery_date) < date('now') THEN 1 END) as overdue_tasks,
             COUNT(CASE WHEN LOWER(t.status) LIKE '%conclu%' OR LOWER(t.status) LIKE '%aprovad%' THEN 1 END) as completed_tasks
           FROM tasks t
@@ -110,7 +110,7 @@ export async function GET(request: Request) {
         SELECT 
           COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' THEN 1 END) as pending_tasks,
           COUNT(CASE WHEN LOWER(t.status) LIKE '%produ%' THEN 1 END) as in_production_tasks,
-          COUNT(CASE WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1 END) as in_approval_tasks,
+          COUNT(CASE WHEN LOWER(t.status) LIKE '%aprova%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%altera%' THEN 1 END) as in_approval_tasks,
           COUNT(CASE WHEN LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND t.delivery_date IS NOT NULL AND date(t.delivery_date) <= date('now', '+3 days') AND date(t.delivery_date) >= date('now') THEN 1 END) as due_soon_tasks,
           COUNT(CASE WHEN 
             (LOWER(t.status) NOT LIKE '%conclu%' AND LOWER(t.status) NOT LIKE '%aprovad%' AND t.delivery_date IS NOT NULL AND date(t.delivery_date) < date('now', '-1 day'))

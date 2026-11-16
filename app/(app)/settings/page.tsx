@@ -475,6 +475,7 @@ function SettingsContent() {
   });
 
   const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [isUserEditMode, setIsUserEditMode] = useState(false);
   const [editUserForm, setEditUserForm] = useState({
     name: '',
     email: '',
@@ -1255,8 +1256,9 @@ function SettingsContent() {
     }
   };
 
-  const openEditUser = (user: any) => {
+  const openEditUser = (user: any, editMode = false) => {
     setEditingUser(user);
+    setIsUserEditMode(editMode);
     setEditUserForm({
       name: user.name || '',
       email: user.email || '',
@@ -1643,194 +1645,7 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Barra de Navegação Superior das Configurações (Oculta no Mobile) */}
-      <div className="hidden md:flex bg-white dark:bg-gray-850 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xs items-center gap-1.5 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab('overview')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-            activeTab === 'overview'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-          )}
-        >
-          <Settings className="w-3.5 h-3.5 shrink-0" />
-          <span>Visão Geral</span>
-        </button>
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('users')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'users'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <Users className="w-3.5 h-3.5 shrink-0" />
-            <span>Usuários</span>
-          </button>
-        )}
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('categories')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'categories'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <Layers className="w-3.5 h-3.5 shrink-0" />
-            <span>Categorias do Sistema</span>
-          </button>
-        )}
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('calendars')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'calendars'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <Calendar className="w-3.5 h-3.5 shrink-0" />
-            <span>Agendas</span>
-          </button>
-        )}
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('finance')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'finance'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <DollarSign className="w-3.5 h-3.5 shrink-0" />
-            <span>Categoria Financeiro</span>
-          </button>
-        )}
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('ai')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'ai'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <Bot className="w-3.5 h-3.5 shrink-0" />
-            <span>IA</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('appearance')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-            activeTab === 'appearance'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-          )}
-        >
-          <Sun className="w-3.5 h-3.5 shrink-0" />
-          <span>Tema</span>
-        </button>
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('formatting')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'formatting'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <Type className="w-3.5 h-3.5 shrink-0" />
-            <span>Padrões de Roteiro</span>
-          </button>
-        )}
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('whatsapp')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'whatsapp'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-            <span>Mensagens CRM</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('profile')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-            activeTab === 'profile'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-          )}
-        >
-          <User className="w-3.5 h-3.5 shrink-0" />
-          <span>Meu Perfil</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('company')}
-          className={cn(
-            'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-            activeTab === 'company'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-          )}
-        >
-          <Building2 className="w-3.5 h-3.5 shrink-0" />
-          <span>Empresa</span>
-        </button>
-
-        {!isClientUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('plans')}
-            className={cn(
-              'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer',
-              activeTab === 'plans'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-            )}
-          >
-            <CreditCard className="w-3.5 h-3.5 shrink-0" />
-            <span>Planos</span>
-          </button>
-        )}
-      </div>
-
-{/* ======================================================== */}
+      {/* ======================================================== */}
       {/* OVERVIEW: CARDS DOS SUBMENUS (Requisito usuário)           */}
       {/* ======================================================== */}
       {activeTab === 'overview' && (
@@ -2673,9 +2488,16 @@ function SettingsContent() {
                       ) : null}
                     </div>
 
-                    <span className="text-[11px] font-semibold text-blue-600 flex items-center gap-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditUser(u, true);
+                      }}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 flex-shrink-0"
+                    >
                       <Edit2 size={12} /> Editar
-                    </span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -2698,7 +2520,7 @@ function SettingsContent() {
                   {users.map((u) => (
                     <tr
                       key={u.id}
-                      onClick={() => openEditUser(u)}
+                      onClick={() => openEditUser(u, false)}
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
                     >
                       <td className="py-3 px-3">
@@ -2756,7 +2578,7 @@ function SettingsContent() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            openEditUser(u);
+                            openEditUser(u, true);
                           }}
                           className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-xs transition-colors"
                         >
@@ -4863,151 +4685,279 @@ function SettingsContent() {
 
 
       {/* ======================================================== */}
-      {/* MODAL: EDITAR USUÁRIO                                    */}
+      {/* MODAL: VISUALIZAR / EDITAR USUÁRIO                       */}
       {/* ======================================================== */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <button
-              onClick={() => setEditingUser(null)}
+              onClick={() => {
+                setEditingUser(null);
+                setIsUserEditMode(false);
+              }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 rounded-lg p-1"
             >
               <X size={20} />
             </button>
 
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Edit2 className="w-5 h-5 text-blue-600" />
-              Editar Usuário: {editingUser.name}
+              {isUserEditMode ? (
+                <>
+                  <Edit2 className="w-5 h-5 text-blue-600" />
+                  Editar Usuário: {editingUser.name}
+                </>
+              ) : (
+                <>
+                  <User className="w-5 h-5 text-blue-600" />
+                  Dados do Usuário
+                </>
+              )}
             </h2>
 
-            <form onSubmit={handleUpdateUser} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Completo *</label>
-                <input
-                  type="text"
-                  required
-                  value={editUserForm.name}
-                  onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {!isUserEditMode ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+                  {editingUser.avatar_url ? (
+                    <img
+                      src={editingUser.avatar_url}
+                      alt={editingUser.name}
+                      className="w-12 h-12 rounded-full object-cover border border-gray-200 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-base shrink-0">
+                      {(editingUser.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-gray-900 truncate">{editingUser.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{editingUser.email}</p>
+                  </div>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize shrink-0 ${
+                      editingUser.status === 'inativo'
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    }`}
+                  >
+                    {editingUser.status || 'Ativo'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="block text-[11px] font-semibold text-gray-500 mb-1">Nome Completo</span>
+                    <span className="font-semibold text-gray-900">{editingUser.name || '—'}</span>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="block text-[11px] font-semibold text-gray-500 mb-1">E-mail</span>
+                    <span className="font-semibold text-gray-900 break-all">{editingUser.email || '—'}</span>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="block text-[11px] font-semibold text-gray-500 mb-1">Nível de Acesso</span>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        editingUser.role === 'ADMINISTRADOR'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                          : editingUser.role === 'CLIENTE'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}
+                    >
+                      {editingUser.role || 'COLABORADOR'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="block text-[11px] font-semibold text-gray-500 mb-1">Cargo / Especialidade</span>
+                    <span className="font-semibold text-gray-900">
+                      {positions.find((p) => p.id === editingUser.position_id)?.name ||
+                        editingUser.position_name ||
+                        editingUser.job_title ||
+                        'Sem cargo atribuído'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="block text-[11px] font-semibold text-gray-500 mb-1">Telefone / WhatsApp</span>
+                    <span className="font-semibold text-gray-900">{editingUser.phone || 'Não informado'}</span>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="block text-[11px] font-semibold text-gray-500 mb-1">Sócio / Parceiro</span>
+                    <span className="font-semibold text-gray-900">{editingUser.is_partner ? 'Sim' : 'Não'}</span>
+                  </div>
+
+                  {editingUser.role === 'CLIENTE' && (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl sm:col-span-2">
+                      <span className="block text-[11px] font-semibold text-gray-500 mb-1">Cliente Vinculado</span>
+                      <span className="font-semibold text-gray-900">
+                        {(() => {
+                          const linkedClient = clients.find((c) => c.id === editingUser.client_id);
+                          if (linkedClient) {
+                            return linkedClient.company_name
+                              ? `${linkedClient.company_name} — ${linkedClient.name}`
+                              : linkedClient.name;
+                          }
+                          return 'Cliente próprio (sincronizado automaticamente)';
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingUser(null);
+                      setIsUserEditMode(false);
+                    }}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsUserEditMode(true)}
+                    className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors shadow-sm flex items-center gap-1.5"
+                  >
+                    <Edit2 size={14} />
+                    Editar
+                  </button>
+                </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ) : (
+              <form onSubmit={handleUpdateUser} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Nível de Acesso *</label>
-                  <select
-                    value={editUserForm.role}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="COLABORADOR">Colaborador</option>
-                    <option value="ADMINISTRADOR">Administrador</option>
-                    <option value="CLIENTE">Cliente</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Status da Conta</label>
-                  <select
-                    value={editUserForm.status}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo / Bloqueado</option>
-                  </select>
-                </div>
-              </div>
-
-              {editUserForm.role === 'CLIENTE' && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente Vinculado</label>
-                  <select
-                    value={editUserForm.client_id || ''}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, client_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Cliente próprio (sincronizado automaticamente)</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.company_name ? `${c.company_name} — ${c.name}` : c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cargo / Especialidade</label>
-                  <select
-                    value={editUserForm.position_id}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, position_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Nenhum cargo</option>
-                    {positions.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Nome Completo *</label>
                   <input
                     type="text"
-                    value={editUserForm.phone}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                    required
+                    value={editUserForm.name}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="edit_is_partner"
-                  checked={editUserForm.is_partner === 1}
-                  onChange={(e) => setEditUserForm({ ...editUserForm, is_partner: e.target.checked ? 1 : 0 })}
-                  className="rounded border-gray-300 text-blue-600"
-                />
-                <label htmlFor="edit_is_partner" className="text-xs font-semibold text-gray-700">
-                  Este usuário é Sócio / Parceiro da agência?
-                </label>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Nível de Acesso *</label>
+                    <select
+                      value={editUserForm.role}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="COLABORADOR">Colaborador</option>
+                      <option value="ADMINISTRADOR">Administrador</option>
+                      <option value="CLIENTE">Cliente</option>
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Redefinir Senha (Deixe em branco para manter a atual)
-                </label>
-                <input
-                  type="password"
-                  placeholder="Nova senha..."
-                  value={editUserForm.new_password}
-                  onChange={(e) => setEditUserForm({ ...editUserForm, new_password: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Status da Conta</label>
+                    <select
+                      value={editUserForm.status}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, status: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="ativo">Ativo</option>
+                      <option value="inativo">Inativo / Bloqueado</option>
+                    </select>
+                  </div>
+                </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
-                </button>
-              </div>
-            </form>
+                {editUserForm.role === 'CLIENTE' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente Vinculado</label>
+                    <select
+                      value={editUserForm.client_id || ''}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, client_id: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Cliente próprio (sincronizado automaticamente)</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.company_name ? `${c.company_name} — ${c.name}` : c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Cargo / Especialidade</label>
+                    <select
+                      value={editUserForm.position_id}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, position_id: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Nenhum cargo</option>
+                      {positions.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
+                    <input
+                      type="text"
+                      value={editUserForm.phone}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="edit_is_partner"
+                    checked={editUserForm.is_partner === 1}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, is_partner: e.target.checked ? 1 : 0 })}
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <label htmlFor="edit_is_partner" className="text-xs font-semibold text-gray-700">
+                    Este usuário é Sócio / Parceiro da agência?
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Redefinir Senha (Deixe em branco para manter a atual)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Nova senha..."
+                    value={editUserForm.new_password}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, new_password: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsUserEditMode(false)}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

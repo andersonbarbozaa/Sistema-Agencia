@@ -994,7 +994,7 @@ export default function TasksPage() {
     if (filterParam === 'abertas') {
       if (s.includes('conclu') || s.includes('aprovad')) return false;
     } else if (filterParam === 'aprovacao') {
-      if (!s.includes('aprova') || s.includes('altera')) return false;
+      if (!s.includes('aprova') || s.includes('aprovad') || s.includes('conclu') || s.includes('altera')) return false;
     } else if (filterParam === 'atrasadas') {
       if (!isTaskOverdue(t)) return false;
     }
@@ -2032,8 +2032,8 @@ export default function TasksPage() {
                   </select>
                 </div>
 
-                {/* Client Approval Controls (Ocultar quando tarefa for concluída) */}
-                {selectedTask.status !== 'Concluída' && (
+                {/* Client Approval Controls (Exibir apenas para o cliente quando abre a tarefa para aprovar) */}
+                {currentUser?.role === 'CLIENTE' && selectedTask.status === 'Em aprovação' && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleApprove}

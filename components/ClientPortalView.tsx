@@ -369,7 +369,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
         const s = (task.status || '').toLowerCase();
         if (statusFilter === 'pendentes' && !s.includes('não iniciada') && !s.includes('pendente')) return false;
         if (statusFilter === 'em_producao' && !s.includes('produ')) return false;
-        if (statusFilter === 'para_aprovacao' && (!s.includes('aprova') || s.includes('altera'))) return false;
+        if (statusFilter === 'para_aprovacao' && (!s.includes('aprova') || s.includes('aprovad') || s.includes('conclu') || s.includes('altera'))) return false;
         if (statusFilter === 'em_alteracao' && !s.includes('altera')) return false;
         if (statusFilter === 'concluidas' && !s.includes('conclu') && !s.includes('aprovad')) return false;
       }
@@ -427,7 +427,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
   const awaitingApprovalCount = useMemo(() => {
     return tasks.filter((t) => {
       const s = (t.status || '').toLowerCase();
-      return s.includes('aprova') && !s.includes('altera');
+      return s.includes('aprova') && !s.includes('aprovad') && !s.includes('conclu') && !s.includes('altera');
     }).length;
   }, [tasks]);
 
@@ -787,8 +787,14 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
                 const isToday = cell.dateStr === todayStr;
 
                 // Color of indicator dot
-                const hasApproval = dayTasks.some((t) => (t.status || '').toLowerCase().includes('aprova'));
-                const hasOverdue = dayTasks.some((t) => (t.status || '').toLowerCase() !== 'concluída' && cell.dateStr < todayStr);
+                const hasApproval = dayTasks.some((t) => {
+                  const s = (t.status || '').toLowerCase();
+                  return s.includes('aprova') && !s.includes('aprovad') && !s.includes('conclu') && !s.includes('altera');
+                });
+                const hasOverdue = dayTasks.some((t) => {
+                  const s = (t.status || '').toLowerCase();
+                  return !s.includes('conclu') && !s.includes('aprovad') && cell.dateStr < todayStr;
+                });
 
                 return (
                   <button
@@ -1061,7 +1067,8 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
             {filteredTasks.map((task) => {
               const badge = getStatusBadge(task.status);
               const coverUrl = getTaskCoverUrl(task);
-              const isAwaitingApproval = (task.status || '').toLowerCase().includes('aprova') && !(task.status || '').toLowerCase().includes('altera');
+              const s = (task.status || '').toLowerCase();
+              const isAwaitingApproval = s.includes('aprova') && !s.includes('aprovad') && !s.includes('conclu') && !s.includes('altera');
 
               return (
                 <div
@@ -1344,7 +1351,8 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
           {filteredTasks.map((task) => {
             const badge = getStatusBadge(task.status);
             const coverUrl = getTaskCoverUrl(task);
-            const isAwaitingApproval = (task.status || '').toLowerCase().includes('aprova') && !(task.status || '').toLowerCase().includes('altera');
+            const s = (task.status || '').toLowerCase();
+            const isAwaitingApproval = s.includes('aprova') && !s.includes('aprovad') && !s.includes('conclu') && !s.includes('altera');
             const isOverdue = task.delivery_date && task.delivery_date.split('T')[0] < todayStr;
 
             return (
@@ -1632,65 +1640,56 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
                     </div>
                   </div>
 
-                  {/* Footer com Ações Permitidas para o Cliente */}
-                  <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    <span className="text-xs text-gray-500 text-center sm:text-left">
-                      Revise o material com atenção antes de aprovar.
-                    </span>
+                  {/* Footer com Ações Permitidas para o Cliente (Exibir apenas quando a tarefa está para aprovação) */}
+                  {(() => {
+                    const s = (taskDetail.status || '').toLowerCase();
+                    const isDetailAwaitingApproval =
+                      s.includes('aprova') && !s.includes('aprovad') && !s.includes('conclu') && !s.includes('altera');
+                    if (!isDetailAwaitingApproval) return null;
+                    return (
+                      <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <span className="text-xs text-gray-500 text-center sm:text-left">
+                          Revise o material com atenção antes de aprovar.
+                        </span>
 
-                    <div className="flex items-center justify-end gap-2 flex-wrap">
-                      {/* Botão Reprovar */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setActionModal({
-                            isOpen: true,
-                            type: 'reject',
-                            reason: '',
-                            submitting: false,
-                          })
-                        }
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-1.5"
-                      >
-                        <XCircle size={15} />
-                        <span>Reprovar</span>
-                      </button>
+                        <div className="flex items-center justify-end gap-2 flex-wrap">
+                          {/* Botão Solicitar Alteração */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActionModal({
+                                isOpen: true,
+                                type: 'request_change',
+                                reason: '',
+                                submitting: false,
+                              })
+                            }
+                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-colors flex items-center gap-1.5"
+                          >
+                            <AlertTriangle size={15} />
+                            <span>Solicitar Alteração</span>
+                          </button>
 
-                      {/* Botão Solicitar Alteração */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setActionModal({
-                            isOpen: true,
-                            type: 'request_change',
-                            reason: '',
-                            submitting: false,
-                          })
-                        }
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-colors flex items-center gap-1.5"
-                      >
-                        <AlertTriangle size={15} />
-                        <span>Solicitar Alteração</span>
-                      </button>
-
-                      {/* Botão Aprovar */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setActionModal({
-                            isOpen: true,
-                            type: 'approve',
-                            reason: '',
-                            submitting: false,
-                          })
-                        }
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
-                      >
-                        <CheckCircle2 size={16} />
-                        <span>Aprovar Tarefa</span>
-                      </button>
-                    </div>
-                  </div>
+                          {/* Botão Aprovar */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActionModal({
+                                isOpen: true,
+                                type: 'approve',
+                                reason: '',
+                                submitting: false,
+                              })
+                            }
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 size={16} />
+                            <span>Aprovar Tarefa</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>

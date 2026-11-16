@@ -161,160 +161,137 @@ export default function TaskTimeTracker({ taskId, currentUser }: { taskId: strin
 
   if (loading && logs.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60 rounded-xl p-4 shadow-sm mb-6 flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-        <Loader2 size={14} className="animate-spin text-blue-600" />
-        Carregando cronômetro...
+      <div className="bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-xl px-3 py-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <Loader2 size={13} className="animate-spin text-blue-600" />
+        <span>Timer...</span>
       </div>
     );
   }
 
-  const latestLog = logs[0];
   const liveTotal = totalTime + (activeLog ? elapsedSeconds : 0);
 
   return (
-    <div className="bg-white dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700/70 rounded-xl p-4 shadow-sm mb-6 transition-all">
-      {/* Top Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Clock className="text-blue-600 dark:text-blue-400" size={18} />
-          <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100">Time Tracker (Timer)</h4>
-        </div>
-        <div className="text-sm font-mono font-bold text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-700/60 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-600/50 flex items-center gap-1.5">
-          {activeLog && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-          <span>Total: {formatDuration(liveTotal)}</span>
-        </div>
-      </div>
+    <div className="bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-xl px-3 py-2 transition-all">
+      {/* Compact Single Bar: Clickable "Timer" title + Total Time + Start/Stop Button */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+          title="Clique para ver a lista detalhada dos tempos"
+        >
+          <Clock className="text-blue-600 dark:text-blue-400 shrink-0" size={14} />
+          <span>Timer</span>
+          {expanded ? (
+            <ChevronUp size={13} className="text-gray-400" />
+          ) : (
+            <ChevronDown size={13} className="text-gray-400" />
+          )}
+        </button>
 
-      {/* Action Button */}
-      <div className="flex flex-col gap-2 mb-4 border-b border-gray-100 dark:border-gray-700/60 pb-4">
-        {activeLog ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between px-3 py-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg text-xs text-red-700 dark:text-red-300">
-              <span className="flex items-center gap-2 font-semibold">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-                Cronômetro em andamento:
-              </span>
-              <span className="font-mono text-sm font-extrabold text-red-600 dark:text-red-400">
-                {formatDuration(elapsedSeconds)}
-              </span>
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-mono font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700/70 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-600/50 flex items-center gap-1.5">
+            {activeLog && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
+            <span>{formatDuration(liveTotal)}</span>
+          </div>
+
+          {activeLog ? (
             <button
+              type="button"
               onClick={stopTimer}
               disabled={submitting}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-98 disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Parar Timer"
             >
               {submitting ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={12} className="animate-spin" />
               ) : (
-                <Square size={14} fill="currentColor" />
+                <Square size={11} fill="currentColor" />
               )}
-              PARAR TIMER ({formatDuration(elapsedSeconds)})
+              <span>Parar</span>
             </button>
-          </div>
-        ) : (
-          <button
-            onClick={startTimer}
-            disabled={submitting}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-98 disabled:opacity-50 cursor-pointer"
-          >
-            {submitting ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Play size={14} fill="currentColor" />
-            )}
-            INICIAR TIMER
-          </button>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={startTimer}
+              disabled={submitting}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Iniciar Timer"
+            >
+              {submitting ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Play size={11} fill="currentColor" />
+              )}
+              <span>Iniciar</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Latest Record */}
-      {latestLog && (
-        <div className="mb-2">
-          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Último Registro:</p>
-          <div className="text-xs text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-750/70 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700/50 flex justify-between items-center">
-            <span className="truncate pr-2">
-              {new Date(latestLog.start_time).toLocaleString('pt-BR')} -{' '}
-              <strong className="text-gray-900 dark:text-gray-100">{latestLog.user_name || 'Usuário'}</strong>
-            </span>
-            <span className="font-mono font-bold shrink-0">
-              {latestLog.duration_seconds
-                ? formatDuration(latestLog.duration_seconds)
-                : latestLog.id === activeLog?.id
+      {/* Detailed Time List (Shown when clicking on "Timer") */}
+      {expanded && (
+        <div className="mt-2.5 pt-2.5 border-t border-gray-200/80 dark:border-gray-700/60 space-y-2 max-h-56 overflow-y-auto pr-1">
+          {logs.length === 0 ? (
+            <p className="text-[11px] text-gray-400 text-center py-2">
+              Nenhum tempo registrado ainda.
+            </p>
+          ) : (
+            logs.map((log) => {
+              const isCurrentActive = log.id === activeLog?.id;
+              const logDuration = log.duration_seconds
+                ? formatDuration(log.duration_seconds)
+                : isCurrentActive
                 ? formatDuration(elapsedSeconds)
-                : 'Em andamento'}
-            </span>
-          </div>
-        </div>
-      )}
+                : 'Em andamento...';
 
-      {/* Expandable History */}
-      {logs.length > 0 && (
-        <div>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-semibold mt-3 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer"
-          >
-            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {expanded ? 'Ocultar Histórico de Tempos' : `Ver Todo o Histórico (${logs.length})`}
-          </button>
-
-          {expanded && (
-            <div className="mt-3 space-y-3 max-h-64 overflow-y-auto pr-1">
-              {logs.map((log) => {
-                const isCurrentActive = log.id === activeLog?.id;
-                const logDuration = log.duration_seconds
-                  ? formatDuration(log.duration_seconds)
-                  : isCurrentActive
-                  ? formatDuration(elapsedSeconds)
-                  : 'Em andamento...';
-
-                return (
-                  <div
-                    key={log.id}
-                    className="bg-gray-50 dark:bg-gray-750/70 p-3 rounded-lg border border-gray-100 dark:border-gray-700/50"
-                  >
-                    <div className="flex justify-between items-center text-xs mb-1.5">
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">
-                        {log.user_name || 'Usuário'}
-                      </span>
-                      <span className="text-gray-500 dark:text-gray-400 text-[11px]">
-                        {new Date(log.start_time).toLocaleString('pt-BR')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs mb-2">
-                      <span className="text-gray-600 dark:text-gray-300 font-medium">
-                        Duração:{' '}
-                        <strong
-                          className={`font-mono ${
-                            log.duration_seconds
-                              ? 'text-gray-900 dark:text-gray-100'
-                              : 'text-emerald-600 dark:text-emerald-400 animate-pulse'
-                          }`}
-                        >
-                          {logDuration}
-                        </strong>
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="O que foi feito neste período? (Anotação)"
-                        value={notes[log.id] || ''}
-                        onChange={(e) => setNotes({ ...notes, [log.id]: e.target.value })}
-                        className="flex-1 text-xs px-2.5 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none"
-                      />
-                      <button
-                        onClick={() => updateNote(log.id)}
-                        className="p-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-lg transition-colors cursor-pointer"
-                        title="Salvar nota"
-                      >
-                        <Save size={14} />
-                      </button>
-                    </div>
+              return (
+                <div
+                  key={log.id}
+                  className="bg-white dark:bg-gray-750/70 p-2.5 rounded-lg border border-gray-200/80 dark:border-gray-700/50"
+                >
+                  <div className="flex justify-between items-center text-[11px] mb-1">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {log.user_name || 'Usuário'}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400 text-[10px]">
+                      {new Date(log.start_time).toLocaleString('pt-BR')}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex justify-between items-center text-[11px] mb-1.5">
+                    <span className="text-gray-600 dark:text-gray-300 font-medium">
+                      Duração:{' '}
+                      <strong
+                        className={`font-mono ${
+                          log.duration_seconds
+                            ? 'text-gray-900 dark:text-gray-100'
+                            : 'text-emerald-600 dark:text-emerald-400 animate-pulse'
+                        }`}
+                      >
+                        {logDuration}
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Anotação deste período..."
+                      value={notes[log.id] || ''}
+                      onChange={(e) => setNotes({ ...notes, [log.id]: e.target.value })}
+                      className="flex-1 text-[11px] px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-100 rounded-md focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateNote(log.id)}
+                      className="p-1 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-md transition-colors cursor-pointer"
+                      title="Salvar nota"
+                    >
+                      <Save size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       )}
