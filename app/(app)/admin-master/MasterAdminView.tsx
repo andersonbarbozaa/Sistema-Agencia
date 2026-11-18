@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { User } from '@/types';
 import { cn, formatCurrency } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 
 interface MasterAdminViewProps {
   user: User;
@@ -173,30 +174,11 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Submenu ativo: 'users' ou 'workspaces'
-  const [activeSubTab, setActiveSubTabState] = useState<'users' | 'workspaces'>('users');
-  const setActiveSubTab = (tab: 'users' | 'workspaces') => {
-    setActiveSubTabState(tab);
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem('agencia_master_sub_tab', tab);
-      } catch {}
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = sessionStorage.getItem('agencia_master_sub_tab');
-        if (saved === 'users' || saved === 'workspaces') {
-          setActiveSubTabState(saved);
-        }
-      } catch {}
-    }
-  }, []);
+  const [activeSubTab, setActiveSubTab] = useSessionState<'users' | 'workspaces'>('agencia_master_sub_tab', 'users');
 
   // Filtros de busca e status
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useSessionState<string>('agencia_master_search', '');
+  const [statusFilter, setStatusFilter] = useSessionState<string>('agencia_master_status_filter', 'all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Modal de Detalhes do Usuário Selecionado

@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { Client } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 import ConfirmModal from '@/components/ConfirmModal';
 import ProfileAvatarUpload from '@/components/ProfileAvatarUpload';
 import ModalPortal from '@/components/ModalPortal';
@@ -232,9 +233,9 @@ function SocialNetworkIcon({ network, className = 'w-3.5 h-3.5 text-gray-500 shr
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useSessionState<string>('agencia_clients_search_query', '');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'finance' | 'portal'>('overview');
+  const [activeTab, setActiveTab] = useSessionState<'overview' | 'tasks' | 'finance' | 'portal'>('agencia_clients_active_tab', 'overview');
   const [showPortalUserModal, setShowPortalUserModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [savingPortalUser, setSavingPortalUser] = useState(false);
@@ -257,8 +258,8 @@ export default function ClientsPage() {
   const editAvatarInputRef = useRef<HTMLInputElement>(null);
   const detailAvatarInputRef = useRef<HTMLInputElement>(null);
 
-  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc'>('name_asc');
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'inativo' | 'arquivado'>('todos');
+  const [sortBy, setSortBy] = useSessionState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc'>('agencia_clients_sort_by', 'name_asc');
+  const [statusFilter, setStatusFilter] = useSessionState<'todos' | 'ativo' | 'inativo' | 'arquivado'>('agencia_clients_status_filter', 'todos');
 
   useEffect(() => {
     const handler = () => setShowCreateModal(true);
@@ -416,7 +417,10 @@ export default function ClientsPage() {
       if (typeof window !== 'undefined') {
         try {
           const savedClientId = sessionStorage.getItem('agencia_clients_selected_id');
-          const savedTab = sessionStorage.getItem('agencia_clients_active_tab') as any;
+          let savedTab: any = sessionStorage.getItem('agencia_clients_active_tab');
+          try {
+            if (savedTab) savedTab = JSON.parse(savedTab);
+          } catch {}
           if (savedClientId && !selectedClient) {
             const found = clientList.find((c) => c.id === savedClientId);
             if (found) {
@@ -529,21 +533,12 @@ export default function ClientsPage() {
     }
   };
 
-  useEffect(() => {
-    if (selectedClient && typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem('agencia_clients_active_tab', activeTab);
-      } catch {}
-    }
-  }, [activeTab, selectedClient]);
-
   const openClientDetails = async (client: Client, initialTab: 'overview' | 'tasks' | 'finance' | 'portal' = 'overview') => {
     setSelectedClient(client);
     setActiveTab(initialTab);
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('agencia_clients_selected_id', client.id);
-        sessionStorage.setItem('agencia_clients_active_tab', initialTab);
       } catch {}
     }
     fetchPortalUsers(client.id);

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 import { detectMediaType, getGoogleDriveFileId, getEmbedInfo } from '@/lib/media';
 import MediaViewer from '@/components/MediaViewer';
 import TaskTimeTracker from '@/components/TaskTimeTracker';
@@ -318,7 +319,7 @@ export default function TasksPage() {
   const initialTaskId = searchParams.get('id');
 
   const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'danger' as 'danger' | 'warning' });
-  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useSessionState<'list' | 'kanban' | 'calendar'>('agencia_tasks_view_mode', 'list');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<any[]>([]);
@@ -339,52 +340,21 @@ export default function TasksPage() {
     return () => window.removeEventListener('open-new-task', handler);
   }, []);
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState('');
-  const [clientFilter, setClientFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const filtersRestoredRef = useRef(false);
+  // Filters persisted in sessionStorage across F5 / refresh
+  const [statusFilter, setStatusFilter] = useSessionState<string>('agencia_tasks_status_filter', '');
+  const [clientFilter, setClientFilter] = useSessionState<string>('agencia_tasks_client_filter', '');
+  const [categoryFilter, setCategoryFilter] = useSessionState<string>('agencia_tasks_category_filter', '');
+  const [searchQuery, setSearchQuery] = useSessionState<string>('agencia_tasks_search_query', '');
 
-  // Restore viewMode and filters from sessionStorage on refresh
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const savedView = sessionStorage.getItem('agencia_tasks_view_mode');
-      if (savedView === 'list' || savedView === 'kanban' || savedView === 'calendar') {
-        setViewMode(savedView);
-      }
-      const savedFilters = sessionStorage.getItem('agencia_tasks_filters');
-      if (savedFilters) {
-        const parsed = JSON.parse(savedFilters);
-        if (parsed.statusFilter !== undefined) setStatusFilter(parsed.statusFilter);
-        if (parsed.clientFilter !== undefined) setClientFilter(parsed.clientFilter);
-        if (parsed.categoryFilter !== undefined) setCategoryFilter(parsed.categoryFilter);
-      }
       const savedOpenId = sessionStorage.getItem('agencia_tasks_open_id');
       if (savedOpenId && !initialTaskId) {
         openTaskDetail(savedOpenId);
       }
     } catch {}
-    filtersRestoredRef.current = true;
   }, []);
-
-  useEffect(() => {
-    if (!filtersRestoredRef.current || typeof window === 'undefined') return;
-    try {
-      sessionStorage.setItem('agencia_tasks_view_mode', viewMode);
-    } catch {}
-  }, [viewMode]);
-
-  useEffect(() => {
-    if (!filtersRestoredRef.current || typeof window === 'undefined') return;
-    try {
-      sessionStorage.setItem(
-        'agencia_tasks_filters',
-        JSON.stringify({ statusFilter, clientFilter, categoryFilter })
-      );
-    } catch {}
-  }, [statusFilter, clientFilter, categoryFilter]);
 
   // Selected Task for Detail Modal
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
@@ -1181,8 +1151,13 @@ export default function TasksPage() {
     }
   };
 
-  // Calendar View month state
-  const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
+  // Calendar View month state persisted in sessionStorage across F5 / refresh
+  const [currentMonthISO, setCurrentMonthISO] = useSessionState<string>(
+    'agencia_tasks_calendar_month',
+    new Date().toISOString()
+  );
+  const currentMonthDate = new Date(currentMonthISO);
+  const setCurrentMonthDate = (d: Date) => setCurrentMonthISO(d.toISOString());
 
   const prevMonth = () => {
     setCurrentMonthDate(new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() - 1, 1));

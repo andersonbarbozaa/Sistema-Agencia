@@ -45,6 +45,7 @@ const FULL_MONTH_NAMES = [
 ];
 import { FinancialTransaction, BankAccount, FinancialCategory, Debt, DebtPayment } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 
 export default function FinancePage() {
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
@@ -55,58 +56,22 @@ export default function FinancePage() {
   const [summary, setSummary] = useState<any>(null);
   const [reportsData, setReportsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [reportYear, setReportYear] = useState(new Date().getFullYear().toString());
-
-  const [reportMonth, setReportMonth] = useState<string>(String(new Date().getMonth() + 1));
+  const [reportYear, setReportYear] = useSessionState<string>('agencia_finance_report_year', new Date().getFullYear().toString());
+  const [reportMonth, setReportMonth] = useSessionState<string>('agencia_finance_report_month', String(new Date().getMonth() + 1));
 
   // Navigation View: 'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'debts' | 'reports'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'debts' | 'reports'>('dashboard');
+  const [activeTab, setActiveTab] = useSessionState<'dashboard' | 'all' | 'entries' | 'exits' | 'comparative' | 'debts' | 'reports'>(
+    'agencia_finance_active_tab',
+    'dashboard'
+  );
 
-  // Filters for Transactions
-  const [statusFilter, setStatusFilter] = useState('');
-  const [accountFilter, setAccountFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [financeStateRestored, setFinanceStateRestored] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const savedTab = sessionStorage.getItem('agencia_finance_active_tab') as any;
-      if (['dashboard', 'all', 'entries', 'exits', 'comparative', 'debts', 'reports'].includes(savedTab)) {
-        setActiveTab(savedTab);
-      }
-      const savedFilters = sessionStorage.getItem('agencia_finance_filters');
-      if (savedFilters) {
-        const parsed = JSON.parse(savedFilters);
-        if (parsed.statusFilter !== undefined) setStatusFilter(parsed.statusFilter);
-        if (parsed.accountFilter !== undefined) setAccountFilter(parsed.accountFilter);
-        if (parsed.categoryFilter !== undefined) setCategoryFilter(parsed.categoryFilter);
-        if (parsed.monthFilter !== undefined) setMonthFilter(parsed.monthFilter);
-        if (parsed.yearFilter !== undefined) setYearFilter(parsed.yearFilter);
-      }
-    } catch {}
-    setFinanceStateRestored(true);
-  }, []);
-
-  useEffect(() => {
-    if (!financeStateRestored || typeof window === 'undefined') return;
-    try {
-      sessionStorage.setItem('agencia_finance_active_tab', activeTab);
-    } catch {}
-  }, [activeTab, financeStateRestored]);
-
-  useEffect(() => {
-    if (!financeStateRestored || typeof window === 'undefined') return;
-    try {
-      sessionStorage.setItem(
-        'agencia_finance_filters',
-        JSON.stringify({ statusFilter, accountFilter, categoryFilter, monthFilter, yearFilter })
-      );
-    } catch {}
-  }, [statusFilter, accountFilter, categoryFilter, monthFilter, yearFilter, financeStateRestored]);
+  // Filters for Transactions persisted across F5 / refresh
+  const [statusFilter, setStatusFilter] = useSessionState<string>('agencia_finance_status_filter', '');
+  const [accountFilter, setAccountFilter] = useSessionState<string>('agencia_finance_account_filter', '');
+  const [categoryFilter, setCategoryFilter] = useSessionState<string>('agencia_finance_category_filter', '');
+  const [monthFilter, setMonthFilter] = useSessionState<string>('agencia_finance_month_filter', '');
+  const [yearFilter, setYearFilter] = useSessionState<string>('agencia_finance_year_filter', new Date().getFullYear().toString());
+  const [searchQuery, setSearchQuery] = useSessionState<string>('agencia_finance_search_query', '');
 
   useEffect(() => {
     const handler = () => setShowTransModal(true);
@@ -165,9 +130,9 @@ export default function FinancePage() {
     paid_count: 0,
   });
   const [loadingDebts, setLoadingDebts] = useState(false);
-  const [debtStatusFilter, setDebtStatusFilter] = useState<'todos' | 'aberto' | 'paga'>('aberto');
-  const [debtUserFilter, setDebtUserFilter] = useState<string>('todos');
-  const [debtSearchQuery, setDebtSearchQuery] = useState('');
+  const [debtStatusFilter, setDebtStatusFilter] = useSessionState<'todos' | 'aberto' | 'paga'>('agencia_finance_debt_status_filter', 'aberto');
+  const [debtUserFilter, setDebtUserFilter] = useSessionState<string>('agencia_finance_debt_user_filter', 'todos');
+  const [debtSearchQuery, setDebtSearchQuery] = useSessionState<string>('agencia_finance_debt_search_query', '');
 
   // Modais de Dívida
   const [showDebtModal, setShowDebtModal] = useState(false);

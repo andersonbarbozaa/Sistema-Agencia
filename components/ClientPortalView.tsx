@@ -33,6 +33,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 import ModalPortal from '@/components/ModalPortal';
 
 interface ClientPortalViewProps {
@@ -69,29 +70,20 @@ function InstagramIcon({ size = 15, className = '' }: { size?: number; className
 
 export default function ClientPortalView({ initialTasks = [], user, counts, mode = 'tasks' }: ClientPortalViewProps) {
   const [tasks, setTasks] = useState<any[]>(initialTasks);
-  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'feed'>('list');
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
-  const [periodFilter, setPeriodFilter] = useState<'todos' | 'semana' | 'mes'>('todos');
-  const [monthFilter, setMonthFilter] = useState<string>('todos');
-  const [yearFilter, setYearFilter] = useState<string>('todos');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
-  const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useSessionState<'list' | 'kanban' | 'feed'>('agencia_client_view_mode', 'list');
+  const [statusFilter, setStatusFilter] = useSessionState<string>('agencia_client_status_filter', 'todos');
+  const [periodFilter, setPeriodFilter] = useSessionState<'todos' | 'semana' | 'mes'>('agencia_client_period_filter', 'todos');
+  const [monthFilter, setMonthFilter] = useSessionState<string>('agencia_client_month_filter', 'todos');
+  const [yearFilter, setYearFilter] = useSessionState<string>('agencia_client_year_filter', 'todos');
+  const [searchQuery, setSearchQuery] = useSessionState<string>('agencia_client_search_query', '');
+  const [calendarDateISO, setCalendarDateISO] = useSessionState<string>('agencia_client_calendar_month', new Date().toISOString());
+  const calendarDate = new Date(calendarDateISO);
+  const setCalendarDate = (d: Date) => setCalendarDateISO(d.toISOString());
+  const [selectedCalendarDay, setSelectedCalendarDay] = useSessionState<string | null>('agencia_client_calendar_day', null);
 
   // Read initial filter from URL params or sessionStorage (e.g. /tasks?status=para_aprovacao or ?id=xxx)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      try {
-        const savedView = sessionStorage.getItem('agencia_client_view_mode') as any;
-        if (savedView === 'list' || savedView === 'kanban' || savedView === 'feed') {
-          setViewMode(savedView);
-        }
-        const savedStatus = sessionStorage.getItem('agencia_client_status_filter');
-        if (savedStatus) {
-          setStatusFilter(savedStatus);
-        }
-      } catch {}
-
       const sp = new URLSearchParams(window.location.search);
       const st = sp.get('status') || sp.get('filter');
       if (st) {
@@ -106,14 +98,6 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
       }
     }
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      sessionStorage.setItem('agencia_client_view_mode', viewMode);
-      sessionStorage.setItem('agencia_client_status_filter', statusFilter);
-    } catch {}
-  }, [viewMode, statusFilter]);
 
   // Selected task detail modal
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);

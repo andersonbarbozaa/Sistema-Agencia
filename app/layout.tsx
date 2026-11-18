@@ -52,6 +52,18 @@ export default function RootLayout({
                   } else {
                     root.style.fontSize = '16px';
                   }
+
+                  // 3. Session & Refresh detection (F5 keeps current screen/view/filters; closing and reopening starts on /dashboard)
+                  var isActive = sessionStorage.getItem('agencia_session_active') === '1';
+                  var navEntries = window.performance && window.performance.getEntriesByType ? window.performance.getEntriesByType('navigation') : [];
+                  var isReload = (navEntries[0] && navEntries[0].type === 'reload') || (window.performance && window.performance.navigation && window.performance.navigation.type === 1);
+                  if (!isActive && !isReload) {
+                    sessionStorage.clear();
+                    sessionStorage.setItem('agencia_session_active', '1');
+                    sessionStorage.setItem('agencia_fresh_boot', '1');
+                  } else {
+                    sessionStorage.setItem('agencia_session_active', '1');
+                  }
                 } catch(e) {}
               })();
             `,

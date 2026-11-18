@@ -53,6 +53,7 @@ import {
 import { DEFAULT_WHATSAPP_TEMPLATES, parseWhatsAppTemplates, formatWhatsAppTemplate } from '@/lib/whatsapp-templates';
 import { CRMLead, CRMInteraction, CRMLeadStatus, CRMWhatsAppTemplate } from '@/types';
 import { formatDate, formatDateTime, cn } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 import {
   InstagramIcon,
   FacebookIcon,
@@ -210,26 +211,26 @@ function CRMAutocompleteCategoryInput({
 export default function CRMPage() {
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [leads, setLeads] = useState<CRMLead[]>([]);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'report'>('kanban');
+  const [viewMode, setViewMode] = useSessionState<'kanban' | 'list' | 'report'>('crm_view_mode', 'kanban');
   const [loading, setLoading] = useState(true);
 
-  // Filtros
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [cityFilter, setCityFilter] = useState<string>('all');
-  const [segmentFilter, setSegmentFilter] = useState<string>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  // Filtros persistidos na sessão (mantém ao dar F5 / atualizar página)
+  const [searchQuery, setSearchQuery] = useSessionState<string>('agencia_crm_search_query', '');
+  const [statusFilter, setStatusFilter] = useSessionState<string>('agencia_crm_status_filter', 'all');
+  const [cityFilter, setCityFilter] = useSessionState<string>('agencia_crm_city_filter', 'all');
+  const [segmentFilter, setSegmentFilter] = useSessionState<string>('agencia_crm_segment_filter', 'all');
+  const [categoryFilter, setCategoryFilter] = useSessionState<string>('agencia_crm_category_filter', 'all');
   const [systemCategories, setSystemCategories] = useState<{ id: string; name: string; color?: string }[]>([]);
   const [systemCities, setSystemCities] = useState<{ id: string; name: string; color?: string }[]>([]);
   const [systemSegments, setSystemSegments] = useState<{ id: string; name: string; color?: string }[]>([]);
-  const [followUpFilter, setFollowUpFilter] = useState<string>('all'); // all, green, yellow, red, none, closed
-  const [dateFilterPreset, setDateFilterPreset] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState<string>('');
-  const [dateTo, setDateTo] = useState<string>('');
+  const [followUpFilter, setFollowUpFilter] = useSessionState<string>('agencia_crm_followup_filter', 'all'); // all, green, yellow, red, none, closed
+  const [dateFilterPreset, setDateFilterPreset] = useSessionState<string>('agencia_crm_date_preset', 'all');
+  const [dateFrom, setDateFrom] = useSessionState<string>('agencia_crm_date_from', '');
+  const [dateTo, setDateTo] = useSessionState<string>('agencia_crm_date_to', '');
 
   // Ordenação
-  const [sortField, setSortField] = useState<'contact_name' | 'company' | 'status' | 'primary_channel' | 'city' | 'last_activity_at'>('last_activity_at');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortField, setSortField] = useSessionState<'contact_name' | 'company' | 'status' | 'primary_channel' | 'city' | 'last_activity_at'>('agencia_crm_sort_field', 'last_activity_at');
+  const [sortDirection, setSortDirection] = useSessionState<'asc' | 'desc'>('agencia_crm_sort_dir', 'desc');
 
   // Modais de detalhe e ações
   const [selectedLead, setSelectedLeadState] = useState<CRMLead | null>(null);
@@ -280,11 +281,6 @@ export default function CRMPage() {
 
   const handleViewModeChange = (mode: 'kanban' | 'list' | 'report') => {
     setViewMode(mode);
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem('crm_view_mode', mode);
-      } catch {}
-    }
   };
 
   // ============================================================
@@ -481,14 +477,6 @@ export default function CRMPage() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedMode = sessionStorage.getItem('crm_view_mode') as any;
-        if (savedMode === 'kanban' || savedMode === 'list' || savedMode === 'report') {
-          setViewMode(savedMode);
-        }
-      } catch {}
-    }
     fetchLeads();
 
     // Carrega categorias do sistema (tarefas, cidades e áreas de atuação)

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { CalendarEvent } from '@/types';
 import { formatDate, cn } from '@/lib/utils';
+import { useSessionState } from '@/lib/useSessionState';
 
 export default function AgendaPage() {
   const [events, setEvents] = useState<any[]>([]);
@@ -31,7 +32,7 @@ export default function AgendaPage() {
   // Custom Calendars State (Plano Corporativo)
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customCalendars, setCustomCalendars] = useState<any[]>([]);
-  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('all');
+  const [selectedCalendarId, setSelectedCalendarId] = useSessionState<string>('agencia_agenda_calendar_id', 'all');
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [calendarForm, setCalendarForm] = useState<any>({
     id: '',
@@ -42,36 +43,17 @@ export default function AgendaPage() {
   });
   const [isSavingCalendar, setIsSavingCalendar] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
-  const [agendaStateRestored, setAgendaStateRestored] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const savedView = sessionStorage.getItem('agencia_agenda_view_mode');
-      if (savedView === 'calendar' || savedView === 'list') {
-        setViewMode(savedView);
-      }
-      const savedCal = sessionStorage.getItem('agencia_agenda_calendar_id');
-      if (savedCal) {
-        setSelectedCalendarId(savedCal);
-      }
-    } catch {}
-    setAgendaStateRestored(true);
-  }, []);
-
-  useEffect(() => {
-    if (!agendaStateRestored || typeof window === 'undefined') return;
-    try {
-      sessionStorage.setItem('agencia_agenda_view_mode', viewMode);
-      sessionStorage.setItem('agencia_agenda_calendar_id', selectedCalendarId);
-    } catch {}
-  }, [viewMode, selectedCalendarId, agendaStateRestored]);
+  const [viewMode, setViewMode] = useSessionState<'calendar' | 'list'>('agencia_agenda_view_mode', 'calendar');
 
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-  // Month navigation for Calendar view
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Month navigation for Calendar view persisted across F5 / refresh
+  const [currentDateISO, setCurrentDateISO] = useSessionState<string>(
+    'agencia_agenda_month',
+    new Date().toISOString()
+  );
+  const currentDate = new Date(currentDateISO);
+  const setCurrentDate = (d: Date) => setCurrentDateISO(d.toISOString());
 
   // Create Event Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
