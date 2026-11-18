@@ -352,6 +352,10 @@ export default function TasksPage() {
   // Selected Task for Detail Modal
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const selectedTaskIdRef = useRef<string | null>(null);
+  const openRequestSeqRef = useRef<number>(0);
+  const pendingStatusRef = useRef<Record<string, TaskStatus>>({});
+  const handledInitialTaskIdRef = useRef<string | null>(null);
   const [activeLateralImgIdx, setActiveLateralImgIdx] = useState(0);
   const [activeLateralVidIdx, setActiveLateralVidIdx] = useState(0);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
@@ -551,23 +555,42 @@ export default function TasksPage() {
     }
   };
 
-  // If initialTaskId provided in URL, open it
+  const closeTaskDetail = () => {
+    selectedTaskIdRef.current = null;
+    openRequestSeqRef.current += 1;
+    setSelectedTask(null);
+    setLoadingDetail(false);
+    if (typeof window !== 'undefined' && window.location.search.includes('id=')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('id');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+  };
+
+  // If initialTaskId provided in URL, open it once
   useEffect(() => {
-    if (initialTaskId) {
+    if (initialTaskId && handledInitialTaskIdRef.current !== initialTaskId) {
+      handledInitialTaskIdRef.current = initialTaskId;
       openTaskDetail(initialTaskId);
+    } else if (!initialTaskId) {
+      handledInitialTaskIdRef.current = null;
     }
   }, [initialTaskId]);
 
   const openTaskDetail = async (taskId: string) => {
     if (!taskId) return;
     const cleanId = taskId.toString().replace(/^task-/, '');
+    selectedTaskIdRef.current = cleanId;
+    const reqSeq = ++openRequestSeqRef.current;
 
     // Abre instantaneamente com dados em cache local se existirem
     const cachedTask = tasks.find((t) => t.id === cleanId || t.id === taskId);
     if (cachedTask) {
       const normalizedMedia = (cachedTask as any).media || (cachedTask as any).media_links || [];
+      const pendingStatus = pendingStatusRef.current[cleanId];
       setSelectedTask({
         ...cachedTask,
+        ...(pendingStatus ? { status: pendingStatus } : {}),
         media: normalizedMedia,
         media_links: normalizedMedia,
         comments: (cachedTask as any).comments || [],
@@ -578,45 +601,111 @@ export default function TasksPage() {
     try {
       setLoadingDetail(true);
       const res = await fetch(`/api/tasks/${cleanId}`);
+      if (selectedTaskIdRef.current !== cleanId || openRequestSeqRef.current !== reqSeq) {
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
+        if (selectedTaskIdRef.current !== cleanId || openRequestSeqRef.current !== reqSeq) {
+          return;
+        }
         const taskData = data.task || data;
         const normalizedMedia = taskData.media || taskData.media_links || [];
-        setSelectedTask((prev: any) => ({
-          ...(prev || {}),
-          ...taskData,
-          media: normalizedMedia,
-          media_links: normalizedMedia,
-        }));
+        const pendingStatus = pendingStatusRef.current[cleanId];
+        setSelectedTask((prev: any) => {
+          if (selectedTaskIdRef.current !== cleanId) return null;
+          return {
+            ...(prev || {}),
+            ...taskData,
+            ...(pendingStatus ? { status: pendingStatus } : {}),
+            media: normalizedMedia,
+            media_links: normalizedMedia,
+          };
+        });
       }
     } catch (err) {
       console.error('Erro ao abrir detalhes da tarefa:', err);
     } finally {
-      setLoadingDetail(false);
+      if (selectedTaskIdRef.current === cleanId && openRequestSeqRef.current === reqSeq) {
+        setLoadingDetail(false);
+      }
+    }
+  };
+
+  const refreshOpenTaskDetail = async (taskId: string) => {
+    if (!taskId) return;
+    const cleanId = taskId.toString().replace(/^task-/, '');
+    if (selectedTaskIdRef.current !== cleanId) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${cleanId}`);
+      if (selectedTaskIdRef.current !== cleanId) return;
+      if (res.ok) {
+        const data = await res.json();
+        if (selectedTaskIdRef.current !== cleanId) return;
+        const taskData = data.task || data;
+        const normalizedMedia = taskData.media || taskData.media_links || [];
+        const pendingStatus = pendingStatusRef.current[cleanId];
+        setSelectedTask((prev: any) => {
+          if (!prev || selectedTaskIdRef.current !== cleanId) return null;
+          return {
+            ...prev,
+            ...taskData,
+            ...(pendingStatus ? { status: pendingStatus } : {}),
+            media: normalizedMedia,
+            media_links: normalizedMedia,
+          };
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar detalhes da tarefa:', err);
     }
   };
 
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
+    if (!taskId) return;
+    const cleanId = taskId.toString().replace(/^task-/, '');
     const previousTasks = tasks;
-    // Atualização otimista imediata para resposta visual instantânea ao arrastar
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-    if (selectedTask?.id === taskId) {
-      setSelectedTask((prev: any) => prev ? { ...prev, status: newStatus } : null);
+    pendingStatusRef.current[cleanId] = newStatus;
+
+    // Atualização otimista imediata para resposta visual instantânea
+    setTasks(prev => prev.map(t => (t.id === taskId || t.id === cleanId) ? { ...t, status: newStatus } : t));
+    if (selectedTaskIdRef.current === cleanId) {
+      setSelectedTask((prev: any) => (prev && (prev.id === taskId || prev.id === cleanId)) ? { ...prev, status: newStatus } : prev);
     }
 
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
+      const res = await fetch(`/api/tasks/${cleanId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) {
+        if (pendingStatusRef.current[cleanId] === newStatus) {
+          delete pendingStatusRef.current[cleanId];
+        }
         setTasks(previousTasks);
-      } else if (selectedTask?.id === taskId) {
-        openTaskDetail(taskId);
+      } else {
+        const data = await res.json().catch(() => null);
+        const updatedTask = data?.task;
+        if (pendingStatusRef.current[cleanId] === newStatus) {
+          delete pendingStatusRef.current[cleanId];
+        }
+        if (updatedTask) {
+          setTasks(prev => prev.map(t => (t.id === taskId || t.id === cleanId) ? { ...t, ...updatedTask, status: newStatus } : t));
+          if (selectedTaskIdRef.current === cleanId) {
+            setSelectedTask((prev: any) => {
+              if (!prev || selectedTaskIdRef.current !== cleanId) return null;
+              return { ...prev, ...updatedTask, status: newStatus };
+            });
+          }
+        }
       }
     } catch (err) {
       console.error(err);
+      if (pendingStatusRef.current[cleanId] === newStatus) {
+        delete pendingStatusRef.current[cleanId];
+      }
       setTasks(previousTasks);
     }
   };
@@ -692,7 +781,7 @@ export default function TasksPage() {
 
       if (res.ok) {
         setShowEditTaskModal(false);
-        await openTaskDetail(selectedTask.id);
+        await refreshOpenTaskDetail(selectedTask.id);
         const tRes = await fetch('/api/tasks');
         if (tRes.ok) {
           const t = await tRes.json();
@@ -716,7 +805,7 @@ export default function TasksPage() {
         body: JSON.stringify({ action: 'approve' }),
       });
       if (res.ok) {
-        openTaskDetail(selectedTask.id);
+        refreshOpenTaskDetail(selectedTask.id);
         setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, status: 'Aprovada' } : t));
       }
     } catch (err) {
@@ -735,7 +824,7 @@ export default function TasksPage() {
       if (res.ok) {
         setShowChangeRequestModal(false);
         setChangeDescription('');
-        openTaskDetail(selectedTask.id);
+        refreshOpenTaskDetail(selectedTask.id);
         setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, status: 'Em alteração' } : t));
       }
     } catch (err) {
@@ -758,7 +847,7 @@ export default function TasksPage() {
       });
       if (res.ok) {
         alert('Solicitação de exclusão enviada ao Administrador.');
-        openTaskDetail(selectedTask.id);
+        refreshOpenTaskDetail(selectedTask.id);
         setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, deletion_request_status: 'pending' } : t));
       }
     } else {
@@ -771,7 +860,7 @@ export default function TasksPage() {
           setConfirmState(prev => ({ ...prev, isOpen: false }));
           const res = await fetch(`/api/tasks/${selectedTask.id}`, { method: 'DELETE' });
           if (res.ok) {
-            setSelectedTask(null);
+            closeTaskDetail();
             setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
           }
         }
@@ -805,7 +894,7 @@ export default function TasksPage() {
       if (res.ok) {
         setShowAddMediaModal(false);
         setNewMedia({ title: '', url: '', description: '', media_type: 'other' });
-        await openTaskDetail(cleanId);
+        await refreshOpenTaskDetail(cleanId);
         const tRes = await fetch('/api/tasks');
         if (tRes.ok) {
           const t = await tRes.json();
@@ -831,7 +920,7 @@ export default function TasksPage() {
         method: 'DELETE',
       });
       if (res.ok) {
-        await openTaskDetail(cleanId);
+        await refreshOpenTaskDetail(cleanId);
         const tRes = await fetch('/api/tasks');
         if (tRes.ok) {
           const t = await tRes.json();
@@ -859,7 +948,7 @@ export default function TasksPage() {
       });
       if (res.ok) {
         setCommentText('');
-        openTaskDetail(selectedTask.id);
+        refreshOpenTaskDetail(selectedTask.id);
       }
     } catch (err) {
       console.error(err);
@@ -1944,7 +2033,7 @@ export default function TasksPage() {
         return (
           <ModalPortal>
             <SafeModalBackdrop
-              onClose={() => setSelectedTask(null)}
+              onClose={closeTaskDetail}
               className="fixed inset-0 !m-0 z-50 flex items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
             >
               <div
@@ -1981,7 +2070,7 @@ export default function TasksPage() {
                       {selectedTask.category_name || 'Geral'}
                     </span>
                     <button
-                      onClick={() => setSelectedTask(null)}
+                      onClick={closeTaskDetail}
                       className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors"
                       title="Fechar"
                     >
@@ -2079,12 +2168,15 @@ export default function TasksPage() {
                       <button
                         onClick={async () => {
                           if (selectedTask.financial_id) {
+                            const targetId = String(selectedTask.id).replace(/^task-/, '');
                             await fetch(`/api/finance/${selectedTask.financial_id}`, {
                               method: 'PATCH',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ status: 'Pago' }),
                             });
-                            setSelectedTask({ ...selectedTask, financial_status: 'Pago' });
+                            if (selectedTaskIdRef.current === targetId) {
+                              setSelectedTask((prev: any) => (prev && selectedTaskIdRef.current === targetId) ? { ...prev, financial_status: 'Pago' } : null);
+                            }
                             fetchInitialData();
                           }
                         }}

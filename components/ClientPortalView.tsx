@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FileCheck2,
   Clock,
@@ -98,8 +98,20 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
 
   // Selected task detail modal
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTaskIdRef = useRef<string | null>(null);
   const [taskDetail, setTaskDetail] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const closeTask = () => {
+    selectedTaskIdRef.current = null;
+    setSelectedTaskId(null);
+    setLoadingDetail(false);
+    if (typeof window !== 'undefined' && window.location.search.includes('id=')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('id');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+  };
 
   // Comments
   const [commentText, setCommentText] = useState('');
@@ -190,6 +202,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
   const openTask = async (id: string) => {
     if (!id) return;
     const cleanId = id.toString().replace(/^task-/, '');
+    selectedTaskIdRef.current = cleanId;
     setSelectedTaskId(cleanId);
     
     // Otimização: se já existe nas tarefas locais, preenche imediatamente para abertura instantânea
@@ -206,23 +219,27 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
     setCommentText('');
     try {
       const res = await fetch(`/api/tasks/${cleanId}`);
+      if (selectedTaskIdRef.current !== cleanId) return;
       if (res.ok) {
         const data = await res.json();
+        if (selectedTaskIdRef.current !== cleanId) return;
         setTaskDetail(data.task || data.data);
       } else {
         if (!cached) {
           showToast('Não foi possível carregar os detalhes da tarefa.', 'error');
-          setSelectedTaskId(null);
+          closeTask();
         }
       }
     } catch (err) {
       console.error(err);
-      if (!cached) {
+      if (!cached && selectedTaskIdRef.current === cleanId) {
         showToast('Erro de conexão ao carregar tarefa.', 'error');
-        setSelectedTaskId(null);
+        closeTask();
       }
     } finally {
-      setLoadingDetail(false);
+      if (selectedTaskIdRef.current === cleanId) {
+        setLoadingDetail(false);
+      }
     }
   };
 
@@ -318,8 +335,10 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
           showToast('Solicitação de alteração enviada para a agência!');
         }
 
-        // Reload full details to bring updated timeline and comments
-        openTask(selectedTaskId);
+        // Reload full details to bring updated timeline and comments only if still open
+        if (selectedTaskIdRef.current === selectedTaskId) {
+          openTask(selectedTaskId);
+        }
       } else {
         showToast(data.error || 'Erro ao processar ação na tarefa.', 'error');
         setActionModal((prev) => ({ ...prev, submitting: false }));
@@ -1446,7 +1465,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
       {selectedTaskId && (
         <ModalPortal>
           <div
-            onClick={() => setSelectedTaskId(null)}
+            onClick={closeTask}
             className="fixed inset-0 !m-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
           >
             <div
@@ -1484,7 +1503,7 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
 
                     <button
                       type="button"
-                      onClick={() => setSelectedTaskId(null)}
+                      onClick={closeTask}
                       className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-xl transition-colors"
                       title="Fechar janela"
                     >
