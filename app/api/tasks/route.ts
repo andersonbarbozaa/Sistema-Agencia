@@ -120,22 +120,48 @@ export async function GET(request: Request) {
 
     if (tasks.length > 0) {
       const ids = tasks.map((t: any) => `'${t.id}'`).join(',');
-      const { results: assigneeRows } = await db
-        .prepare(`
-          SELECT ta.task_id, u.id, u.name, u.avatar_url, u.role
-          FROM task_assignees ta
-          JOIN users u ON ta.user_id = u.id
-          WHERE ta.task_id IN (${ids})
-        `)
-        .all<any>();
+      const [assigneeRes, mediaRes] = await Promise.all([
+        db
+          .prepare(`
+            SELECT ta.task_id, u.id, u.name, u.avatar_url, u.role
+            FROM task_assignees ta
+            JOIN users u ON ta.user_id = u.id
+            WHERE ta.task_id IN (${ids})
+          `)
+          .all<any>(),
+        db
+          .prepare(`
+            SELECT tml.*
+            FROM task_media_links tml
+            WHERE tml.task_id IN (${ids})
+            ORDER BY tml.created_at DESC
+          `)
+          .all<any>()
+          .catch(() => ({ results: [] as any[] })),
+      ]);
 
+      const assigneeRows = assigneeRes.results || [];
       const assigneeMap: Record<string, any[]> = {};
       for (const row of assigneeRows) {
         if (!assigneeMap[row.task_id]) assigneeMap[row.task_id] = [];
         assigneeMap[row.task_id].push({ id: row.id, name: row.name, avatar_url: row.avatar_url, role: row.role });
       }
+
+      const mediaRows = mediaRes.results || [];
+      const mediaMap: Record<string, any[]> = {};
+      for (const row of mediaRows) {
+        if (!mediaMap[row.task_id]) mediaMap[row.task_id] = [];
+        mediaMap[row.task_id].push({
+          ...row,
+          title: row.title || row.description || 'Mídia da Tarefa',
+        });
+      }
+
       for (const task of tasks) {
         task.assignees = assigneeMap[task.id] || [];
+        const taskMedia = mediaMap[task.id] || [];
+        task.media = taskMedia;
+        task.media_links = taskMedia;
       }
     }
 

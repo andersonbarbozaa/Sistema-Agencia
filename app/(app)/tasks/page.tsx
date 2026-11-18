@@ -121,11 +121,6 @@ function TaskImagePreviewCard({
           </div>
         ) : (
           <>
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 z-10">
-                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
             <img
               src={currentImgUrl}
               alt={media.title || 'Imagem da Tarefa'}
@@ -141,7 +136,8 @@ function TaskImagePreviewCard({
                 }
               }}
               className="w-full h-full object-contain select-none"
-              loading="lazy"
+              loading="eager"
+              decoding="sync"
               draggable={false}
             />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
@@ -494,6 +490,11 @@ export default function TasksPage() {
   const [showAddMediaModal, setShowAddMediaModal] = useState(false);
   const [newMedia, setNewMedia] = useState({ title: '', url: '', description: '', media_type: 'other' });
 
+  // Media management inside Edit Task modal
+  const [editNewMedia, setEditNewMedia] = useState({ title: '', url: '', media_type: 'other' });
+  const [addingEditMedia, setAddingEditMedia] = useState(false);
+  const [removingMediaId, setRemovingMediaId] = useState<string | null>(null);
+
   // New comment input
   const [commentText, setCommentText] = useState('');
 
@@ -583,11 +584,23 @@ export default function TasksPage() {
     selectedTaskIdRef.current = cleanId;
     const reqSeq = ++openRequestSeqRef.current;
 
-    // Abre instantaneamente com dados em cache local se existirem
+    // Abre instantaneamente com dados e mídias em cache local se existirem
     const cachedTask = tasks.find((t) => t.id === cleanId || t.id === taskId);
     if (cachedTask) {
-      const normalizedMedia = (cachedTask as any).media || (cachedTask as any).media_links || [];
+      let normalizedMedia = (cachedTask as any).media || (cachedTask as any).media_links || [];
+      if (normalizedMedia.length === 0 && (cachedTask as any).cover_image_url) {
+        normalizedMedia = [
+          {
+            id: `cover_${cleanId}`,
+            task_id: cleanId,
+            url: (cachedTask as any).cover_image_url,
+            media_type: (cachedTask as any).cover_media_type || detectMediaType((cachedTask as any).cover_image_url),
+            title: 'Mídia da Tarefa',
+          },
+        ];
+      }
       const pendingStatus = pendingStatusRef.current[cleanId];
+      setSelectedMediaId(normalizedMedia[0]?.id || null);
       setSelectedTask({
         ...cachedTask,
         ...(pendingStatus ? { status: pendingStatus } : {}),
@@ -612,6 +625,10 @@ export default function TasksPage() {
         const taskData = data.task || data;
         const normalizedMedia = taskData.media || taskData.media_links || [];
         const pendingStatus = pendingStatusRef.current[cleanId];
+        setSelectedMediaId((prevId) => {
+          if (prevId && normalizedMedia.some((m: any) => m.id === prevId)) return prevId;
+          return normalizedMedia[0]?.id || null;
+        });
         setSelectedTask((prev: any) => {
           if (selectedTaskIdRef.current !== cleanId) return null;
           return {
@@ -622,6 +639,20 @@ export default function TasksPage() {
             media_links: normalizedMedia,
           };
         });
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === cleanId || t.id === taskId
+              ? {
+                  ...t,
+                  ...taskData,
+                  ...(pendingStatus ? { status: pendingStatus } : {}),
+                  media: normalizedMedia,
+                  media_links: normalizedMedia,
+                  media_links_count: normalizedMedia.length,
+                }
+              : t
+          )
+        );
       }
     } catch (err) {
       console.error('Erro ao abrir detalhes da tarefa:', err);
@@ -646,6 +677,10 @@ export default function TasksPage() {
         const taskData = data.task || data;
         const normalizedMedia = taskData.media || taskData.media_links || [];
         const pendingStatus = pendingStatusRef.current[cleanId];
+        setSelectedMediaId((prevId) => {
+          if (prevId && normalizedMedia.some((m: any) => m.id === prevId)) return prevId;
+          return normalizedMedia[0]?.id || null;
+        });
         setSelectedTask((prev: any) => {
           if (!prev || selectedTaskIdRef.current !== cleanId) return null;
           return {
@@ -656,6 +691,20 @@ export default function TasksPage() {
             media_links: normalizedMedia,
           };
         });
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === cleanId || t.id === taskId
+              ? {
+                  ...t,
+                  ...taskData,
+                  ...(pendingStatus ? { status: pendingStatus } : {}),
+                  media: normalizedMedia,
+                  media_links: normalizedMedia,
+                  media_links_count: normalizedMedia.length,
+                }
+              : t
+          )
+        );
       }
     } catch (err) {
       console.error('Erro ao atualizar detalhes da tarefa:', err);
@@ -753,7 +802,7 @@ export default function TasksPage() {
   };
 
   const openEditTask = (task: any) => {
-    setEditTaskForm({
+    const formState = {
       name: task.name || task.title || '',
       description: task.description || '',
       client_id: task.client_id || '',
@@ -764,7 +813,10 @@ export default function TasksPage() {
       assignee_ids: task.assignees ? task.assignees.map((a: any) => a.id) : [],
       visibility: task.visibility || 'grupo',
       calendar_id: task.calendar_id || '',
-    });
+    };
+    setEditTaskForm(formState);
+    setInitialEditTaskState(JSON.stringify(formState));
+    setEditNewMedia({ title: '', url: '', media_type: 'other' });
     setShowEditTaskModal(true);
   };
 
@@ -773,6 +825,30 @@ export default function TasksPage() {
     if (!selectedTask || !editTaskForm.name || !editTaskForm.client_id) return;
 
     try {
+      const cleanId = (selectedTask.id || '').toString().replace(/^task-/, '');
+
+      // Se o usuário digitou/colou uma mídia nova no modal de edição e clicou direto em Salvar Alterações, adiciona automaticamente
+      if (editNewMedia.url?.trim()) {
+        const detectedType =
+          editNewMedia.media_type && editNewMedia.media_type !== 'other'
+            ? editNewMedia.media_type
+            : detectMediaType(editNewMedia.url);
+        const titleToSend =
+          editNewMedia.title?.trim() ||
+          (detectedType === 'video' ? 'Vídeo da Tarefa' : detectedType === 'image' ? 'Imagem da Tarefa' : 'Arquivo da Tarefa');
+
+        await fetch(`/api/tasks/${cleanId}/media`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: editNewMedia.url.trim(),
+            title: titleToSend,
+            media_type: detectedType,
+          }),
+        });
+        setEditNewMedia({ title: '', url: '', media_type: 'other' });
+      }
+
       const res = await fetch(`/api/tasks/${selectedTask.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -892,14 +968,30 @@ export default function TasksPage() {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const created = data.media;
+        if (created) {
+          setSelectedMediaId(created.id);
+          setSelectedTask((prev: any) => {
+            if (!prev) return null;
+            const prevList = (prev.media || prev.media_links || []).filter((m: any) => !String(m.id).startsWith('cover_'));
+            const nextList = [created, ...prevList];
+            return { ...prev, media: nextList, media_links: nextList };
+          });
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id === cleanId || t.id === selectedTask.id) {
+                const prevList = ((t as any).media || (t as any).media_links || []).filter((m: any) => !String(m.id).startsWith('cover_'));
+                const nextList = [created, ...prevList];
+                return { ...t, media: nextList, media_links: nextList, media_links_count: nextList.length } as any;
+              }
+              return t;
+            })
+          );
+        }
         setShowAddMediaModal(false);
         setNewMedia({ title: '', url: '', description: '', media_type: 'other' });
         await refreshOpenTaskDetail(cleanId);
-        const tRes = await fetch('/api/tasks');
-        if (tRes.ok) {
-          const t = await tRes.json();
-          setTasks(t.tasks || t.data || []);
-        }
       } else {
         const errData = await res.json().catch(() => ({}));
         alert(errData.error || 'Erro ao adicionar link de mídia.');
@@ -910,29 +1002,112 @@ export default function TasksPage() {
     }
   };
 
-  const handleDeleteMedia = async (mediaId: string) => {
-    if (!selectedTask) return;
-    if (!confirm('Deseja realmente remover este anexo de mídia?')) return;
+  const handleAddMediaInEdit = async () => {
+    if (!selectedTask || !editNewMedia.url?.trim() || addingEditMedia) return;
 
     try {
+      setAddingEditMedia(true);
+      const detectedType =
+        editNewMedia.media_type && editNewMedia.media_type !== 'other'
+          ? editNewMedia.media_type
+          : detectMediaType(editNewMedia.url);
+
+      const titleToSend =
+        editNewMedia.title?.trim() ||
+        (detectedType === 'video' ? 'Vídeo da Tarefa' : detectedType === 'image' ? 'Imagem da Tarefa' : 'Arquivo da Tarefa');
+
       const cleanId = (selectedTask.id || '').toString().replace(/^task-/, '');
+      const res = await fetch(`/api/tasks/${cleanId}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: editNewMedia.url.trim(),
+          title: titleToSend,
+          media_type: detectedType,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const created = data.media;
+        if (created) {
+          setSelectedMediaId(created.id);
+          setSelectedTask((prev: any) => {
+            if (!prev) return null;
+            const prevList = (prev.media || prev.media_links || []).filter((m: any) => !String(m.id).startsWith('cover_'));
+            const nextList = [created, ...prevList];
+            return { ...prev, media: nextList, media_links: nextList };
+          });
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id === cleanId || t.id === selectedTask.id) {
+                const prevList = ((t as any).media || (t as any).media_links || []).filter((m: any) => !String(m.id).startsWith('cover_'));
+                const nextList = [created, ...prevList];
+                return { ...t, media: nextList, media_links: nextList, media_links_count: nextList.length } as any;
+              }
+              return t;
+            })
+          );
+        }
+        setEditNewMedia({ title: '', url: '', media_type: 'other' });
+        await refreshOpenTaskDetail(cleanId);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Erro ao adicionar link de mídia.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao conectar com o servidor para adicionar mídia.');
+    } finally {
+      setAddingEditMedia(false);
+    }
+  };
+
+  const handleDeleteMedia = async (mediaId: string) => {
+    if (!selectedTask || !mediaId) return;
+
+    const cleanId = (selectedTask.id || '').toString().replace(/^task-/, '');
+    const previousMedia = selectedTask.media || selectedTask.media_links || [];
+    const updatedMedia = previousMedia.filter((m: any) => m.id !== mediaId);
+
+    // Atualização otimista imediata na tarefa selecionada e na lista
+    setRemovingMediaId(mediaId);
+    if (selectedMediaId === mediaId) {
+      setSelectedMediaId(updatedMedia[0]?.id || null);
+    }
+    setSelectedTask((prev: any) =>
+      prev ? { ...prev, media: updatedMedia, media_links: updatedMedia } : null
+    );
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === cleanId || t.id === selectedTask.id
+          ? ({ ...t, media: updatedMedia, media_links: updatedMedia, media_links_count: updatedMedia.length } as any)
+          : t
+      )
+    );
+
+    if (String(mediaId).startsWith('cover_')) {
+      setRemovingMediaId(null);
+      return;
+    }
+
+    try {
       const res = await fetch(`/api/tasks/${cleanId}/media/${mediaId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
         await refreshOpenTaskDetail(cleanId);
-        const tRes = await fetch('/api/tasks');
-        if (tRes.ok) {
-          const t = await tRes.json();
-          setTasks(t.tasks || t.data || []);
-        }
       } else {
         const errData = await res.json().catch(() => ({}));
         alert(errData.error || 'Erro ao remover mídia.');
+        await refreshOpenTaskDetail(cleanId);
       }
     } catch (err) {
       console.error(err);
       alert('Erro de conexão ao excluir mídia.');
+      await refreshOpenTaskDetail(cleanId);
+    } finally {
+      setRemovingMediaId(null);
     }
   };
 
@@ -2415,7 +2590,7 @@ export default function TasksPage() {
                   {/* Active Media Preview Card Mobile */}
                   {activeIsVideo ? (
                     <TaskVideoPreviewCard
-                      key={`mob-${activeMedia.id}`}
+                      key={`mob-${activeMedia.url || activeMedia.id}`}
                       media={activeMedia}
                       taskName={selectedTask?.name}
                       onExpand={(isVert) => {
@@ -2425,7 +2600,7 @@ export default function TasksPage() {
                     />
                   ) : (
                     <TaskImagePreviewCard
-                      key={`mob-${activeMedia.id}`}
+                      key={`mob-${activeMedia.url || activeMedia.id}`}
                       media={activeMedia}
                       onExpand={() => {
                         const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
@@ -2485,7 +2660,7 @@ export default function TasksPage() {
                 {/* Active Media Preview Card */}
                 {activeIsVideo ? (
                   <TaskVideoPreviewCard
-                    key={activeMedia.id}
+                    key={activeMedia.url || activeMedia.id}
                     media={activeMedia}
                     taskName={selectedTask?.name}
                     onExpand={(isVert) => {
@@ -2495,7 +2670,7 @@ export default function TasksPage() {
                   />
                 ) : (
                   <TaskImagePreviewCard
-                    key={activeMedia.id}
+                    key={activeMedia.url || activeMedia.id}
                     media={activeMedia}
                     onExpand={() => {
                       const orig = taskMediaList.findIndex(m => m.id === activeMedia.id);
@@ -3275,6 +3450,187 @@ export default function TasksPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Mídias da Tarefa (Ver existentes, remover ou inserir novas) */}
+                  {(() => {
+                    const editMediaList: TaskMediaLink[] = selectedTask.media || selectedTask.media_links || [];
+                    return (
+                      <div className="p-3 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                            <Film size={14} className="text-blue-600" />
+                            <span>Mídias da Tarefa ({editMediaList.length})</span>
+                          </label>
+                          {editNewMedia.url && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              {editNewMedia.media_type === 'video' ? 'Vídeo' : editNewMedia.media_type === 'image' ? 'Imagem' : 'Link'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Lista de mídias já existentes na tarefa com miniatura e botão de remover */}
+                        {editMediaList.length > 0 ? (
+                          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                            {editMediaList.map((med, idx) => {
+                              const detected = med.media_type && med.media_type !== 'other' ? med.media_type : detectMediaType(med.url);
+                              const isVid = detected === 'video';
+                              const isImg = detected === 'image';
+                              const gDriveId = getGoogleDriveFileId(med.url);
+                              const thumbUrl = isImg
+                                ? gDriveId
+                                  ? `https://lh3.googleusercontent.com/d/${gDriveId}`
+                                  : med.url
+                                : null;
+
+                              return (
+                                <div
+                                  key={med.id || idx}
+                                  className="p-2.5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2.5 shadow-2xs"
+                                >
+                                  <div
+                                    onClick={() => setMediaViewerState({ list: editMediaList, index: idx })}
+                                    className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer group"
+                                    title="Clique para visualizar a mídia"
+                                  >
+                                    {thumbUrl ? (
+                                      <div className="w-11 h-11 rounded-lg overflow-hidden bg-gray-900 border border-gray-200 dark:border-gray-700 shrink-0 flex items-center justify-center">
+                                        <img
+                                          src={thumbUrl}
+                                          alt={med.title || 'Mídia'}
+                                          referrerPolicy="no-referrer"
+                                          crossOrigin="anonymous"
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            if (gDriveId && !e.currentTarget.src.includes('thumbnail')) {
+                                              e.currentTarget.src = `https://drive.google.com/thumbnail?id=${gDriveId}&sz=w400`;
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 shrink-0 flex items-center justify-center">
+                                        {isVid ? (
+                                          <Film size={18} className="text-blue-600" />
+                                        ) : isImg ? (
+                                          <ImageIcon size={18} className="text-emerald-600" />
+                                        ) : (
+                                          <FileText size={18} className="text-amber-600" />
+                                        )}
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
+                                        {med.title || med.description || `Mídia ${idx + 1}`}
+                                      </p>
+                                      <p className="text-[11px] text-gray-400 truncate">
+                                        {med.url}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setMediaViewerState({ list: editMediaList, index: idx })}
+                                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                      title="Ver mídia"
+                                    >
+                                      <Maximize2 size={14} />
+                                    </button>
+                                    <a
+                                      href={med.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                      title="Abrir link em nova aba"
+                                    >
+                                      <ExternalLink size={14} />
+                                    </a>
+                                    <button
+                                      type="button"
+                                      disabled={removingMediaId === med.id}
+                                      onClick={() => handleDeleteMedia(med.id)}
+                                      className="px-2 py-1 text-[11px] font-semibold text-red-600 hover:text-white hover:bg-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                                      title="Remover esta mídia"
+                                    >
+                                      <Trash2 size={13} />
+                                      <span>Remover</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-2.5 text-center text-[11px] text-gray-500 bg-white/80 dark:bg-gray-800/60 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
+                            Nenhuma mídia cadastrada nesta tarefa.
+                          </div>
+                        )}
+
+                        {/* Campos para inserir mais mídia */}
+                        <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/40 space-y-2">
+                          <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300">
+                            Inserir nova mídia (Imagem, Vídeo ou Link)
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="url"
+                              placeholder="Cole o link aqui (YouTube, Google Drive, Foto...)"
+                              value={editNewMedia.url}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const detected = detectMediaType(val);
+                                setEditNewMedia((prev) => ({
+                                  ...prev,
+                                  url: val,
+                                  media_type: prev.media_type === 'other' || !prev.media_type ? detected : prev.media_type,
+                                }));
+                              }}
+                              className="flex-1 px-3 py-2 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              disabled={!editNewMedia.url.trim() || addingEditMedia}
+                              onClick={handleAddMediaInEdit}
+                              className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 shadow-2xs transition-colors"
+                              title="Inserir mídia na tarefa"
+                            >
+                              <Plus size={14} />
+                              <span>{addingEditMedia ? 'Inserindo...' : 'Inserir'}</span>
+                            </button>
+                          </div>
+
+                          {editNewMedia.url && (
+                            <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
+                              <div>
+                                <label className="block text-[11px] text-gray-500 mb-1">Título do Anexo</label>
+                                <input
+                                  type="text"
+                                  placeholder="Ex: Vídeo versão 2 / Arte"
+                                  value={editNewMedia.title}
+                                  onChange={(e) => setEditNewMedia({ ...editNewMedia, title: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] text-gray-500 mb-1">Tipo de Mídia</label>
+                                <select
+                                  value={editNewMedia.media_type}
+                                  onChange={(e) => setEditNewMedia({ ...editNewMedia, media_type: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                  <option value="other">Auto-detectar</option>
+                                  <option value="video">Vídeo</option>
+                                  <option value="image">Imagem</option>
+                                  <option value="document">Documento</option>
+                                </select>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Coluna Direita: Descrição / Roteiro */}
