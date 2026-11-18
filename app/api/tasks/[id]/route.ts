@@ -207,6 +207,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       setClauses.push('delivery_date = ?');
       updateParams.push(taskDeliveryDate);
     }
+    if (body.start_date !== undefined) {
+      setClauses.push('start_date = ?');
+      updateParams.push(body.start_date || null);
+    }
     if (value !== undefined) {
       setClauses.push('value = ?');
       updateParams.push(Number(value));
@@ -250,6 +254,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         errMsg.includes('has no column') ||
         errMsg.includes('sqlite_error')
       ) {
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN start_date TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN calendar_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN address TEXT').run(); } catch(e){}

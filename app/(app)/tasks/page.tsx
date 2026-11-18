@@ -398,6 +398,7 @@ export default function TasksPage() {
     description: '',
     client_id: '',
     category_id: '',
+    start_date: '',
     delivery_date: '',
     value: 0,
     assignee_ids: [] as string[],
@@ -415,6 +416,7 @@ export default function TasksPage() {
     description: '',
     client_id: '',
     category_id: '',
+    start_date: '',
     delivery_date: '',
     value: 0,
     status: 'Não iniciada',
@@ -428,6 +430,7 @@ export default function TasksPage() {
     newTask.description.trim() ||
     newTask.client_id ||
     newTask.category_id ||
+    newTask.start_date ||
     newTask.delivery_date ||
     newTask.value > 0 ||
     newTask.assignee_ids.length > 0 ||
@@ -442,6 +445,7 @@ export default function TasksPage() {
         description: '',
         client_id: '',
         category_id: '',
+        start_date: '',
         delivery_date: '',
         value: 0,
         assignee_ids: [],
@@ -797,6 +801,7 @@ export default function TasksPage() {
           description: '',
           client_id: '',
           category_id: '',
+          start_date: '',
           delivery_date: '',
           value: 0,
           visibility: 'grupo',
@@ -828,7 +833,8 @@ export default function TasksPage() {
       description: task.description || '',
       client_id: task.client_id || '',
       category_id: task.category_id || '',
-      delivery_date: task.delivery_date || task.due_date || '',
+      start_date: (task.start_date || '').split('T')[0],
+      delivery_date: (task.delivery_date || task.due_date || '').split('T')[0],
       value: task.value || 0,
       status: task.status || 'Não iniciada',
       assignee_ids: task.assignees ? task.assignees.map((a: any) => a.id) : [],
@@ -2023,125 +2029,233 @@ export default function TasksPage() {
             </div>
           </div>
 
-          {/* Calendar Table Grid (Sem barra de rolagem horizontal no mobile) */}
+          {/* Calendar Table Grid (Suporte a tarefas de 1 dia e múltiplos dias com linha do card até a data final) */}
           <div className="w-full">
-            <div className="w-full grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-                <div key={day} className="bg-gray-50 dark:bg-gray-800 py-1.5 sm:py-2.5 text-center text-[10px] sm:text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  <span className="hidden sm:inline">{day}</span>
-                  <span className="inline sm:hidden">{day.charAt(0)}</span>
-                </div>
-              ))}
-
-            {(() => {
-              const year = currentMonthDate.getFullYear();
-              const month = currentMonthDate.getMonth();
-              const firstDayOfWeek = new Date(year, month, 1).getDay();
-              const daysInMonth = new Date(year, month + 1, 0).getDate();
-              const daysInPrevMonth = new Date(year, month, 0).getDate();
-
-              const cells = [];
-
-              // Leading blank/prev month days
-              for (let i = 0; i < firstDayOfWeek; i++) {
-                const prevDayNum = daysInPrevMonth - firstDayOfWeek + i + 1;
-                cells.push(
-                  <div key={`prev-${i}`} className="bg-gray-50/60 dark:bg-gray-800/40 min-h-[60px] sm:min-h-[110px] p-1 sm:p-1.5 opacity-40">
-                    <span className="text-[10px] sm:text-[11px] font-medium text-gray-400">{prevDayNum}</span>
+            <div className="w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+              <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+                  <div key={day} className="py-1.5 sm:py-2.5 text-center text-[10px] sm:text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <span className="hidden sm:inline">{day}</span>
+                    <span className="inline sm:hidden">{day.charAt(0)}</span>
                   </div>
-                );
-              }
+                ))}
+              </div>
 
-              // Days of current month
-              for (let day = 1; day <= daysInMonth; day++) {
-                const monthStr = String(month + 1).padStart(2, '0');
-                const dayStr = String(day).padStart(2, '0');
-                const cellDateStr = `${year}-${monthStr}-${dayStr}`;
-                const isToday = cellDateStr === todayStr;
+              {(() => {
+                const year = currentMonthDate.getFullYear();
+                const month = currentMonthDate.getMonth();
+                const firstDayOfWeek = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-                const dayTasks = filteredTasks.filter((t) => {
-                  if (!t.delivery_date) return false;
-                  return t.delivery_date.startsWith(cellDateStr);
-                });
+                const calDays: { day: number; currentMonth: boolean; dateStr: string }[] = [];
 
-                cells.push(
-                  <div
-                    key={`day-${day}`}
-                    className={cn(
-                      'bg-white dark:bg-gray-800 min-h-[60px] sm:min-h-[110px] p-1 sm:p-2 flex flex-col justify-between transition-colors hover:bg-blue-50/20',
-                      isToday ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/10' : ''
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={cn(
-                        'text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full',
-                        isToday ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300'
-                      )}>
-                        {day}
-                      </span>
-                      {dayTasks.length > 0 && (
-                        <span className="hidden sm:inline text-[10px] font-bold text-gray-400">
-                          {dayTasks.length} {dayTasks.length === 1 ? 'tarefa' : 'tarefas'}
-                        </span>
-                      )}
-                    </div>
+                for (let i = 0; i < firstDayOfWeek; i++) {
+                  const prevDayNum = daysInPrevMonth - firstDayOfWeek + i + 1;
+                  const prevMonthIdx = month === 0 ? 11 : month - 1;
+                  const prevYear = month === 0 ? year - 1 : year;
+                  const dateStr = `${prevYear}-${String(prevMonthIdx + 1).padStart(2, '0')}-${String(prevDayNum).padStart(2, '0')}`;
+                  calDays.push({ day: prevDayNum, currentMonth: false, dateStr });
+                }
 
-                    <div className="space-y-1 flex-1 overflow-y-auto max-h-[100px] sm:max-h-[120px]">
-                      {dayTasks.map((task) => {
-                        let pillBg = 'bg-slate-600 hover:bg-slate-700';
-                        if (task.status === 'Concluída' || (task.status as any) === 'Finalizada') {
-                          pillBg = 'bg-emerald-600 hover:bg-emerald-700';
-                        } else if (isTaskOverdue(task)) {
-                          pillBg = 'bg-rose-600 hover:bg-rose-700';
-                        } else if (task.status === 'Aprovada') {
-                          pillBg = 'bg-blue-600 hover:bg-blue-700';
-                        } else if (task.status === 'Em aprovação') {
-                          pillBg = 'bg-purple-600 hover:bg-purple-700';
-                        } else if (task.status === 'Em alteração') {
-                          pillBg = 'bg-amber-500 hover:bg-amber-600';
-                        } else if (task.status === 'Em produção') {
-                          pillBg = 'bg-yellow-500 hover:bg-yellow-600';
-                        }
+                for (let day = 1; day <= daysInMonth; day++) {
+                  const monthStr = String(month + 1).padStart(2, '0');
+                  const dayStr = String(day).padStart(2, '0');
+                  calDays.push({ day, currentMonth: true, dateStr: `${year}-${monthStr}-${dayStr}` });
+                }
 
-                        return (
-                          <div
-                            key={task.id}
-                            onClick={() => openTaskDetail(task.id)}
-                            className={cn(
-                              'px-1 sm:px-2 py-0.5 sm:py-1 rounded text-left cursor-pointer transition-all shadow-2xs text-white flex flex-col gap-0.5 min-w-0 overflow-hidden',
-                              pillBg
-                            )}
-                            title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
-                          >
-                            <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
-                              {task.name}
-                            </p>
-                            {task.client_name && (
-                              <p className="text-[8px] sm:text-[10px] text-white/80 truncate leading-none">
-                                {task.client_name}
-                              </p>
-                            )}
+                const remaining = (7 - (calDays.length % 7)) % 7;
+                for (let i = 1; i <= remaining; i++) {
+                  const nextMonthIdx = month === 11 ? 0 : month + 1;
+                  const nextYear = month === 11 ? year + 1 : year;
+                  const dateStr = `${nextYear}-${String(nextMonthIdx + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                  calDays.push({ day: i, currentMonth: false, dateStr });
+                }
+
+                const weeks: { day: number; currentMonth: boolean; dateStr: string }[][] = [];
+                for (let w = 0; w < calDays.length; w += 7) {
+                  weeks.push(calDays.slice(w, w + 7));
+                }
+
+                const getTaskCalendarColor = (task: Task) => {
+                  if (task.status === 'Concluída' || (task.status as any) === 'Finalizada') return '#059669';
+                  if (isTaskOverdue(task)) return '#e11d48';
+                  if (task.status === 'Aprovada') return '#2563eb';
+                  if (task.status === 'Em aprovação') return '#9333ea';
+                  if (task.status === 'Em alteração') return '#f59e0b';
+                  if (task.status === 'Em produção') return '#eab308';
+                  return '#475569';
+                };
+
+                const normalizedTasks = filteredTasks
+                  .filter((t) => t.delivery_date || t.start_date)
+                  .map((t) => {
+                    const rawDelivery = (t.delivery_date || '').split('T')[0];
+                    const rawStart = (t.start_date || '').split('T')[0];
+                    const sDate = rawStart && rawDelivery && rawStart <= rawDelivery ? rawStart : (rawDelivery || rawStart);
+                    const eDate = rawDelivery && rawStart && rawDelivery >= rawStart ? rawDelivery : (rawDelivery || rawStart);
+                    return {
+                      ...t,
+                      startDate: sDate,
+                      endDate: eDate,
+                      isMultiDay: Boolean(sDate && eDate && eDate > sDate),
+                      calColor: getTaskCalendarColor(t),
+                    };
+                  });
+
+                return (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {weeks.map((weekDays, wIdx) => {
+                      const weekStart = weekDays[0].dateStr;
+                      const weekEnd = weekDays[6].dateStr;
+                      const weekMultiDayTasks = normalizedTasks.filter(
+                        (t) => t.isMultiDay && t.startDate <= weekEnd && t.endDate >= weekStart
+                      );
+
+                      return (
+                        <div key={wIdx} className="relative min-h-[75px] sm:min-h-[115px] flex flex-col">
+                          {/* Fundo das 7 colunas */}
+                          <div className="absolute inset-0 grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 pointer-events-none">
+                            {weekDays.map((cell, cIdx) => {
+                              const isToday = cell.dateStr === todayStr;
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className={cn(
+                                    'h-full',
+                                    cell.currentMonth
+                                      ? isToday
+                                        ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/10'
+                                        : 'bg-white dark:bg-gray-800'
+                                      : 'bg-gray-50/60 dark:bg-gray-800/40 opacity-40'
+                                  )}
+                                />
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+
+                          {/* Números dos dias */}
+                          <div className="relative z-10 grid grid-cols-7">
+                            {weekDays.map((cell, cIdx) => {
+                              const isToday = cell.dateStr === todayStr;
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className={cn('px-1 sm:px-2 pt-1 sm:pt-1.5 flex items-center justify-between', !cell.currentMonth && 'opacity-40')}
+                                >
+                                  <span
+                                    className={cn(
+                                      'text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full',
+                                      isToday ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300'
+                                    )}
+                                  >
+                                    {cell.day}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Tarefas de múltiplos dias (Card + Linha até a Data Final) */}
+                          {weekMultiDayTasks.length > 0 && (
+                            <div className="relative z-10 grid grid-cols-7 gap-y-1 mt-1">
+                              {weekMultiDayTasks.map((task) => {
+                                let startCol = weekDays.findIndex((d) => d.dateStr >= task.startDate);
+                                if (startCol < 0) startCol = 0;
+                                let endCol = 6;
+                                for (let i = 0; i < 7; i++) {
+                                  if (weekDays[i].dateStr <= task.endDate) endCol = i;
+                                }
+                                const span = Math.max(1, endCol - startCol + 1);
+                                const isActualEnd = task.endDate <= weekEnd;
+                                const endDayFormatted = task.endDate.split('-').slice(1).reverse().join('/');
+
+                                return (
+                                  <div
+                                    key={`${task.id}-w${wIdx}`}
+                                    style={{ gridColumn: `${startCol + 1} / span ${span}` }}
+                                    onClick={() => openTaskDetail(task.id)}
+                                    className="px-1 sm:px-1.5 flex items-center cursor-pointer group/span min-w-0"
+                                    title={`Tarefa: ${task.name} (${formatDate(task.startDate)} até ${formatDate(task.endDate)})`}
+                                  >
+                                    <div
+                                      style={{ backgroundColor: task.calColor }}
+                                      className="px-1.5 py-0.5 rounded text-left shadow-2xs text-white flex flex-col gap-0.5 min-w-0 max-w-[125px] sm:max-w-[180px] shrink-0 group-hover/span:brightness-110 transition-all"
+                                    >
+                                      <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
+                                        {task.name}
+                                      </p>
+                                      {task.client_name && (
+                                        <p className="text-[8px] sm:text-[10px] text-white/85 truncate leading-none">
+                                          {task.client_name}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 flex items-center min-w-[12px]">
+                                      <div
+                                        style={{ backgroundColor: task.calColor }}
+                                        className="h-1 sm:h-1.5 flex-1 rounded-r-full opacity-90 group-hover/span:opacity-100 transition-opacity"
+                                      />
+                                      {isActualEnd ? (
+                                        <div
+                                          style={{ backgroundColor: task.calColor }}
+                                          className="px-1.5 py-0.2 rounded-full text-[8px] sm:text-[9px] font-bold text-white shadow-2xs shrink-0 -ml-1 flex items-center gap-1"
+                                        >
+                                          <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />
+                                          <span>até {endDayFormatted}</span>
+                                        </div>
+                                      ) : (
+                                        <span style={{ color: task.calColor }} className="text-[10px] font-extrabold leading-none ml-0.5">
+                                          →
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Tarefas de 1 dia */}
+                          <div className="relative z-10 grid grid-cols-7 flex-1 mt-1 pb-1 sm:pb-1.5">
+                            {weekDays.map((cell, cIdx) => {
+                              const dayTasks = normalizedTasks.filter((t) => !t.isMultiDay && t.startDate === cell.dateStr);
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className={cn(
+                                    'px-1 sm:px-2 space-y-1 overflow-y-auto max-h-[100px] sm:max-h-[120px]',
+                                    !cell.currentMonth && 'opacity-40'
+                                  )}
+                                >
+                                  {dayTasks.map((task) => (
+                                    <div
+                                      key={task.id}
+                                      onClick={() => openTaskDetail(task.id)}
+                                      style={{ backgroundColor: task.calColor }}
+                                      className="px-1 sm:px-2 py-0.5 sm:py-1 rounded text-left cursor-pointer transition-all shadow-2xs text-white flex flex-col gap-0.5 min-w-0 overflow-hidden hover:brightness-110"
+                                      title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
+                                    >
+                                      <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
+                                        {task.name}
+                                      </p>
+                                      {task.client_name && (
+                                        <p className="text-[8px] sm:text-[10px] text-white/80 truncate leading-none">
+                                          {task.client_name}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
-              }
-
-              // Trailing padding to complete 7-columns
-              const totalCells = cells.length;
-              const remaining = (7 - (totalCells % 7)) % 7;
-              for (let i = 1; i <= remaining; i++) {
-                cells.push(
-                  <div key={`next-${i}`} className="bg-gray-50/60 dark:bg-gray-800/40 min-h-[60px] sm:min-h-[110px] p-1 sm:p-1.5 opacity-40">
-                    <span className="text-[10px] sm:text-[11px] font-medium text-gray-400">{i}</span>
-                  </div>
-                );
-              }
-
-              return cells;
-            })()}
+              })()}
             </div>
           </div>
         </div>
@@ -3008,11 +3122,29 @@ export default function TasksPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Data Início</label>
                       <input
                         type="date"
+                        value={newTask.start_date}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewTask((prev) => ({
+                            ...prev,
+                            start_date: val,
+                            delivery_date: prev.delivery_date && prev.delivery_date < val ? val : prev.delivery_date,
+                          }));
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Data Fim / Entrega</label>
+                      <input
+                        type="date"
+                        min={newTask.start_date || undefined}
                         value={newTask.delivery_date}
                         onChange={(e) => setNewTask({ ...newTask, delivery_date: e.target.value })}
                         className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -3020,7 +3152,7 @@ export default function TasksPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Valor do Serviço (R$)</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Valor (R$)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -3392,7 +3524,7 @@ export default function TasksPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
                       <select
@@ -3407,9 +3539,27 @@ export default function TasksPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Data Início</label>
                       <input
                         type="date"
+                        value={editTaskForm.start_date}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditTaskForm((prev) => ({
+                            ...prev,
+                            start_date: val,
+                            delivery_date: prev.delivery_date && prev.delivery_date < val ? val : prev.delivery_date,
+                          }));
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Data Fim / Entrega</label>
+                      <input
+                        type="date"
+                        min={editTaskForm.start_date || undefined}
                         value={editTaskForm.delivery_date}
                         onChange={(e) => setEditTaskForm({ ...editTaskForm, delivery_date: e.target.value })}
                         className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"

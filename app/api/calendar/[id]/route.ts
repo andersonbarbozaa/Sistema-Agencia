@@ -65,15 +65,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const { start_time, end_time } = body;
 
-    // Validate times if both provided
+    // Validate times if both provided on a single-day event
     const resolvedStart = start_time ?? existing.start_time;
     const resolvedEnd = end_time ?? existing.end_time;
-    if (resolvedStart && resolvedEnd && resolvedStart >= resolvedEnd) {
+    const resolvedEventDate = body.event_date ?? existing.event_date;
+    const resolvedEndDate = body.end_date ?? existing.end_date ?? resolvedEventDate;
+    if ((!resolvedEndDate || resolvedEndDate === resolvedEventDate) && resolvedStart && resolvedEnd && resolvedStart >= resolvedEnd) {
       return NextResponse.json({ error: 'start_time must be before end_time' }, { status: 400 });
     }
 
     const allowedFields = [
-      'title', 'description', 'event_date', 'start_time', 'end_time',
+      'title', 'description', 'event_date', 'end_date', 'start_time', 'end_time',
       'client_id', 'project_id', 'event_type', 'location', 'attendees',
       'visibility', 'calendar_id',
     ];
@@ -112,6 +114,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         errMsg.includes('has no column') ||
         errMsg.includes('sqlite_error')
       ) {
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN end_date TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN location TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}

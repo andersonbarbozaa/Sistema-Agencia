@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       title,
       description,
       event_date,
+      end_date,
       start_time,
       end_time,
       client_id,
@@ -110,7 +111,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'title and event_date are required' }, { status: 400 });
     }
 
-    if (start_time && end_time && start_time >= end_time) {
+    const finalEndDate = end_date && end_date >= event_date ? end_date : event_date;
+
+    if ((!finalEndDate || finalEndDate === event_date) && start_time && end_time && start_time >= end_time) {
       return NextResponse.json({ error: 'start_time must be before end_time' }, { status: 400 });
     }
 
@@ -125,14 +128,15 @@ export async function POST(request: NextRequest) {
       await db
         .prepare(
           `INSERT INTO calendar_events
-            (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, title, description, event_date, end_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
           title,
           description ?? null,
           event_date,
+          finalEndDate,
           start_time ?? null,
           end_time ?? null,
           client_id || null,
@@ -153,6 +157,7 @@ export async function POST(request: NextRequest) {
         errMsg.includes('has no column') ||
         errMsg.includes('sqlite_error')
       ) {
+        try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN end_date TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN location TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE calendar_events ADD COLUMN notes TEXT').run(); } catch(e){}
@@ -163,14 +168,15 @@ export async function POST(request: NextRequest) {
         await db
           .prepare(
             `INSERT INTO calendar_events
-              (id, title, description, event_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              (id, title, description, event_date, end_date, start_time, end_time, client_id, project_id, location, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .bind(
             id,
             title,
             description ?? null,
             event_date,
+            finalEndDate,
             start_time ?? null,
             end_time ?? null,
             client_id || null,

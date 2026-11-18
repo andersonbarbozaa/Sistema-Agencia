@@ -204,6 +204,7 @@ export async function POST(request: Request) {
     const status = body.status || 'Não iniciada';
     const client_id = body.client_id;
     const category_id = body.category_id || null;
+    const start_date = body.start_date || null;
     const delivery_date = body.delivery_date || body.due_date || null;
     const value = body.value ? Number(body.value) : 0;
     const notes = body.notes || null;
@@ -229,8 +230,8 @@ export async function POST(request: Request) {
       await db
         .prepare(`
           INSERT INTO tasks (id, name, description, status, client_id,
-                             category_id, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             category_id, start_date, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .bind(
           id,
@@ -239,6 +240,7 @@ export async function POST(request: Request) {
           status,
           client_id,
           category_id,
+          start_date,
           delivery_date,
           value,
           notes,
@@ -257,6 +259,7 @@ export async function POST(request: Request) {
         errMsg.includes('has no column') ||
         errMsg.includes('sqlite_error')
       ) {
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN start_date TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN calendar_id TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN address TEXT').run(); } catch(e){}
@@ -266,8 +269,8 @@ export async function POST(request: Request) {
         await db
           .prepare(`
             INSERT INTO tasks (id, name, description, status, client_id,
-                               category_id, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               category_id, start_date, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `)
           .bind(
             id,
@@ -276,6 +279,7 @@ export async function POST(request: Request) {
             status,
             client_id,
             category_id,
+            start_date,
             delivery_date,
             value,
             notes,

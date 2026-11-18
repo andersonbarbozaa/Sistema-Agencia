@@ -135,6 +135,7 @@ export interface Task {
   category_id?: string | null;
   category_name?: string | null;
   category_color?: string | null;
+  start_date?: string | null;
   delivery_date?: string | null;
   status: TaskStatus;
   completed_at?: string | null;
@@ -379,6 +380,7 @@ export interface CalendarEvent {
   title: string;
   description?: string | null;
   event_date: string;
+  end_date?: string | null;
   start_time: string;
   end_time: string;
   location?: string | null;
