@@ -69,6 +69,44 @@ export default function FinancePage() {
   const [monthFilter, setMonthFilter] = useState('');
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
   const [searchQuery, setSearchQuery] = useState('');
+  const [financeStateRestored, setFinanceStateRestored] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedTab = sessionStorage.getItem('agencia_finance_active_tab') as any;
+      if (['dashboard', 'all', 'entries', 'exits', 'comparative', 'debts', 'reports'].includes(savedTab)) {
+        setActiveTab(savedTab);
+      }
+      const savedFilters = sessionStorage.getItem('agencia_finance_filters');
+      if (savedFilters) {
+        const parsed = JSON.parse(savedFilters);
+        if (parsed.statusFilter !== undefined) setStatusFilter(parsed.statusFilter);
+        if (parsed.accountFilter !== undefined) setAccountFilter(parsed.accountFilter);
+        if (parsed.categoryFilter !== undefined) setCategoryFilter(parsed.categoryFilter);
+        if (parsed.monthFilter !== undefined) setMonthFilter(parsed.monthFilter);
+        if (parsed.yearFilter !== undefined) setYearFilter(parsed.yearFilter);
+      }
+    } catch {}
+    setFinanceStateRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!financeStateRestored || typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem('agencia_finance_active_tab', activeTab);
+    } catch {}
+  }, [activeTab, financeStateRestored]);
+
+  useEffect(() => {
+    if (!financeStateRestored || typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(
+        'agencia_finance_filters',
+        JSON.stringify({ statusFilter, accountFilter, categoryFilter, monthFilter, yearFilter })
+      );
+    } catch {}
+  }, [statusFilter, accountFilter, categoryFilter, monthFilter, yearFilter, financeStateRestored]);
 
   useEffect(() => {
     const handler = () => setShowTransModal(true);

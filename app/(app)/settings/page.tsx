@@ -163,6 +163,11 @@ function SettingsContent() {
 
   const setActiveTab = (tab: SettingsTab) => {
     setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agencia_settings_active_tab', tab);
+      } catch {}
+    }
     router.push(`/settings?tab=${tab}`, { scroll: false });
   };
 
@@ -696,11 +701,22 @@ function SettingsContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sync tab with URL
+  // Sync tab with URL or sessionStorage
   useEffect(() => {
     if (initialTab && VALID_SETTINGS_TABS.includes(initialTab as any)) {
       setActiveTabState(initialTab as SettingsTab);
-    } else if (!initialTab) {
+      try {
+        sessionStorage.setItem('agencia_settings_active_tab', initialTab);
+      } catch {}
+    } else if (!initialTab && typeof window !== 'undefined') {
+      try {
+        const savedTab = sessionStorage.getItem('agencia_settings_active_tab') as any;
+        if (savedTab && VALID_SETTINGS_TABS.includes(savedTab)) {
+          setActiveTabState(savedTab);
+          router.replace(`/settings?tab=${savedTab}`, { scroll: false });
+          return;
+        }
+      } catch {}
       setActiveTabState('overview');
     }
   }, [initialTab]);

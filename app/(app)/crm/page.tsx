@@ -232,7 +232,22 @@ export default function CRMPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Modais de detalhe e ações
-  const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null);
+  const [selectedLead, setSelectedLeadState] = useState<CRMLead | null>(null);
+  const setSelectedLead = (val: CRMLead | null | ((prev: CRMLead | null) => CRMLead | null)) => {
+    setSelectedLeadState((prev) => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      if (typeof window !== 'undefined') {
+        try {
+          if (next?.id) {
+            sessionStorage.setItem('agencia_crm_selected_lead_id', next.id);
+          } else {
+            sessionStorage.removeItem('agencia_crm_selected_lead_id');
+          }
+        } catch {}
+      }
+      return next;
+    });
+  };
   const [quickContactLead, setQuickContactLead] = useState<CRMLead | null>(null);
   const [missingDataLead, setMissingDataLead] = useState<CRMLead | null>(null);
   const [reactivateModalLead, setReactivateModalLead] = useState<CRMLead | null>(null);
@@ -443,9 +458,19 @@ export default function CRMPage() {
         const raw = d.data || d.leads || [];
         setLeads(raw);
         setSelectedLead((current) => {
-          if (!current) return null;
-          const updated = raw.find((l: CRMLead) => l.id === current.id);
-          return updated || current;
+          if (current) {
+            const updated = raw.find((l: CRMLead) => l.id === current.id);
+            return updated || current;
+          }
+          if (typeof window !== 'undefined') {
+            try {
+              const savedId = sessionStorage.getItem('agencia_crm_selected_lead_id');
+              if (savedId) {
+                return raw.find((l: CRMLead) => l.id === savedId) || null;
+              }
+            } catch {}
+          }
+          return null;
         });
       }
     } catch (err) {

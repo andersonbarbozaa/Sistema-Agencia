@@ -344,6 +344,47 @@ export default function TasksPage() {
   const [clientFilter, setClientFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const filtersRestoredRef = useRef(false);
+
+  // Restore viewMode and filters from sessionStorage on refresh
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedView = sessionStorage.getItem('agencia_tasks_view_mode');
+      if (savedView === 'list' || savedView === 'kanban' || savedView === 'calendar') {
+        setViewMode(savedView);
+      }
+      const savedFilters = sessionStorage.getItem('agencia_tasks_filters');
+      if (savedFilters) {
+        const parsed = JSON.parse(savedFilters);
+        if (parsed.statusFilter !== undefined) setStatusFilter(parsed.statusFilter);
+        if (parsed.clientFilter !== undefined) setClientFilter(parsed.clientFilter);
+        if (parsed.categoryFilter !== undefined) setCategoryFilter(parsed.categoryFilter);
+      }
+      const savedOpenId = sessionStorage.getItem('agencia_tasks_open_id');
+      if (savedOpenId && !initialTaskId) {
+        openTaskDetail(savedOpenId);
+      }
+    } catch {}
+    filtersRestoredRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!filtersRestoredRef.current || typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem('agencia_tasks_view_mode', viewMode);
+    } catch {}
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!filtersRestoredRef.current || typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(
+        'agencia_tasks_filters',
+        JSON.stringify({ statusFilter, clientFilter, categoryFilter })
+      );
+    } catch {}
+  }, [statusFilter, clientFilter, categoryFilter]);
 
   // Selected Task for Detail Modal
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
@@ -561,10 +602,15 @@ export default function TasksPage() {
     openRequestSeqRef.current += 1;
     setSelectedTask(null);
     setLoadingDetail(false);
-    if (typeof window !== 'undefined' && window.location.search.includes('id=')) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('id');
-      window.history.replaceState({}, '', url.pathname + url.search);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('agencia_tasks_open_id');
+      } catch {}
+      if (window.location.search.includes('id=')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('id');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
     }
   };
 
@@ -583,6 +629,11 @@ export default function TasksPage() {
     const cleanId = taskId.toString().replace(/^task-/, '');
     selectedTaskIdRef.current = cleanId;
     const reqSeq = ++openRequestSeqRef.current;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agencia_tasks_open_id', cleanId);
+      } catch {}
+    }
 
     // Abre instantaneamente com dados e mídias em cache local se existirem
     const cachedTask = tasks.find((t) => t.id === cleanId || t.id === taskId);

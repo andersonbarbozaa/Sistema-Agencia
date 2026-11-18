@@ -173,7 +173,26 @@ export default function MasterAdminView({ user }: MasterAdminViewProps) {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Submenu ativo: 'users' ou 'workspaces'
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'workspaces'>('users');
+  const [activeSubTab, setActiveSubTabState] = useState<'users' | 'workspaces'>('users');
+  const setActiveSubTab = (tab: 'users' | 'workspaces') => {
+    setActiveSubTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agencia_master_sub_tab', tab);
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('agencia_master_sub_tab');
+        if (saved === 'users' || saved === 'workspaces') {
+          setActiveSubTabState(saved);
+        }
+      } catch {}
+    }
+  }, []);
 
   // Filtros de busca e status
   const [searchQuery, setSearchQuery] = useState('');

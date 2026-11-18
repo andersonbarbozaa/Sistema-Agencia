@@ -43,6 +43,30 @@ export default function AgendaPage() {
   const [isSavingCalendar, setIsSavingCalendar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [agendaStateRestored, setAgendaStateRestored] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedView = sessionStorage.getItem('agencia_agenda_view_mode');
+      if (savedView === 'calendar' || savedView === 'list') {
+        setViewMode(savedView);
+      }
+      const savedCal = sessionStorage.getItem('agencia_agenda_calendar_id');
+      if (savedCal) {
+        setSelectedCalendarId(savedCal);
+      }
+    } catch {}
+    setAgendaStateRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!agendaStateRestored || typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem('agencia_agenda_view_mode', viewMode);
+      sessionStorage.setItem('agencia_agenda_calendar_id', selectedCalendarId);
+    } catch {}
+  }, [viewMode, selectedCalendarId, agendaStateRestored]);
 
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 

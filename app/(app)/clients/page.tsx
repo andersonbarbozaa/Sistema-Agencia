@@ -412,6 +412,19 @@ export default function ClientsPage() {
       }
 
       setClients(clientList);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const savedClientId = sessionStorage.getItem('agencia_clients_selected_id');
+          const savedTab = sessionStorage.getItem('agencia_clients_active_tab') as any;
+          if (savedClientId && !selectedClient) {
+            const found = clientList.find((c) => c.id === savedClientId);
+            if (found) {
+              openClientDetails(found, ['overview', 'tasks', 'finance', 'portal'].includes(savedTab) ? savedTab : 'overview');
+            }
+          }
+        } catch {}
+      }
     } catch (err) {
       console.error('fetchClients error:', err);
     } finally {
@@ -506,9 +519,33 @@ export default function ClientsPage() {
     }
   };
 
-  const openClientDetails = async (client: Client) => {
+  const closeClientDetails = () => {
+    setSelectedClient(null);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('agencia_clients_selected_id');
+        sessionStorage.removeItem('agencia_clients_active_tab');
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (selectedClient && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agencia_clients_active_tab', activeTab);
+      } catch {}
+    }
+  }, [activeTab, selectedClient]);
+
+  const openClientDetails = async (client: Client, initialTab: 'overview' | 'tasks' | 'finance' | 'portal' = 'overview') => {
     setSelectedClient(client);
-    setActiveTab('overview');
+    setActiveTab(initialTab);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agencia_clients_selected_id', client.id);
+        sessionStorage.setItem('agencia_clients_active_tab', initialTab);
+      } catch {}
+    }
     fetchPortalUsers(client.id);
     try {
       setLoadingSummary(true);
@@ -990,7 +1027,7 @@ export default function ClientsPage() {
       {selectedClient && (
         <ModalPortal>
           <SafeModalBackdrop
-            onClose={() => setSelectedClient(null)}
+            onClose={closeClientDetails}
             className="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           >
             <div
@@ -1065,7 +1102,7 @@ export default function ClientsPage() {
                     {selectedClient.status || 'Ativo'}
                   </span>
                   <button
-                    onClick={() => setSelectedClient(null)}
+                    onClick={closeClientDetails}
                     className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
                     title="Fechar"
                   >
@@ -1364,7 +1401,7 @@ export default function ClientsPage() {
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setSelectedClient(null)}
+                onClick={closeClientDetails}
                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-xs transition-colors"
               >
                 Fechar

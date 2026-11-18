@@ -78,9 +78,20 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
 
-  // Read initial filter from URL params (e.g. /tasks?status=para_aprovacao or ?id=xxx)
+  // Read initial filter from URL params or sessionStorage (e.g. /tasks?status=para_aprovacao or ?id=xxx)
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      try {
+        const savedView = sessionStorage.getItem('agencia_client_view_mode') as any;
+        if (savedView === 'list' || savedView === 'kanban' || savedView === 'feed') {
+          setViewMode(savedView);
+        }
+        const savedStatus = sessionStorage.getItem('agencia_client_status_filter');
+        if (savedStatus) {
+          setStatusFilter(savedStatus);
+        }
+      } catch {}
+
       const sp = new URLSearchParams(window.location.search);
       const st = sp.get('status') || sp.get('filter');
       if (st) {
@@ -89,12 +100,20 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
         else if (st === 'em_producao') setStatusFilter('em_producao');
         else if (st === 'concluidas' || st === 'aprovadas') setStatusFilter('concluidas');
       }
-      const tid = sp.get('id');
+      const tid = sp.get('id') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('agencia_client_open_task_id') : null);
       if (tid) {
         openTask(tid);
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem('agencia_client_view_mode', viewMode);
+      sessionStorage.setItem('agencia_client_status_filter', statusFilter);
+    } catch {}
+  }, [viewMode, statusFilter]);
 
   // Selected task detail modal
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -106,10 +125,15 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
     selectedTaskIdRef.current = null;
     setSelectedTaskId(null);
     setLoadingDetail(false);
-    if (typeof window !== 'undefined' && window.location.search.includes('id=')) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('id');
-      window.history.replaceState({}, '', url.pathname + url.search);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('agencia_client_open_task_id');
+      } catch {}
+      if (window.location.search.includes('id=')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('id');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
     }
   };
 
@@ -204,6 +228,11 @@ export default function ClientPortalView({ initialTasks = [], user, counts, mode
     const cleanId = id.toString().replace(/^task-/, '');
     selectedTaskIdRef.current = cleanId;
     setSelectedTaskId(cleanId);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agencia_client_open_task_id', cleanId);
+      } catch {}
+    }
     
     // Otimização: se já existe nas tarefas locais, preenche imediatamente para abertura instantânea
     const cached = tasks.find(t => t.id === cleanId || t.id === id);

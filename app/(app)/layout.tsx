@@ -6,6 +6,7 @@ import Header from '@/components/layout/Header';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import FloatingAIAssistant from '@/components/FloatingAIAssistant';
 import PaywallBanner from '@/components/PaywallBanner';
+import SessionRouteGuard from '@/components/SessionRouteGuard';
 
 export default async function AppLayout({
   children,
@@ -44,6 +45,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50">
+      <SessionRouteGuard />
       <Sidebar user={plainUser} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {isExpired && <PaywallBanner trialEndsAt={trialEndsAt} />}
