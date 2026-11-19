@@ -21,6 +21,7 @@ import {
   CalendarCheck,
   User,
   Check,
+  CheckSquare,
 } from 'lucide-react';
 import { CalendarEvent } from '@/types';
 import { formatDate, cn } from '@/lib/utils';
@@ -580,6 +581,20 @@ export default function AgendaPage() {
         if (task.delivery_date && task.delivery_date.includes('T')) {
           taskTime = task.delivery_date.split('T')[1].substring(0, 5);
         }
+        let checklistTotal = 0;
+        let checklistCompleted = 0;
+        if (Array.isArray(task.checklist)) {
+          checklistTotal = task.checklist.length;
+          checklistCompleted = task.checklist.filter((i: any) => i && i.completed).length;
+        } else if (typeof task.checklist === 'string' && task.checklist.trim()) {
+          try {
+            const parsed = JSON.parse(task.checklist);
+            if (Array.isArray(parsed)) {
+              checklistTotal = parsed.length;
+              checklistCompleted = parsed.filter((i: any) => i && i.completed).length;
+            }
+          } catch {}
+        }
         return {
           id: `task-${task.id}`,
           type: 'task' as const,
@@ -594,6 +609,8 @@ export default function AgendaPage() {
           categoryName: task.category_name,
           categoryColor: task.category_color,
           clientName: task.client_name,
+          checklistTotal,
+          checklistCompleted,
           hexColor: getStatusHexColor(task.status),
           raw: task,
         };
@@ -854,11 +871,19 @@ export default function AgendaPage() {
                               {/* Card Principal na coluna inicial */}
                               <div
                                 style={{ backgroundColor: lineColor }}
-                                className="px-1.5 py-0.5 rounded text-left shadow-2xs text-white flex flex-col gap-0.5 min-w-0 max-w-[125px] sm:max-w-[175px] shrink-0 group-hover/span:brightness-110 transition-all"
+                                className="px-1.5 py-0.5 rounded text-left shadow-2xs text-white flex flex-col gap-0.5 min-w-0 max-w-[135px] sm:max-w-[185px] shrink-0 group-hover/span:brightness-110 transition-all"
                               >
-                                <p className="font-bold text-[9px] sm:text-[10px] leading-tight truncate text-white">
-                                  {item.title}
-                                </p>
+                                <div className="flex items-center justify-between gap-1">
+                                  <p className="font-bold text-[9px] sm:text-[10px] leading-tight truncate text-white">
+                                    {item.title}
+                                  </p>
+                                  {(item as any).checklistTotal > 0 && (
+                                    <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-black/25 text-white text-[8px] sm:text-[9px] font-bold shrink-0 leading-none">
+                                      <CheckSquare size={8} className="shrink-0" />
+                                      {(item as any).checklistCompleted}/{(item as any).checklistTotal}
+                                    </span>
+                                  )}
+                                </div>
                                 {(item.clientName || item.location) && (
                                   <p className="text-[8px] sm:text-[9px] text-white/85 truncate leading-none">
                                     {item.clientName || item.location}
@@ -932,9 +957,17 @@ export default function AgendaPage() {
                                   )}
                                   title={`${item.title}${item.clientName || item.location ? ` | ${item.clientName || item.location}` : ''}`}
                                 >
-                                  <p className="font-bold text-[9px] sm:text-[10px] leading-tight truncate text-white">
-                                    {item.title}
-                                  </p>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <p className="font-bold text-[9px] sm:text-[10px] leading-tight truncate text-white">
+                                      {item.title}
+                                    </p>
+                                    {(item as any).checklistTotal > 0 && (
+                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-black/25 text-white text-[8px] sm:text-[9px] font-bold shrink-0 leading-none">
+                                        <CheckSquare size={8} className="shrink-0" />
+                                        {(item as any).checklistCompleted}/{(item as any).checklistTotal}
+                                      </span>
+                                    )}
+                                  </div>
                                   {(item.clientName || item.location) && (
                                     <p className="text-[8px] sm:text-[9px] text-white/80 truncate leading-none">
                                       {item.clientName || item.location}
@@ -1048,6 +1081,20 @@ export default function AgendaPage() {
                               style={{ backgroundColor: item.category_color || '#3B82F6' }}
                             />
                             {item.category_name}
+                          </span>
+                        )}
+
+                        {(entry as any).checklistTotal > 0 && (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 px-1.5 py-0.2 rounded border text-[10px] font-bold shrink-0",
+                              (entry as any).checklistCompleted === (entry as any).checklistTotal
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
+                                : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
+                            )}
+                          >
+                            <CheckSquare size={10} className="shrink-0" />
+                            {(entry as any).checklistCompleted}/{(entry as any).checklistTotal}
                           </span>
                         )}
 

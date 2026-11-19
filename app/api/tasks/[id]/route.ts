@@ -3,6 +3,27 @@ import { getDb } from '@/lib/db';
 import { getApiUser, isAdmin } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { createNotification, notifyAdmins } from '@/lib/notifications';
+import { TaskChecklistItem } from '@/types';
+
+function parseTaskChecklist(raw: any): TaskChecklistItem[] {
+  if (!raw) return [];
+  let arr = raw;
+  if (typeof raw === 'string') {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((item) => item && typeof item.text === 'string' && item.text.trim().length > 0)
+    .map((item, idx) => ({
+      id: item.id || `chk_${idx}_${Date.now()}`,
+      text: item.text.trim(),
+      completed: Boolean(item.completed),
+    }));
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -44,10 +65,14 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     // Normalizing aliases
+    const parsedChecklist = parseTaskChecklist(taskRow.checklist);
     const task = {
       ...taskRow,
       title: taskRow.name,
       due_date: taskRow.delivery_date,
+      checklist: parsedChecklist,
+      checklist_total: parsedChecklist.length,
+      checklist_completed: parsedChecklist.filter((i) => i.completed).length,
     };
 
     // Private task visibility check
@@ -227,6 +252,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       setClauses.push('calendar_id = ?');
       updateParams.push(body.calendar_id || null);
     }
+    if (body.checklist !== undefined) {
+      const parsedChecklist = parseTaskChecklist(body.checklist);
+      setClauses.push('checklist = ?');
+      updateParams.push(parsedChecklist.length > 0 ? JSON.stringify(parsedChecklist) : null);
+    }
 
     if (isCompleted && !existing.completed_at) {
       setClauses.push('completed_at = ?');
@@ -262,6 +292,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN notes TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN delivery_date TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN completed_at TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN checklist TEXT').run(); } catch(e){}
         await runUpdate();
       } else {
         throw updateErr;
@@ -386,10 +417,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       .bind(id)
       .first<any>();
 
+    const updatedChecklist = parseTaskChecklist(updatedRaw?.checklist);
     const updated = {
       ...updatedRaw,
       title: updatedRaw?.name,
       due_date: updatedRaw?.delivery_date,
+      checklist: updatedChecklist,
+      checklist_total: updatedChecklist.length,
+      checklist_completed: updatedChecklist.filter((i) => i.completed).length,
     };
 
     await logAudit({

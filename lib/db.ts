@@ -140,6 +140,7 @@ function getLocalDatabase(): D1DatabaseInterface {
 
         ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT 'group';
         ALTER TABLE tasks ADD COLUMN calendar_id TEXT;
+        ALTER TABLE tasks ADD COLUMN checklist TEXT;
         ALTER TABLE calendar_events ADD COLUMN visibility TEXT DEFAULT 'group';
         ALTER TABLE calendar_events ADD COLUMN calendar_id TEXT;
 

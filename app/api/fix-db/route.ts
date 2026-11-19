@@ -59,6 +59,7 @@ export async function GET() {
   const alterStatements = [
     'ALTER TABLE tasks ADD COLUMN visibility TEXT DEFAULT "group"',
     'ALTER TABLE tasks ADD COLUMN calendar_id TEXT',
+    'ALTER TABLE tasks ADD COLUMN checklist TEXT',
     'ALTER TABLE calendar_events ADD COLUMN location TEXT',
     'ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT',
     'ALTER TABLE calendar_events ADD COLUMN notes TEXT',

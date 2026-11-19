@@ -366,6 +366,7 @@ ALTER TABLE clients ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DE
 ALTER TABLE clients ADD COLUMN avatar_url TEXT;
 ALTER TABLE projects ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE tasks ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+ALTER TABLE tasks ADD COLUMN checklist TEXT;
 ALTER TABLE task_categories ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE financial_transactions ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE financial_categories ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;

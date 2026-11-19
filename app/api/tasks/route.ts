@@ -5,6 +5,27 @@ import { logAudit } from '@/lib/audit';
 import { createNotification, notifyAdmins } from '@/lib/notifications';
 import { detectMediaType } from '@/lib/media';
 import { generateId } from '@/lib/utils';
+import { TaskChecklistItem } from '@/types';
+
+function parseTaskChecklist(raw: any): TaskChecklistItem[] {
+  if (!raw) return [];
+  let arr = raw;
+  if (typeof raw === 'string') {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((item) => item && typeof item.text === 'string' && item.text.trim().length > 0)
+    .map((item, idx) => ({
+      id: item.id || `chk_${idx}_${Date.now()}`,
+      text: item.text.trim(),
+      completed: Boolean(item.completed),
+    }));
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/tasks
@@ -112,11 +133,17 @@ export async function GET(request: Request) {
     const rawTasks = hasMore ? results.slice(0, limit) : results;
 
     // Normalizing task fields for both name/title and delivery_date/due_date
-    const tasks = rawTasks.map((t: any) => ({
-      ...t,
-      title: t.name,
-      due_date: t.delivery_date,
-    }));
+    const tasks = rawTasks.map((t: any) => {
+      const checklist = parseTaskChecklist(t.checklist);
+      return {
+        ...t,
+        title: t.name,
+        due_date: t.delivery_date,
+        checklist,
+        checklist_total: checklist.length,
+        checklist_completed: checklist.filter((i) => i.completed).length,
+      };
+    });
 
     if (tasks.length > 0) {
       const ids = tasks.map((t: any) => `'${t.id}'`).join(',');
@@ -211,6 +238,8 @@ export async function POST(request: Request) {
     const assignees = body.assignees || body.assignee_ids || [];
     const visibility = body.visibility === 'private' ? 'private' : 'group';
     const calendar_id = body.calendar_id || null;
+    const checklist = parseTaskChecklist(body.checklist);
+    const checklistJson = checklist.length > 0 ? JSON.stringify(checklist) : null;
 
     if (!taskName) {
       return NextResponse.json({ error: 'Nome da tarefa é obrigatório' }, { status: 400 });
@@ -230,8 +259,8 @@ export async function POST(request: Request) {
       await db
         .prepare(`
           INSERT INTO tasks (id, name, description, status, client_id,
-                             category_id, start_date, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             category_id, start_date, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, checklist, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .bind(
           id,
@@ -248,6 +277,7 @@ export async function POST(request: Request) {
           wsId,
           visibility,
           calendar_id,
+          checklistJson,
           now,
           now
         )
@@ -266,11 +296,12 @@ export async function POST(request: Request) {
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN value REAL DEFAULT 0').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN notes TEXT').run(); } catch(e){}
         try { await db.prepare('ALTER TABLE tasks ADD COLUMN delivery_date TEXT').run(); } catch(e){}
+        try { await db.prepare('ALTER TABLE tasks ADD COLUMN checklist TEXT').run(); } catch(e){}
         await db
           .prepare(`
             INSERT INTO tasks (id, name, description, status, client_id,
-                               category_id, start_date, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               category_id, start_date, delivery_date, value, notes, created_by, workspace_id, visibility, calendar_id, checklist, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `)
           .bind(
             id,
@@ -287,6 +318,7 @@ export async function POST(request: Request) {
             wsId,
             visibility,
             calendar_id,
+            checklistJson,
             now,
             now
           )
@@ -436,6 +468,9 @@ export async function POST(request: Request) {
           notes,
           visibility,
           calendar_id,
+          checklist,
+          checklist_total: checklist.length,
+          checklist_completed: checklist.filter((i) => i.completed).length,
           created_by: user.id,
           created_at: now,
           updated_at: now,

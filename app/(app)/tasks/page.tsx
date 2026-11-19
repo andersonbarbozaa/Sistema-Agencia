@@ -31,9 +31,10 @@ import {
   Send,
   Sparkles,
   Check,
+  CheckSquare,
   Maximize2,
 } from 'lucide-react';
-import { Task, TaskMediaLink, TaskComment, TaskStatus } from '@/types';
+import { Task, TaskMediaLink, TaskComment, TaskStatus, TaskChecklistItem } from '@/types';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useSessionState } from '@/lib/useSessionState';
 import { detectMediaType, getGoogleDriveFileId, getEmbedInfo } from '@/lib/media';
@@ -407,7 +408,9 @@ export default function TasksPage() {
     media_url: '',
     media_type: 'other',
     media_title: '',
+    checklist: [] as TaskChecklistItem[],
   });
+  const [newChecklistItemText, setNewChecklistItemText] = useState('');
 
   // Edit Task Modal
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
@@ -423,7 +426,29 @@ export default function TasksPage() {
     visibility: 'grupo',
     calendar_id: '',
     assignee_ids: [] as string[],
+    checklist: [] as TaskChecklistItem[],
   });
+  const [editChecklistItemText, setEditChecklistItemText] = useState('');
+
+  // Checklist inside Task Detail Modal
+  const [detailChecklistItemText, setDetailChecklistItemText] = useState('');
+  const [showDetailChecklistInput, setShowDetailChecklistInput] = useState(false);
+
+  const getTaskChecklistStats = (task: any): { items: TaskChecklistItem[]; total: number; completed: number; allDone: boolean } => {
+    if (!task) return { items: [], total: 0, completed: 0, allDone: false };
+    let items: TaskChecklistItem[] = [];
+    if (Array.isArray(task.checklist)) {
+      items = task.checklist;
+    } else if (typeof task.checklist === 'string' && task.checklist.trim()) {
+      try {
+        const parsed = JSON.parse(task.checklist);
+        if (Array.isArray(parsed)) items = parsed;
+      } catch {}
+    }
+    const total = items.length;
+    const completed = items.filter((i) => i && i.completed).length;
+    return { items, total, completed, allDone: total > 0 && completed === total };
+  };
 
   const isNewTaskDirty = Boolean(
     newTask.name.trim() ||
@@ -434,12 +459,15 @@ export default function TasksPage() {
     newTask.delivery_date ||
     newTask.value > 0 ||
     newTask.assignee_ids.length > 0 ||
-    newTask.media_url.trim()
+    newTask.media_url.trim() ||
+    newTask.checklist.length > 0 ||
+    newChecklistItemText.trim()
   );
 
   const handleCloseCreateTaskModal = () => {
     const doClose = () => {
       setShowCreateModal(false);
+      setNewChecklistItemText('');
       setNewTask({
         name: '',
         description: '',
@@ -454,6 +482,7 @@ export default function TasksPage() {
         media_url: '',
         media_type: 'other',
         media_title: '',
+        checklist: [],
       });
     };
 
@@ -784,18 +813,103 @@ export default function TasksPage() {
     }
   };
 
+  const handleSaveDetailChecklist = async (taskId: string, nextChecklist: TaskChecklistItem[]) => {
+    if (!taskId) return;
+    const cleanId = taskId.toString().replace(/^task-/, '');
+    const total = nextChecklist.length;
+    const completed = nextChecklist.filter((i) => i.completed).length;
+
+    // Optimistic update on selectedTask and tasks list
+    setSelectedTask((prev: any) =>
+      prev && (prev.id === taskId || prev.id === cleanId)
+        ? { ...prev, checklist: nextChecklist, checklist_total: total, checklist_completed: completed }
+        : prev
+    );
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId || t.id === cleanId
+          ? { ...t, checklist: nextChecklist, checklist_total: total, checklist_completed: completed }
+          : t
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/tasks/${cleanId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checklist: nextChecklist }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.task) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId || t.id === cleanId
+                ? { ...t, ...data.task, checklist: nextChecklist, checklist_total: total, checklist_completed: completed }
+                : t
+            )
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao salvar checklist da tarefa:', err);
+    }
+  };
+
+  const handleAddDetailChecklistItem = async () => {
+    if (!selectedTask || !detailChecklistItemText.trim()) return;
+    const currentItems = getTaskChecklistStats(selectedTask).items;
+    const newItem: TaskChecklistItem = {
+      id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+      text: detailChecklistItemText.trim(),
+      completed: false,
+    };
+    const nextChecklist = [...currentItems, newItem];
+    setDetailChecklistItemText('');
+    await handleSaveDetailChecklist(selectedTask.id, nextChecklist);
+  };
+
+  const handleToggleDetailChecklistItem = async (itemId: string) => {
+    if (!selectedTask) return;
+    const currentItems = getTaskChecklistStats(selectedTask).items;
+    const nextChecklist = currentItems.map((item) =>
+      item.id === itemId ? { ...item, completed: !item.completed } : item
+    );
+    await handleSaveDetailChecklist(selectedTask.id, nextChecklist);
+  };
+
+  const handleRemoveDetailChecklistItem = async (itemId: string) => {
+    if (!selectedTask) return;
+    const currentItems = getTaskChecklistStats(selectedTask).items;
+    const nextChecklist = currentItems.filter((item) => item.id !== itemId);
+    await handleSaveDetailChecklist(selectedTask.id, nextChecklist);
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.name || !newTask.client_id) return;
+
+    const finalChecklist = [...(newTask.checklist || [])];
+    if (newChecklistItemText.trim()) {
+      finalChecklist.push({
+        id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+        text: newChecklistItemText.trim(),
+        completed: false,
+      });
+    }
 
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify({
+          ...newTask,
+          checklist: finalChecklist,
+        }),
       });
       if (res.ok) {
         setShowCreateModal(false);
+        setNewChecklistItemText('');
         setNewTask({
           name: '',
           description: '',
@@ -810,6 +924,7 @@ export default function TasksPage() {
           media_url: '',
           media_type: 'other',
           media_title: '',
+          checklist: [],
         });
         // Reload tasks
         const tRes = await fetch('/api/tasks');
@@ -828,6 +943,7 @@ export default function TasksPage() {
   };
 
   const openEditTask = (task: any) => {
+    const existingChecklist = getTaskChecklistStats(task).items;
     const formState = {
       name: task.name || task.title || '',
       description: task.description || '',
@@ -840,9 +956,11 @@ export default function TasksPage() {
       assignee_ids: task.assignees ? task.assignees.map((a: any) => a.id) : [],
       visibility: task.visibility || 'grupo',
       calendar_id: task.calendar_id || '',
+      checklist: existingChecklist,
     };
     setEditTaskForm(formState);
     setInitialEditTaskState(JSON.stringify(formState));
+    setEditChecklistItemText('');
     setEditNewMedia({ title: '', url: '', media_type: 'other' });
     setShowEditTaskModal(true);
   };
@@ -853,6 +971,15 @@ export default function TasksPage() {
 
     try {
       const cleanId = (selectedTask.id || '').toString().replace(/^task-/, '');
+
+      const finalChecklist = [...(editTaskForm.checklist || [])];
+      if (editChecklistItemText.trim()) {
+        finalChecklist.push({
+          id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+          text: editChecklistItemText.trim(),
+          completed: false,
+        });
+      }
 
       // Se o usuário digitou/colou uma mídia nova no modal de edição e clicou direto em Salvar Alterações, adiciona automaticamente
       if (editNewMedia.url?.trim()) {
@@ -879,11 +1006,15 @@ export default function TasksPage() {
       const res = await fetch(`/api/tasks/${selectedTask.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editTaskForm),
+        body: JSON.stringify({
+          ...editTaskForm,
+          checklist: finalChecklist,
+        }),
       });
 
       if (res.ok) {
         setShowEditTaskModal(false);
+        setEditChecklistItemText('');
         await refreshOpenTaskDetail(selectedTask.id);
         const tRes = await fetch('/api/tasks');
         if (tRes.ok) {
@@ -1495,6 +1626,7 @@ export default function TasksPage() {
                 const catObj = categories.find((c) => c.id === task.category_id || c.name === task.category_name);
                 const catColor = task.category_color || catObj?.color || '#3b82f6';
                 const catName = task.category_name || catObj?.name;
+                const chk = getTaskChecklistStats(task);
 
                 return (
                   <div
@@ -1592,6 +1724,21 @@ export default function TasksPage() {
                           {catName}
                         </span>
                       )}
+
+                      {chk.total > 0 && (
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shrink-0 leading-none border",
+                            chk.allDone
+                              ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
+                          )}
+                          title={`Checklist: ${chk.completed} de ${chk.total} concluídos`}
+                        >
+                          <CheckSquare size={9} className="shrink-0" />
+                          <span>{chk.completed}/{chk.total}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -1634,6 +1781,7 @@ export default function TasksPage() {
                     const catObj = categories.find((c) => c.id === task.category_id || c.name === task.category_name);
                     const catColor = task.category_color || catObj?.color || '#3b82f6';
                     const catName = task.category_name || catObj?.name;
+                    const chk = getTaskChecklistStats(task);
 
                     return (
                       <tr
@@ -1683,6 +1831,22 @@ export default function TasksPage() {
                             <span className="truncate font-medium text-gray-900 dark:text-gray-100 text-xs" title={task.name}>
                               {task.name}
                             </span>
+
+                            {/* Indicador de Checklist (ex: 2/5) */}
+                            {chk.total > 0 && (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 border",
+                                  chk.allDone
+                                    ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600"
+                                )}
+                                title={`Checklist: ${chk.completed} de ${chk.total} concluídos`}
+                              >
+                                <CheckSquare size={11} className="shrink-0" />
+                                <span>{chk.completed}/{chk.total}</span>
+                              </span>
+                            )}
 
                             {/* Badge de exclusão */}
                             {isDeletionPending && (
@@ -1889,6 +2053,7 @@ export default function TasksPage() {
                   {columnTasks.map((task) => {
                     const isDeletionPending = task.deletion_request_status === 'pending';
                     const isDraggingThis = draggedTaskId === task.id;
+                    const chk = getTaskChecklistStats(task);
 
                     return (
                       <div
@@ -1966,11 +2131,27 @@ export default function TasksPage() {
                         </p>
 
                         <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                          {task.media_links_count ? (
-                            <span className="flex items-center gap-1 text-blue-600 font-medium">
-                              <Film size={12} /> {task.media_links_count}
-                            </span>
-                          ) : <span />}
+                          <div className="flex items-center gap-2">
+                            {chk.total > 0 && (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold border",
+                                  chk.allDone
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
+                                    : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600"
+                                )}
+                                title={`Checklist: ${chk.completed} de ${chk.total} concluídos`}
+                              >
+                                <CheckSquare size={11} className="shrink-0" />
+                                <span>{chk.completed}/{chk.total}</span>
+                              </span>
+                            )}
+                            {task.media_links_count ? (
+                              <span className="flex items-center gap-1 text-blue-600 font-medium">
+                                <Film size={12} /> {task.media_links_count}
+                              </span>
+                            ) : null}
+                          </div>
 
                           {task.comments_count ? (
                             <span className="flex items-center gap-1 text-gray-400">
@@ -2169,6 +2350,7 @@ export default function TasksPage() {
                                 const span = Math.max(1, endCol - startCol + 1);
                                 const isActualEnd = task.endDate <= weekEnd;
                                 const endDayFormatted = task.endDate.split('-').slice(1).reverse().join('/');
+                                const chk = getTaskChecklistStats(task);
 
                                 return (
                                   <div
@@ -2176,15 +2358,26 @@ export default function TasksPage() {
                                     style={{ gridColumn: `${startCol + 1} / span ${span}` }}
                                     onClick={() => openTaskDetail(task.id)}
                                     className="px-1 sm:px-1.5 flex items-center cursor-pointer group/span min-w-0"
-                                    title={`Tarefa: ${task.name} (${formatDate(task.startDate)} até ${formatDate(task.endDate)})`}
+                                    title={`Tarefa: ${task.name}${chk.total > 0 ? ` [${chk.completed}/${chk.total}]` : ''} (${formatDate(task.startDate)} até ${formatDate(task.endDate)})`}
                                   >
                                     <div
                                       style={{ backgroundColor: task.calColor }}
-                                      className="px-1.5 py-0.5 rounded text-left shadow-2xs text-white flex flex-col gap-0.5 min-w-0 max-w-[125px] sm:max-w-[180px] shrink-0 group-hover/span:brightness-110 transition-all"
+                                      className="px-1.5 py-0.5 rounded text-left shadow-2xs text-white flex flex-col gap-0.5 min-w-0 max-w-[135px] sm:max-w-[195px] shrink-0 group-hover/span:brightness-110 transition-all"
                                     >
-                                      <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
-                                        {task.name}
-                                      </p>
+                                      <div className="flex items-center justify-between gap-1">
+                                        <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
+                                          {task.name}
+                                        </p>
+                                        {chk.total > 0 && (
+                                          <span
+                                            className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-black/25 text-white text-[8px] sm:text-[9px] font-bold shrink-0 leading-none"
+                                            title={`Checklist: ${chk.completed} de ${chk.total} concluídos`}
+                                          >
+                                            <CheckSquare size={8} className="shrink-0" />
+                                            <span>{chk.completed}/{chk.total}</span>
+                                          </span>
+                                        )}
+                                      </div>
                                       {task.client_name && (
                                         <p className="text-[8px] sm:text-[10px] text-white/85 truncate leading-none">
                                           {task.client_name}
@@ -2228,24 +2421,38 @@ export default function TasksPage() {
                                     !cell.currentMonth && 'opacity-40'
                                   )}
                                 >
-                                  {dayTasks.map((task) => (
-                                    <div
-                                      key={task.id}
-                                      onClick={() => openTaskDetail(task.id)}
-                                      style={{ backgroundColor: task.calColor }}
-                                      className="px-1 sm:px-2 py-0.5 sm:py-1 rounded text-left cursor-pointer transition-all shadow-2xs text-white flex flex-col gap-0.5 min-w-0 overflow-hidden hover:brightness-110"
-                                      title={`Tarefa: ${task.name}${task.client_name ? ` (${task.client_name})` : ''}`}
-                                    >
-                                      <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
-                                        {task.name}
-                                      </p>
-                                      {task.client_name && (
-                                        <p className="text-[8px] sm:text-[10px] text-white/80 truncate leading-none">
-                                          {task.client_name}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ))}
+                                  {dayTasks.map((task) => {
+                                    const chk = getTaskChecklistStats(task);
+                                    return (
+                                      <div
+                                        key={task.id}
+                                        onClick={() => openTaskDetail(task.id)}
+                                        style={{ backgroundColor: task.calColor }}
+                                        className="px-1 sm:px-2 py-0.5 sm:py-1 rounded text-left cursor-pointer transition-all shadow-2xs text-white flex flex-col gap-0.5 min-w-0 overflow-hidden hover:brightness-110"
+                                        title={`Tarefa: ${task.name}${chk.total > 0 ? ` [${chk.completed}/${chk.total}]` : ''}${task.client_name ? ` (${task.client_name})` : ''}`}
+                                      >
+                                        <div className="flex items-center justify-between gap-1">
+                                          <p className="font-bold text-[9px] sm:text-[11px] text-white leading-tight truncate">
+                                            {task.name}
+                                          </p>
+                                          {chk.total > 0 && (
+                                            <span
+                                              className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-black/25 text-white text-[8px] sm:text-[9px] font-bold shrink-0 leading-none"
+                                              title={`Checklist: ${chk.completed} de ${chk.total} concluídos`}
+                                            >
+                                              <CheckSquare size={8} className="shrink-0" />
+                                              <span>{chk.completed}/{chk.total}</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                        {task.client_name && (
+                                          <p className="text-[8px] sm:text-[10px] text-white/80 truncate leading-none">
+                                            {task.client_name}
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               );
                             })}
@@ -2518,6 +2725,159 @@ export default function TasksPage() {
                   />
                 </div>
               )}
+
+              {/* ======================================================== */}
+              {/* CHECKLIST SECTION                                        */}
+              {/* ======================================================== */}
+              {(() => {
+                const chk = getTaskChecklistStats(selectedTask);
+                const progressPct = chk.total > 0 ? Math.round((chk.completed / chk.total) * 100) : 0;
+
+                return (
+                  <div className="p-4 bg-gray-50/80 dark:bg-gray-800/60 rounded-xl border border-gray-200/80 dark:border-gray-700/70 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <CheckSquare size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                        <h4 className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
+                          Checklist
+                        </h4>
+                        {chk.total > 0 && (
+                          <span
+                            className={cn(
+                              "text-xs font-bold px-2 py-0.5 rounded-full border",
+                              chk.allDone
+                                ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                                : "bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                            )}
+                          >
+                            {chk.completed}/{chk.total}
+                          </span>
+                        )}
+                      </div>
+
+                      {currentUser?.role !== 'CLIENTE' && !showDetailChecklistInput && chk.total === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowDetailChecklistInput(true)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          <Plus size={14} /> Adicionar Checklist
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Barra de progresso quando há itens */}
+                    {chk.total > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                          <span>{chk.completed} de {chk.total} concluídos</span>
+                          <span>{progressPct}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full transition-all duration-300 rounded-full",
+                              chk.allDone ? "bg-emerald-500" : "bg-blue-600"
+                            )}
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lista de itens do checklist */}
+                    {chk.total > 0 ? (
+                      <div className="space-y-1.5">
+                        {chk.items.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() => handleToggleDetailChecklistItem(item.id)}
+                            className={cn(
+                              "p-2.5 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all select-none group",
+                              item.completed
+                                ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50"
+                                : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600"
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div
+                                className={cn(
+                                  "w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-colors border",
+                                  item.completed
+                                    ? "bg-emerald-600 border-emerald-600 text-white"
+                                    : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 group-hover:border-blue-500"
+                                )}
+                              >
+                                {item.completed && <Check size={11} strokeWidth={3} />}
+                              </div>
+                              <span
+                                className={cn(
+                                  "text-xs break-words transition-all",
+                                  item.completed
+                                    ? "line-through text-gray-400 dark:text-gray-500 font-normal"
+                                    : "text-gray-800 dark:text-gray-100 font-medium"
+                                )}
+                              >
+                                {item.text}
+                              </span>
+                            </div>
+
+                            {currentUser?.role !== 'CLIENTE' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveDetailChecklistItem(item.id);
+                                }}
+                                className="p-1 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 opacity-70 group-hover:opacity-100 transition-all shrink-0"
+                                title="Remover item"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      !showDetailChecklistInput && (
+                        <div
+                          onClick={() => currentUser?.role !== 'CLIENTE' && setShowDetailChecklistInput(true)}
+                          className="p-3 text-center text-xs text-gray-400 bg-white/70 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 cursor-pointer hover:border-blue-300 hover:text-blue-600 transition-colors"
+                        >
+                          Nenhum item no checklist. Clique para adicionar itens à tarefa.
+                        </div>
+                      )
+                    )}
+
+                    {/* Campo para adicionar novo item ao checklist direto na tarefa */}
+                    {currentUser?.role !== 'CLIENTE' && (chk.total > 0 || showDetailChecklistInput) && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          placeholder="Digite um item do checklist e pressione Enter..."
+                          value={detailChecklistItemText}
+                          onChange={(e) => setDetailChecklistItemText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddDetailChecklistItem();
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
+                        />
+                        <button
+                          type="button"
+                          disabled={!detailChecklistItemText.trim()}
+                          onClick={handleAddDetailChecklistItem}
+                          className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors shadow-2xs"
+                        >
+                          <Plus size={14} /> Adicionar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ======================================================== */}
               {/* MEDIA SECTION                                            */}
@@ -3329,16 +3689,138 @@ export default function TasksPage() {
                   </div>
                 </div>
 
-                {/* Coluna Direita: Descrição / Roteiro */}
-                <div className="lg:col-span-7 flex flex-col">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
-                  <div className="flex-1">
-                    <RichTextEditor
-                      value={newTask.description || ''}
-                      onChange={(val) => setNewTask({ ...newTask, description: val })}
-                      placeholder="Instruções de edição, formato, requisitos, roteiro..."
-                      minHeight="280px"
-                    />
+                {/* Coluna Direita: Descrição / Roteiro + Checklist */}
+                <div className="lg:col-span-7 flex flex-col space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
+                    <div>
+                      <RichTextEditor
+                        value={newTask.description || ''}
+                        onChange={(val) => setNewTask({ ...newTask, description: val })}
+                        placeholder="Instruções de edição, formato, requisitos, roteiro..."
+                        minHeight="210px"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Checklist da Nova Tarefa */}
+                  <div className="p-3.5 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <CheckSquare size={14} className="text-blue-600" />
+                        <span>Checklist da Tarefa (Opcional)</span>
+                      </label>
+                      {newTask.checklist.length > 0 && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                          {newTask.checklist.filter((i) => i.completed).length}/{newTask.checklist.length}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Adicionar item ao checklist (Ex: Decupar vídeo, Legendar...)"
+                        value={newChecklistItemText}
+                        onChange={(e) => setNewChecklistItemText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (!newChecklistItemText.trim()) return;
+                            setNewTask((prev) => ({
+                              ...prev,
+                              checklist: [
+                                ...prev.checklist,
+                                {
+                                  id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                                  text: newChecklistItemText.trim(),
+                                  completed: false,
+                                },
+                              ],
+                            }));
+                            setNewChecklistItemText('');
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={!newChecklistItemText.trim()}
+                        onClick={() => {
+                          if (!newChecklistItemText.trim()) return;
+                          setNewTask((prev) => ({
+                            ...prev,
+                            checklist: [
+                              ...prev.checklist,
+                              {
+                                id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                                text: newChecklistItemText.trim(),
+                                completed: false,
+                              },
+                            ],
+                          }));
+                          setNewChecklistItemText('');
+                        }}
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
+                      >
+                        <Plus size={14} />
+                        <span>Adicionar</span>
+                      </button>
+                    </div>
+
+                    {newTask.checklist.length > 0 && (
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 pt-1">
+                        {newTask.checklist.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() =>
+                              setNewTask((prev) => ({
+                                ...prev,
+                                checklist: prev.checklist.map((i) =>
+                                  i.id === item.id ? { ...i, completed: !i.completed } : i
+                                ),
+                              }))
+                            }
+                            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-between gap-2 cursor-pointer select-none group"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div
+                                className={cn(
+                                  "w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors",
+                                  item.completed
+                                    ? "bg-emerald-600 border-emerald-600 text-white"
+                                    : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600"
+                                )}
+                              >
+                                {item.completed && <Check size={10} strokeWidth={3} />}
+                              </div>
+                              <span
+                                className={cn(
+                                  "text-xs truncate",
+                                  item.completed ? "line-through text-gray-400" : "text-gray-800 dark:text-gray-100 font-medium"
+                                )}
+                              >
+                                {item.text}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setNewTask((prev) => ({
+                                  ...prev,
+                                  checklist: prev.checklist.filter((i) => i.id !== item.id),
+                                }));
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 rounded-lg transition-colors shrink-0"
+                              title="Remover item"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3809,16 +4291,138 @@ export default function TasksPage() {
                   })()}
                 </div>
 
-                {/* Coluna Direita: Descrição / Roteiro */}
-                <div className="lg:col-span-7 flex flex-col">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
-                  <div className="flex-1">
-                    <RichTextEditor
-                      value={editTaskForm.description || ''}
-                      onChange={(val) => setEditTaskForm({ ...editTaskForm, description: val })}
-                      placeholder="Instruções de edição, formato, requisitos, roteiro..."
-                      minHeight="280px"
-                    />
+                {/* Coluna Direita: Descrição / Roteiro + Checklist */}
+                <div className="lg:col-span-7 flex flex-col space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição / Roteiro</label>
+                    <div>
+                      <RichTextEditor
+                        value={editTaskForm.description || ''}
+                        onChange={(val) => setEditTaskForm({ ...editTaskForm, description: val })}
+                        placeholder="Instruções de edição, formato, requisitos, roteiro..."
+                        minHeight="210px"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Checklist da Tarefa na Edição */}
+                  <div className="p-3.5 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <CheckSquare size={14} className="text-blue-600" />
+                        <span>Checklist da Tarefa</span>
+                      </label>
+                      {editTaskForm.checklist.length > 0 && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                          {editTaskForm.checklist.filter((i) => i.completed).length}/{editTaskForm.checklist.length}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Adicionar item ao checklist..."
+                        value={editChecklistItemText}
+                        onChange={(e) => setEditChecklistItemText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (!editChecklistItemText.trim()) return;
+                            setEditTaskForm((prev) => ({
+                              ...prev,
+                              checklist: [
+                                ...prev.checklist,
+                                {
+                                  id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                                  text: editChecklistItemText.trim(),
+                                  completed: false,
+                                },
+                              ],
+                            }));
+                            setEditChecklistItemText('');
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 text-xs border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={!editChecklistItemText.trim()}
+                        onClick={() => {
+                          if (!editChecklistItemText.trim()) return;
+                          setEditTaskForm((prev) => ({
+                            ...prev,
+                            checklist: [
+                              ...prev.checklist,
+                              {
+                                id: 'chk_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                                text: editChecklistItemText.trim(),
+                                completed: false,
+                              },
+                            ],
+                          }));
+                          setEditChecklistItemText('');
+                        }}
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
+                      >
+                        <Plus size={14} />
+                        <span>Adicionar</span>
+                      </button>
+                    </div>
+
+                    {editTaskForm.checklist.length > 0 && (
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 pt-1">
+                        {editTaskForm.checklist.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() =>
+                              setEditTaskForm((prev) => ({
+                                ...prev,
+                                checklist: prev.checklist.map((i) =>
+                                  i.id === item.id ? { ...i, completed: !i.completed } : i
+                                ),
+                              }))
+                            }
+                            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-between gap-2 cursor-pointer select-none group"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div
+                                className={cn(
+                                  "w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors",
+                                  item.completed
+                                    ? "bg-emerald-600 border-emerald-600 text-white"
+                                    : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600"
+                                )}
+                              >
+                                {item.completed && <Check size={10} strokeWidth={3} />}
+                              </div>
+                              <span
+                                className={cn(
+                                  "text-xs truncate",
+                                  item.completed ? "line-through text-gray-400" : "text-gray-800 dark:text-gray-100 font-medium"
+                                )}
+                              >
+                                {item.text}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditTaskForm((prev) => ({
+                                  ...prev,
+                                  checklist: prev.checklist.filter((i) => i.id !== item.id),
+                                }));
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 rounded-lg transition-colors shrink-0"
+                              title="Remover item"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

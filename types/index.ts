@@ -124,6 +124,12 @@ export type TaskStatus =
   | 'Aprovada'
   | 'Concluída';
 
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   name: string;
@@ -150,6 +156,9 @@ export interface Task {
   comments_count?: number;
   has_deletion_request?: boolean;
   deletion_request_status?: string | null;
+  checklist?: TaskChecklistItem[];
+  checklist_total?: number;
+  checklist_completed?: number;
 }
 
 export type MediaType = 'image' | 'video' | 'document' | 'other';
