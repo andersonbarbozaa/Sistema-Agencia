@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS positions (
 CREATE TABLE IF NOT EXISTS clients (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  company_name TEXT,
   corporate_name TEXT,
   trade_name TEXT,
   avatar_url TEXT,
+  social_links TEXT,
   document TEXT,
   email TEXT,
   phone TEXT,

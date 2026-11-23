@@ -11,6 +11,9 @@ export async function GET(request: Request) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const today = new Date().toISOString().split('T')[0];
 
         // IF CLIENT: Restricted dashboard data only

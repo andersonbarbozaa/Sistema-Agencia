@@ -304,6 +304,7 @@ export default function AgendaPage() {
         const res = await fetch('/api/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
           body: JSON.stringify({
             name: newEvent.title,
             description: newEvent.description,
@@ -332,6 +333,11 @@ export default function AgendaPage() {
           await fetchData();
         } else {
           const err = await res.json().catch(() => ({}));
+          if (res.status === 401) {
+            alert('Sua sessão expirou. Redirecionando para o login...');
+            window.location.href = '/login';
+            return;
+          }
           alert(err.error || 'Erro ao criar tarefa na agenda.');
         }
         return;

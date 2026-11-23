@@ -30,13 +30,13 @@ export async function GET(request: Request) {
 
     // Auto-heal D1 columns if missing
     try {
-      await db.exec('ALTER TABLE clients ADD COLUMN avatar_url TEXT');
+      await db.prepare('ALTER TABLE clients ADD COLUMN avatar_url TEXT').run();
     } catch {}
     try {
-      await db.exec('ALTER TABLE clients ADD COLUMN social_links TEXT');
+      await db.prepare('ALTER TABLE clients ADD COLUMN social_links TEXT').run();
     } catch {}
     try {
-      await db.exec('ALTER TABLE clients ADD COLUMN company_name TEXT');
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
     } catch {}
 
     // Auto-sync: Ensure all users with role 'CLIENTE' exist as clients in clients table

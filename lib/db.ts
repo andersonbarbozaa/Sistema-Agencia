@@ -305,6 +305,11 @@ function getLocalDatabase(): D1DatabaseInterface {
       `);
     } catch {}
 
+    try { sqlite.exec('ALTER TABLE clients ADD COLUMN company_name TEXT'); } catch {}
+    try { sqlite.exec('ALTER TABLE clients ADD COLUMN avatar_url TEXT'); } catch {}
+    try { sqlite.exec('ALTER TABLE clients ADD COLUMN social_links TEXT'); } catch {}
+    try { sqlite.exec('ALTER TABLE workspaces ADD COLUMN logo_url TEXT'); } catch {}
+
     localDbInstance = {
       prepare(query: string): D1PreparedStatement {
         let boundParams: any[] = [];

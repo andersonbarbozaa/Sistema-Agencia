@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const wsId = user.workspace_id || 'ws_default';
 
     // Query clients that have the same email as user or match user.client_id
@@ -52,6 +55,9 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
 
     // Verify that the requested client belongs to user's email or workspace
     const targetClient = await db

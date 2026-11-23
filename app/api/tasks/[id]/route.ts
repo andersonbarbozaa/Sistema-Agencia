@@ -41,6 +41,9 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const { id } = await params;
     const cleanId = id.toString().replace(/^task-/, '');
 
@@ -185,6 +188,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const { id } = await params;
 
     const existing = await db
@@ -458,6 +464,9 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const { id } = await params;
 
     const task = await db

@@ -30,30 +30,105 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const db = await getDb();
 
-    // Verify client exists
-    const client = await db
+    // Verify client exists (fallback gracefully if virtual/user client)
+    const client = (await db
       .prepare('SELECT id, name FROM clients WHERE id = ?')
       .bind(id)
-      .first();
+      .first()) || { id, name: 'Cliente' };
 
-    if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-    }
-
-    // ── Task counts ─────────────────────────────────────────────────────────
-    // Tasks are linked to projects which are linked to clients
-    const taskStats = await db
+    // ── Client Tasks & Status Counts ────────────────────────────────────────
+    // Tasks are linked directly via t.client_id (or via project p.client_id)
+    const clientTasksResult = await db
       .prepare(
-        `SELECT
-           COUNT(*)                                          AS total_tasks,
-           SUM(CASE WHEN t.status != 'concluida' THEN 1 ELSE 0 END) AS pending_tasks,
-           SUM(CASE WHEN t.status = 'concluida'  THEN 1 ELSE 0 END) AS completed_tasks
+        `SELECT t.*,
+                tc.name as category_name,
+                tc.color as category_color,
+                u.name as created_by_name,
+                (SELECT COUNT(*) FROM task_media_links WHERE task_id = t.id) as media_links_count,
+                (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
+                (SELECT status FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_status,
+                (SELECT id FROM financial_transactions WHERE task_id = t.id AND type = 'Entrada' LIMIT 1) as financial_id
          FROM tasks t
-         INNER JOIN projects p ON t.project_id = p.id
-         WHERE p.client_id = ?`
+         LEFT JOIN task_categories tc ON t.category_id = tc.id
+         LEFT JOIN users u ON t.created_by = u.id
+         LEFT JOIN projects p ON t.project_id = p.id
+         WHERE t.client_id = ? OR p.client_id = ?
+         ORDER BY COALESCE(t.delivery_date, t.created_at) DESC, t.created_at DESC`
       )
-      .bind(id)
-      .first() as Record<string, number> | null;
+      .bind(id, id)
+      .all<any>();
+
+    const rawClientTasks = clientTasksResult.results ?? [];
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const isTaskOverdue = (t: any) => {
+      const s = (t.status || '').toLowerCase();
+      if (s.includes('atrasad')) return true;
+      const isConcluded = s.includes('conclu') || s.includes('aprovad');
+      if (isConcluded) {
+        if ((t.value && Number(t.value) > 0) || t.financial_id) {
+          if (!t.financial_status || t.financial_status.toLowerCase() !== 'pago') {
+            return true;
+          }
+        }
+        return false;
+      }
+      if (!t.delivery_date) return false;
+      const [y, m, d] = String(t.delivery_date).split('T')[0].split('-').map(Number);
+      if (!y || !m || !d) return false;
+      const delivery = new Date(y, m - 1, d);
+      return delivery.getTime() < today.getTime();
+    };
+
+    const statusCounts = {
+      nao_iniciada: 0,
+      em_producao: 0,
+      em_aprovacao: 0,
+      em_alteracao: 0,
+      aprovada: 0,
+      concluida: 0,
+      atrasadas: 0,
+    };
+
+    const clientTasks = rawClientTasks.map((t: any) => {
+      const st = (t.status || 'Não iniciada').trim();
+      const stLower = st.toLowerCase();
+      if (stLower === 'não iniciada' || stLower === 'nao iniciada') statusCounts.nao_iniciada++;
+      else if (stLower === 'em produção' || stLower === 'em producao') statusCounts.em_producao++;
+      else if (stLower === 'em aprovação' || stLower === 'em aprovacao') statusCounts.em_aprovacao++;
+      else if (stLower === 'em alteração' || stLower === 'em alteracao' || stLower === 'em revisão' || stLower === 'em revisao') statusCounts.em_alteracao++;
+      else if (stLower === 'aprovada') statusCounts.aprovada++;
+      else if (stLower === 'concluída' || stLower === 'concluida' || stLower === 'finalizada') statusCounts.concluida++;
+
+      const overdue = isTaskOverdue(t);
+      if (overdue) statusCounts.atrasadas++;
+
+      let checklist: any[] = [];
+      if (Array.isArray(t.checklist)) {
+        checklist = t.checklist;
+      } else if (typeof t.checklist === 'string' && t.checklist.trim()) {
+        try {
+          const parsed = JSON.parse(t.checklist);
+          if (Array.isArray(parsed)) checklist = parsed;
+        } catch {}
+      }
+
+      return {
+        ...t,
+        title: t.name,
+        due_date: t.delivery_date,
+        is_overdue: overdue,
+        checklist,
+        checklist_total: checklist.length,
+        checklist_completed: checklist.filter((i: any) => i && i.completed).length,
+      };
+    });
+
+    const totalTasksCount = clientTasks.length;
+    const completedTasksCount = statusCounts.concluida;
+    const pendingTasksCount = Math.max(0, totalTasksCount - completedTasksCount);
 
     // ── Active projects count ───────────────────────────────────────────────
     const projectStats = await db
@@ -104,10 +179,14 @@ export async function GET(request: Request, { params }: RouteContext) {
       data: {
         client: { id: client.id, name: client.name },
         tasks: {
-          total:     taskStats?.total_tasks     ?? 0,
-          pending:   taskStats?.pending_tasks   ?? 0,
-          completed: taskStats?.completed_tasks ?? 0,
+          total:         totalTasksCount,
+          pending:       pendingTasksCount,
+          completed:     completedTasksCount,
+          status_counts: statusCounts,
+          list:          clientTasks,
         },
+        client_tasks: clientTasks,
+        task_status_counts: statusCounts,
         projects: {
           active: projectStats?.active_projects ?? 0,
         },

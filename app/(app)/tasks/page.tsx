@@ -902,6 +902,7 @@ export default function TasksPage() {
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           ...newTask,
           checklist: finalChecklist,
@@ -927,13 +928,18 @@ export default function TasksPage() {
           checklist: [],
         });
         // Reload tasks
-        const tRes = await fetch('/api/tasks');
+        const tRes = await fetch('/api/tasks', { credentials: 'same-origin' });
         if (tRes.ok) {
           const t = await tRes.json();
           setTasks(t.tasks || t.data || []);
         }
       } else {
         const errData = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          alert('Sua sessão expirou. Redirecionando para o login...');
+          window.location.href = '/login';
+          return;
+        }
         alert(errData.error || 'Erro ao criar tarefa.');
       }
     } catch (err) {

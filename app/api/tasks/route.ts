@@ -48,6 +48,9 @@ export async function GET(request: Request) {
     const limit = 20;
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
 
     const baseSelect = `
       SELECT t.*, COALESCE(NULLIF(c.company_name, ''), NULLIF(c.trade_name, ''), NULLIF(c.corporate_name, ''), c.name) as client_name,
@@ -250,6 +253,9 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const id = 'task_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
     const now = new Date().toISOString();
 

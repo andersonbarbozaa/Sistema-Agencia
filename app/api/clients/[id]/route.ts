@@ -24,6 +24,9 @@ export async function GET(request: Request, { params }: RouteContext) {
     }
 
     const db = await getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
     const client = await db
       .prepare('SELECT * FROM clients WHERE id = ?')
       .bind(id)
@@ -55,6 +58,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     const { id } = await params;
     const db = await getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
 
     const existing = await db
       .prepare('SELECT * FROM clients WHERE id = ?')
@@ -214,6 +220,9 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
     const { id } = await params;
     const db = await getDb();
+    try {
+      await db.prepare('ALTER TABLE clients ADD COLUMN company_name TEXT').run();
+    } catch {}
 
     const existing = await db
       .prepare('SELECT * FROM clients WHERE id = ?')

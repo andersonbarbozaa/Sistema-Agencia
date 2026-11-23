@@ -252,6 +252,7 @@ export default function ClientsPage() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [clientSummary, setClientSummary] = useState<any | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [clientTaskStatusFilter, setClientTaskStatusFilter] = useState<string>('');
   const [confirmState, setConfirmState] = useState<any>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   const createAvatarInputRef = useRef<HTMLInputElement>(null);
@@ -536,6 +537,7 @@ export default function ClientsPage() {
   const openClientDetails = async (client: Client, initialTab: 'overview' | 'tasks' | 'finance' | 'portal' = 'overview') => {
     setSelectedClient(client);
     setActiveTab(initialTab);
+    setClientTaskStatusFilter('');
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('agencia_clients_selected_id', client.id);
@@ -548,18 +550,30 @@ export default function ClientsPage() {
       if (res.ok) {
         const json = await res.json();
         const d = json.data || json;
+        const clientTasksList = d.client_tasks ?? d.tasks?.list ?? [];
+        const statusCounts = d.task_status_counts ?? d.tasks?.status_counts ?? {
+          nao_iniciada: 0,
+          em_producao: 0,
+          em_aprovacao: 0,
+          em_alteracao: 0,
+          aprovada: 0,
+          concluida: 0,
+          atrasadas: 0,
+        };
         setClientSummary({
           ...d,
           total_revenue: d.revenue?.total ?? d.total_revenue ?? 0,
           received_revenue: Math.max(0, (d.revenue?.total ?? 0) - (d.revenue?.pending ?? 0)),
           pending_revenue: d.revenue?.pending ?? d.pending_revenue ?? 0,
           active_contracts_count: d.active_contracts?.length ?? d.active_contracts_count ?? 0,
-          total_tasks: d.tasks?.total ?? d.total_tasks ?? 0,
+          total_tasks: d.tasks?.total ?? d.total_tasks ?? clientTasksList.length,
           pending_tasks: d.tasks?.pending ?? d.pending_tasks ?? 0,
           completed_tasks: d.tasks?.completed ?? d.completed_tasks ?? 0,
           active_projects: d.projects?.active ?? d.active_projects ?? 0,
           recent_transactions: d.recent_transactions ?? [],
           active_contracts: d.active_contracts ?? [],
+          client_tasks: clientTasksList,
+          task_status_counts: statusCounts,
         });
       }
     } catch (err) {
